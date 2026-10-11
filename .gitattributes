@@ -1,0 +1,4 @@
+# Git attributes for cross-platform line ending normalization
+* text=auto eol=lf
+*.jar binary
+*.bat text eol=crlf
