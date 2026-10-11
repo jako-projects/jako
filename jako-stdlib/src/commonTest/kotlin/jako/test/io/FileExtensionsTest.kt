@@ -1,0 +1,129 @@
+package jako.test.io
+
+import java.io.File
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
+
+class FileExtensionsTest {
+
+    @Test
+    fun testFileExtensionAndNameWithoutExtension() {
+        val file = File("/path/to/archive.tar.gz")
+        assertEquals("gz", file.extension)
+        assertEquals("archive.tar", file.nameWithoutExtension)
+
+        val file2 = File("document.txt")
+        assertEquals("txt", file2.extension)
+        assertEquals("document", file2.nameWithoutExtension)
+
+        val file3 = File("no_extension")
+        assertEquals("", file3.extension)
+        assertEquals("no_extension", file3.nameWithoutExtension)
+    }
+
+    @Test
+    fun testFileReadWriteTextAndBytes() {
+        val tempFile = File("/tmp/jako_file_ext_test_" + System.currentTimeMillis() + ".txt")
+        try {
+            tempFile.writeText("Hello File Text")
+            assertEquals("Hello File Text", tempFile.readText())
+
+            tempFile.appendText("\nAppended Line")
+            val lines = tempFile.readLines()
+            assertEquals(2, lines.size)
+            assertEquals("Hello File Text", lines[0])
+            assertEquals("Appended Line", lines[1])
+
+            val bytes = byteArrayOf(10, 20, 30, 40)
+            tempFile.writeBytes(bytes)
+            val readBack = tempFile.readBytes()
+            assertEquals(4, readBack.size)
+            assertEquals(10, readBack[0].toInt())
+            assertEquals(40, readBack[3].toInt())
+
+            tempFile.appendBytes(byteArrayOf(50, 60))
+            val readBack2 = tempFile.readBytes()
+            assertEquals(6, readBack2.size)
+            assertEquals(60, readBack2[5].toInt())
+        } finally {
+            tempFile.delete()
+        }
+    }
+
+    @Test
+    fun testFileCopyToAndDeleteRecursively() {
+        val srcFile = File("/tmp/jako_src_" + System.currentTimeMillis() + ".txt")
+        val dstFile = File("/tmp/jako_dst_" + System.currentTimeMillis() + ".txt")
+        try {
+            srcFile.writeText("Copy Content")
+            srcFile.copyTo(dstFile, overwrite = true)
+            assertTrue(dstFile.exists())
+            assertEquals("Copy Content", srcFile.readText())
+        } finally {
+            srcFile.delete()
+            dstFile.delete()
+        }
+
+        val dir = File("/tmp/jako_dir_test_" + System.currentTimeMillis())
+        val subDir = File(dir, "subdir")
+        val childFile = File(subDir, "child.txt")
+        subDir.mkdirs()
+        childFile.writeText("Child Content")
+
+        assertTrue(childFile.exists())
+        val deleted = dir.deleteRecursively()
+        assertTrue(deleted)
+        assertFalse(dir.exists())
+    }
+
+    @Test
+    fun testFileWalkAndCopyRecursively() {
+        val srcDir = File("/tmp/jako_walk_src_" + System.currentTimeMillis())
+        val dstDir = File("/tmp/jako_walk_dst_" + System.currentTimeMillis())
+        try {
+            val subA = File(srcDir, "a")
+            val subB = File(subA, "b")
+            subB.mkdirs()
+            val file1 = File(srcDir, "root.txt")
+            val file2 = File(subA, "a.txt")
+            val file3 = File(subB, "b.txt")
+            file1.writeText("root")
+            file2.writeText("a")
+            file3.writeText("b")
+
+            val topDownNames = srcDir.walkTopDown().map { it.name }.toList()
+            assertEquals(srcDir.name, topDownNames.first())
+            assertEquals(6, topDownNames.size)
+
+            val bottomUpNames = srcDir.walkBottomUp().map { it.name }.toList()
+            assertEquals(srcDir.name, bottomUpNames.last())
+            assertEquals(6, bottomUpNames.size)
+
+            assertTrue(srcDir.copyRecursively(dstDir, overwrite = true))
+            assertTrue(File(dstDir, "root.txt").exists())
+            assertEquals("b", File(File(File(dstDir, "a"), "b"), "b.txt").readText())
+        } finally {
+            srcDir.deleteRecursively()
+            dstDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun testFileRelativeToAndStartsEndsWith() {
+        val base = File("/usr/local/bin")
+        val target = File("/usr/local/lib/libfoo.so")
+        assertEquals(File("../lib/libfoo.so"), target.relativeTo(base))
+        assertEquals(File("libfoo.so"), target.relativeTo(File("/usr/local/lib")))
+
+        assertTrue(target.startsWith(File("/usr/local")))
+        assertTrue(target.startsWith("/usr"))
+        assertFalse(target.startsWith("/var"))
+
+        assertTrue(target.endsWith(File("lib/libfoo.so")))
+        assertTrue(target.endsWith("libfoo.so"))
+        assertFalse(target.endsWith("other.so"))
+    }
+}
+
