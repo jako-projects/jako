@@ -100,6 +100,27 @@ actual open class DataInputStream actual constructor(
         return Double.fromBits(readLong())
     }
 
+    actual override fun readLine(): String? {
+        val sb = StringBuilder()
+        var c = inStream.read()
+        if (c == -1) return null
+        while (c != -1 && c != '\n'.code) {
+            if (c == '\r'.code) {
+                val c2 = inStream.read()
+                if (c2 != '\n'.code && c2 != -1) {
+                    val stream = inStream
+                    if (stream is PushbackInputStream) {
+                        stream.unread(c2)
+                    }
+                }
+                break
+            }
+            sb.append((c and 0xFF).toChar())
+            c = inStream.read()
+        }
+        return sb.toString()
+    }
+
     actual override fun readUTF(): String {
         val utflen = readUnsignedShort()
         val bytearr = ByteArray(utflen)

@@ -14,6 +14,8 @@ actual open class Scanner : Iterator<String>, Closeable {
     private var delimPattern: Pattern = Pattern.compile("\\s+")
     private var closed: Boolean = false
 
+    actual constructor(source: java.lang.Readable) : this(readReadable(source))
+
     actual constructor(source: String) {
         this.buffer = source
     }
@@ -158,6 +160,21 @@ actual open class Scanner : Iterator<String>, Closeable {
     }
 
     companion object {
+        private fun readReadable(source: java.lang.Readable): String {
+            val sb = StringBuilder()
+            val cb = java.nio.CharBuffer.allocate(1024)
+            while (true) {
+                cb.clear()
+                val n = source.read(cb)
+                if (n < 0) break
+                cb.flip()
+                while (cb.hasRemaining()) {
+                    sb.append(cb.get())
+                }
+            }
+            return sb.toString()
+        }
+
         private fun readStream(stream: InputStream, charsetName: String?): String {
             val bos = ByteArrayOutputStream()
             val buf = ByteArray(8192)

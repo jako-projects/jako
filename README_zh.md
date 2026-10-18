@@ -29,20 +29,51 @@
    - 为 Java 平台类型（`T!`）到 Kotlin 显式类型（`T` vs `T?`）的映射提供清晰的决策和文档。
 
 5. **原生 Kotlin-stdlib 扩展支持（零导包对齐）**
-   - Kotlin 标准库在 Java 类型上的扩展（`kotlin.io`、`kotlin.io.path`、`kotlin.concurrent`、`kotlin.collections`、`kotlin.jvm.optionals` 以及 `kotlin` 中的操作符重载）全部作为具体函数直接在 `commonMain` 中实现。
+   - Kotlin 标准库在 Java 类型上的扩展（`kotlin.io`、`kotlin.io.path`、`kotlin.concurrent`、`kotlin.collections`、`kotlin.jvm.optionals`、`kotlin.streams` 以及 `kotlin` 中的操作符重载）全部作为具体函数直接在 `commonMain` 中实现。
    - 零导包开销：标准默认导入（如 `kotlin.io`）在 JVM 与 Native 上体验完全一致。
 
 ---
 
 ## 🚀 快速接入
 
-在 `build.gradle.kts` 的 `commonMain` 依赖中添加 `jako-stdlib`：
+在 `build.gradle.kts` 的 `commonMain` 依赖中添加 `jako-stdlib`（如果移植的库还使用了 `android.*` API，可同时添加 `jako-android`）：
 
 ```kotlin
 kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation("com.bennyhuo.jako:jako-stdlib:1.0.0")
+            // 可选：Android Framework 核心 API 支持 (android.util, android.os, android.net, android.text, android.graphics, org.json)
+            implementation("com.bennyhuo.jako:jako-android:1.0.0")
+        }
+    }
+}
+```
+
+### 使用 Snapshot 快照版本（每日构建）
+
+`jako` 每天自动构建并向 Maven Central Portal 快照仓库发布最新 Snapshot 版本。如需使用 `-SNAPSHOT` 版本，请在 `settings.gradle.kts`（或 `build.gradle.kts`）中添加快照仓库：
+
+```kotlin
+repositories {
+    mavenCentral()
+    maven("https://central.sonatype.com/repository/maven-snapshots/") {
+        mavenContent {
+            snapshotsOnly()
+        }
+    }
+}
+```
+
+随后在 `build.gradle.kts` 中引入 `-SNAPSHOT` 依赖：
+
+```kotlin
+kotlin {
+    sourceSets {
+        commonMain.dependencies {
+            implementation("com.bennyhuo.jako:jako-stdlib:1.0.0-SNAPSHOT")
+            // 可选：Android Framework 核心 API 支持
+            implementation("com.bennyhuo.jako:jako-android:1.0.0-SNAPSHOT")
         }
     }
 }
@@ -58,9 +89,10 @@ kotlin {
 
 | 层级 | 组件 | 状态 |
 |:---|:---|:---|
-| **jako-stdlib** | 核心 `java.*` / `javax.*` API Native 实现 | ✅ 已完成 254 个类与接口，详情见 [`API_CHECKLIST.md`](API_CHECKLIST.md) |
+| **jako-stdlib** | 核心 `java.*` / `javax.*` API Native 实现 | ✅ 已完成 577 个类与接口，详情见 [`API_CHECKLIST.md`](API_CHECKLIST.md) |
+| **jako-android** | 核心 `android.*` 与 `org.json` API Native 实现 | ✅ 覆盖 `android.util`、`android.text`、`android.net`、`android.os`、`android.graphics`、`org.json`，详情见 [`ANDROID_API_CHECKLIST.md`](ANDROID_API_CHECKLIST.md) |
 | **Kotlin 扩展** | Java API 的官方 `kotlin.*` 扩展支持 | ✅ 直接在 `commonMain` 的官方 `kotlin.*` 包下提供具体实现 |
-| **sample** | 独立 Gradle KMP 示例工程 | ✅ 通过 `includeBuild("../")` 依赖 `jako-stdlib`，展示跨平台实际使用场景 |
+| **sample** | 独立 Gradle KMP 示例工程 | ✅ 通过 `includeBuild("../")` 依赖 `jako-stdlib` 与 `jako-android`，展示跨平台实际使用场景 |
 
 ---
 

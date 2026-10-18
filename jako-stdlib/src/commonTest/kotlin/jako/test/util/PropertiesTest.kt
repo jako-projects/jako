@@ -58,4 +58,26 @@ class PropertiesTest {
         val savedText = out.toByteArray().decodeToString()
         assertTrue(savedText.contains("app.name=JakoApp"))
     }
+
+    @Test
+    fun testPropertiesAsMutableMapAndCloneable() {
+        val props = Properties()
+        val asMap: MutableMap<Any, Any> = props
+        asMap["k1"] = "v1"
+        asMap["k2"] = "v2"
+
+        assertEquals(2, props.size)
+        assertTrue(props.containsKey("k1"))
+        assertTrue(props.containsValue("v2"))
+        assertEquals("v1", props["k1"])
+
+        val cloned = props.clone() as Properties
+        assertEquals(2, cloned.size)
+        assertEquals("v1", cloned.getProperty("k1"))
+        assertEquals("v2", cloned.getProperty("k2"))
+
+        cloned.remove("k1")
+        assertEquals(1, cloned.size)
+        assertEquals(2, props.size)
+    }
 }

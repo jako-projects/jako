@@ -74,6 +74,7 @@ actual open class InetAddress(
 internal expect fun getByNameNative(host: String?): InetAddress
 internal expect fun getAllByNameNative(host: String?): Array<InetAddress>
 internal expect fun getLocalHostNative(): InetAddress
+internal expect fun serverSocketHasPendingConnection(serverSocket: ServerSocket): Boolean
 
 actual open class Inet4Address(hostName: String?, addr: ByteArray) : InetAddress(hostName, addr) {
     actual companion object {

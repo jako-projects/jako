@@ -37,10 +37,12 @@ expect class MathContext : Serializable {
 }
 
 expect class BigInteger : Number, Comparable<BigInteger>, Serializable {
+    constructor(valBytes: ByteArray)
     constructor(valStr: String)
     constructor(valStr: String, radix: Int)
     constructor(signum: Int, magnitude: ByteArray)
     constructor(bitLength: Int, rnd: Random)
+    constructor(bitLength: Int, certainty: Int, rnd: Random)
 
     fun add(valOther: BigInteger): BigInteger
     fun subtract(valOther: BigInteger): BigInteger
@@ -54,6 +56,8 @@ expect class BigInteger : Number, Comparable<BigInteger>, Serializable {
     fun negate(): BigInteger
     fun signum(): Int
     fun mod(m: BigInteger): BigInteger
+    fun modPow(exponent: BigInteger, m: BigInteger): BigInteger
+    fun modInverse(m: BigInteger): BigInteger
     fun shiftLeft(n: Int): BigInteger
     fun shiftRight(n: Int): BigInteger
     fun and(valOther: BigInteger): BigInteger
@@ -66,6 +70,8 @@ expect class BigInteger : Number, Comparable<BigInteger>, Serializable {
     fun flipBit(n: Int): BigInteger
     fun bitLength(): Int
     fun bitCount(): Int
+    fun isProbablePrime(certainty: Int): Boolean
+    fun nextProbablePrime(): BigInteger
     fun toByteArray(): ByteArray
     fun toString(radix: Int): String
 
@@ -86,6 +92,7 @@ expect class BigInteger : Number, Comparable<BigInteger>, Serializable {
         val ONE: BigInteger
         val TEN: BigInteger
         fun valueOf(valLong: Long): BigInteger
+        fun probablePrime(bitLength: Int, rnd: Random): BigInteger
     }
 }
 

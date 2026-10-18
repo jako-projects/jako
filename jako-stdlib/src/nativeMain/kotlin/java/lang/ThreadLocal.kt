@@ -22,11 +22,22 @@ actual open class ThreadLocal<T> actual constructor() {
         Thread.currentThread().threadLocalValues.remove(this)
     }
 
+    internal open fun copyForChild(parentValue: Any?): Any? = parentValue
+
     actual companion object {
         actual fun <S> withInitial(supplier: () -> S): ThreadLocal<S> {
             return object : ThreadLocal<S>() {
                 override fun initialValue(): S = supplier()
             }
         }
+    }
+}
+
+actual open class InheritableThreadLocal<T> actual constructor() : ThreadLocal<T>() {
+    actual protected open fun childValue(parentValue: T?): T? = parentValue
+
+    @Suppress("UNCHECKED_CAST")
+    override fun copyForChild(parentValue: Any?): Any? {
+        return childValue(parentValue as T?)
     }
 }

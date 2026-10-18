@@ -1,13 +1,15 @@
 package java.time
 
 import java.io.Serializable
+import java.time.temporal.Temporal
 import java.time.temporal.TemporalAccessor
+import java.time.temporal.TemporalAdjuster
 import kotlin.math.abs
 
 actual class ZoneOffset private constructor(
     actual val totalSeconds: Int,
     private val offsetId: String
-) : ZoneId(), TemporalAccessor, Comparable<ZoneOffset>, Serializable {
+) : ZoneId(), TemporalAccessor, TemporalAdjuster, Comparable<ZoneOffset>, Serializable {
 
     actual override val id: String get() = offsetId
     actual override fun getId(): String = offsetId
@@ -15,6 +17,14 @@ actual class ZoneOffset private constructor(
 
     override fun offsetAt(instant: Instant): ZoneOffset = this
     override fun offsetAt(localDateTime: LocalDateTime): ZoneOffset = this
+
+    actual override fun adjustInto(temporal: Temporal): Temporal {
+        return when (temporal) {
+            is OffsetDateTime -> OffsetDateTime.of(temporal.toLocalDateTime(), this)
+            is OffsetTime -> OffsetTime.of(temporal.toLocalTime(), this)
+            else -> throw DateTimeException("Unable to adjust temporal with ZoneOffset: $temporal")
+        }
+    }
 
     actual override fun compareTo(other: ZoneOffset): Int = other.totalSeconds - totalSeconds
 

@@ -26,5 +26,12 @@ fun main() {
     println("[4] Loopback TCP Socket Demo:")
     println("    server response   = $echo")
 
+    val android = AndroidDemo.run()
+    println("[5] Android Framework & JSON Demo:")
+    println("    endpoint uri      = ${android.endpointUrl}")
+    println("    active features   = ${android.activeFeatures}")
+    println("    viewport area     = ${android.viewportArea}")
+    println("    parsed tokens     = ${android.parsedTokenCount}")
+
     println("=== All demos completed successfully! ===")
 }

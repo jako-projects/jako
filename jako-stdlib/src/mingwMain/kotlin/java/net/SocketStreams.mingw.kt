@@ -32,7 +32,7 @@ internal class SocketInputStream(
             val bytesRead = recv(sock.convert(), buf, len.convert(), 0).toInt()
             if (bytesRead < 0) {
                 val err = WSAGetLastError()
-                if (err == WSAEWOULDBLOCK) {
+                if (err == WSAEWOULDBLOCK || err == WSAETIMEDOUT) {
                     throw SocketTimeoutException("Read timed out")
                 }
                 throw SocketException("recv failed: WSA error $err")
@@ -44,6 +44,20 @@ internal class SocketInputStream(
                 b[off + i] = buf[i]
             }
             bytesRead
+        }
+    }
+
+    override fun available(): Int {
+        val sock = sockGetter()
+        if (socket.isClosed()) return 0
+        return memScoped {
+            val count = alloc<u_longVar>()
+            count.value = 0u
+            if (ioctlsocket(sock.convert(), FIONREAD.convert(), count.ptr) == 0) {
+                count.value.toInt()
+            } else {
+                0
+            }
         }
     }
 

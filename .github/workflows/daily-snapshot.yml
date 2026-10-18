@@ -1,0 +1,44 @@
+name: Daily Snapshot
+
+on:
+  schedule:
+    # Run daily at 00:00 UTC (08:00 CST)
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  publish-snapshot:
+    name: Build & Publish Snapshot
+    if: github.repository == 'jako-projects/jako' || github.event_name == 'workflow_dispatch'
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle Cache
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Publish Snapshot to Maven Central
+        shell: bash
+        run: |
+          chmod +x ./gradlew
+          rawVersion=$(grep "^VERSION_NAME=" gradle.properties | cut -d'=' -f2 | sed 's/\r//')
+          if [[ "$rawVersion" != *"SNAPSHOT"* ]]; then
+            snapshotVersion="${rawVersion}-SNAPSHOT"
+          else
+            snapshotVersion="${rawVersion}"
+          fi
+          echo "Publishing snapshot version: ${snapshotVersion}"
+          ./gradlew publishToMavenCentral -PVERSION_NAME="${snapshotVersion}"
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_IN_MEMORY_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.SIGNING_IN_MEMORY_KEY_ID }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_IN_MEMORY_KEY_PASSWORD }}

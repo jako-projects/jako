@@ -29,20 +29,51 @@ On Kotlin Multiplatform Native targets, many standard `java.*` libraries (such a
    - Clear decisions and documentation for mapping Java platform types (`T!`) to explicit Kotlin types (`T` vs `T?`).
 
 5. **Native Kotlin-stdlib Extensions Support (Zero-Import Parity)**
-   - Standard Kotlin-stdlib extension functions on Java types (`kotlin.io`, `kotlin.io.path`, `kotlin.concurrent`, `kotlin.collections`, `kotlin.jvm.optionals`, and operator overloads in `kotlin`) are implemented directly as concrete functions in `commonMain`.
+   - Standard Kotlin-stdlib extension functions on Java types (`kotlin.io`, `kotlin.io.path`, `kotlin.concurrent`, `kotlin.collections`, `kotlin.jvm.optionals`, `kotlin.streams`, and operator overloads in `kotlin`) are implemented directly as concrete functions in `commonMain`.
    - Zero-import convenience: Standard default auto-imports (e.g. `kotlin.io`) work identically on both JVM and Native.
 
 ---
 
 ## 🚀 Getting Started
 
-Add `jako-stdlib` to your `commonMain` dependencies in `build.gradle.kts`:
+Add `jako-stdlib` (or `jako-android` if porting Android libraries with `android.*` APIs) to your `commonMain` dependencies in `build.gradle.kts`:
 
 ```kotlin
 kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation("com.bennyhuo.jako:jako-stdlib:1.0.0")
+            // Optional: Android Framework APIs (android.util, android.os, android.net, android.text, android.graphics, org.json)
+            implementation("com.bennyhuo.jako:jako-android:1.0.0")
+        }
+    }
+}
+```
+
+### Using Snapshot Releases (Daily Builds)
+
+Snapshot builds are published daily to the Central Portal Snapshots repository. To use the latest `-SNAPSHOT` version, add the snapshot repository to your `settings.gradle.kts` (or `build.gradle.kts`):
+
+```kotlin
+repositories {
+    mavenCentral()
+    maven("https://central.sonatype.com/repository/maven-snapshots/") {
+        mavenContent {
+            snapshotsOnly()
+        }
+    }
+}
+```
+
+Then declare the `-SNAPSHOT` dependencies in `build.gradle.kts`:
+
+```kotlin
+kotlin {
+    sourceSets {
+        commonMain.dependencies {
+            implementation("com.bennyhuo.jako:jako-stdlib:1.0.0-SNAPSHOT")
+            // Optional: Android Framework APIs
+            implementation("com.bennyhuo.jako:jako-android:1.0.0-SNAPSHOT")
         }
     }
 }
@@ -58,9 +89,10 @@ kotlin {
 
 | Layer | Component | Status |
 |:---|:---|:---|
-| **jako-stdlib** | Core `java.*` / `javax.*` APIs for Native | ✅ 254 classes & interfaces implemented; see [`API_CHECKLIST.md`](API_CHECKLIST.md) |
+| **jako-stdlib** | Core `java.*` / `javax.*` APIs for Native | ✅ 577 classes & interfaces implemented; see [`API_CHECKLIST.md`](API_CHECKLIST.md) |
+| **jako-android** | Core `android.*` & `org.json` APIs for Native | ✅ `android.util`, `android.text`, `android.net`, `android.os`, `android.graphics`, `org.json`; see [`ANDROID_API_CHECKLIST.md`](ANDROID_API_CHECKLIST.md) |
 | **Kotlin Extensions** | Official `kotlin.*` extensions for Java APIs | ✅ Concrete implementations in `commonMain` under official `kotlin.*` packages |
-| **sample** | Standalone KMP Sample Project | ✅ Demonstrates `jako-stdlib` usage across JVM & Native via `includeBuild("../")` |
+| **sample** | Standalone KMP Sample Project | ✅ Demonstrates `jako-stdlib` & `jako-android` usage across JVM & Native via `includeBuild("../")` |
 
 ---
 

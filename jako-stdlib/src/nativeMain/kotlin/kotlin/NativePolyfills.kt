@@ -2,13 +2,13 @@ package kotlin
 
 public typealias Volatile = kotlin.concurrent.Volatile
 
-public actual val <T : Any> kotlin.reflect.KClass<T>.java: Class<T> get() = Class(this)
-public actual val <T : Any> kotlin.reflect.KClass<T>.javaObjectType: Class<T> get() = Class(this)
-public actual val <T : Any> kotlin.reflect.KClass<T>.javaPrimitiveType: Class<T>? get() = Class(this)
+public actual val <T : Any> kotlin.reflect.KClass<T>.java: Class<T> get() = Class(this, primitiveFlag = Class.isPrimitiveKClass(this))
+public actual val <T : Any> kotlin.reflect.KClass<T>.javaObjectType: Class<T> get() = Class(this, primitiveFlag = false)
+public actual val <T : Any> kotlin.reflect.KClass<T>.javaPrimitiveType: Class<T>? get() = if (Class.isPrimitiveKClass(this)) Class(this, primitiveFlag = true) else null
 @Suppress("UNCHECKED_CAST")
 public actual val <T : Any> Class<T>.kotlin: kotlin.reflect.KClass<T> get() = kClass as kotlin.reflect.KClass<T>
 @Suppress("UNCHECKED_CAST")
-public actual val <T : Any> T.javaClass: Class<T> get() = Class(this::class as kotlin.reflect.KClass<T>)
+public actual val <T : Any> T.javaClass: Class<T> get() = Class(this::class as kotlin.reflect.KClass<T>, primitiveFlag = false)
 
 public actual fun String(codePoints: IntArray, offset: Int, count: Int): String {
     if (offset < 0 || count < 0 || offset > codePoints.size - count) {

@@ -162,6 +162,42 @@ expect interface ExecutorService : Executor {
     fun <T> submit(task: Callable<T>): Future<T>
     fun <T> submit(task: Runnable, result: T): Future<T>
     fun submit(task: Runnable): Future<*>
+    fun <T> invokeAll(tasks: Collection<Callable<T>>): List<Future<T>>
+    fun <T> invokeAll(tasks: Collection<Callable<T>>, timeout: Long, unit: TimeUnit): List<Future<T>>
+    fun <T> invokeAny(tasks: Collection<Callable<T>>): T
+    fun <T> invokeAny(tasks: Collection<Callable<T>>, timeout: Long, unit: TimeUnit): T
+}
+
+expect abstract class AbstractExecutorService() : ExecutorService {
+    override fun <T> submit(task: Callable<T>): Future<T>
+    override fun <T> submit(task: Runnable, result: T): Future<T>
+    override fun submit(task: Runnable): Future<*>
+    override fun <T> invokeAll(tasks: Collection<Callable<T>>): List<Future<T>>
+    override fun <T> invokeAll(tasks: Collection<Callable<T>>, timeout: Long, unit: TimeUnit): List<Future<T>>
+    override fun <T> invokeAny(tasks: Collection<Callable<T>>): T
+    override fun <T> invokeAny(tasks: Collection<Callable<T>>, timeout: Long, unit: TimeUnit): T
+}
+
+/**
+ * [Nullability Decision] CompletionService.poll returns Future<V>? (null when no task has completed yet).
+ */
+expect interface CompletionService<V> {
+    fun submit(task: Callable<V>): Future<V>
+    fun submit(task: Runnable, result: V): Future<V>
+    fun take(): Future<V>
+    fun poll(): Future<V>?
+    fun poll(timeout: Long, unit: TimeUnit): Future<V>?
+}
+
+expect open class ExecutorCompletionService<V> : CompletionService<V> {
+    constructor(executor: Executor)
+    constructor(executor: Executor, completionQueue: BlockingQueue<Future<V>>)
+
+    override fun submit(task: Callable<V>): Future<V>
+    override fun submit(task: Runnable, result: V): Future<V>
+    override fun take(): Future<V>
+    override fun poll(): Future<V>?
+    override fun poll(timeout: Long, unit: TimeUnit): Future<V>?
 }
 
 expect fun interface ThreadFactory {
@@ -186,6 +222,45 @@ expect interface BlockingQueue<E> : Queue<E> {
 }
 
 expect interface BlockingDeque<E> : BlockingQueue<E>, Deque<E>
+
+expect interface TransferQueue<E> : BlockingQueue<E> {
+    fun tryTransfer(e: E): Boolean
+    fun transfer(e: E)
+    fun tryTransfer(e: E, timeout: Long, unit: TimeUnit): Boolean
+    fun hasWaitingConsumer(): Boolean
+    fun getWaitingConsumerCount(): Int
+}
+
+/**
+ * [Nullability Decision] LinkedTransferQueue does not permit null elements; poll/peek return E?.
+ */
+expect open class LinkedTransferQueue<E> : AbstractQueue<E>, TransferQueue<E>, Serializable {
+    constructor()
+    constructor(c: Collection<E>)
+
+    override val size: Int
+    override fun isEmpty(): Boolean
+    override fun iterator(): MutableIterator<E>
+    override fun add(element: E): Boolean
+    override fun offer(e: E): Boolean
+    override fun put(e: E)
+    override fun offer(e: E, timeout: Long, unit: TimeUnit): Boolean
+    override fun tryTransfer(e: E): Boolean
+    override fun transfer(e: E)
+    override fun tryTransfer(e: E, timeout: Long, unit: TimeUnit): Boolean
+    override fun take(): E
+    override fun poll(timeout: Long, unit: TimeUnit): E?
+    override fun poll(): E?
+    override fun peek(): E?
+    override fun hasWaitingConsumer(): Boolean
+    override fun getWaitingConsumerCount(): Int
+    override fun remainingCapacity(): Int
+    override fun remove(element: E): Boolean
+    override fun contains(element: E): Boolean
+    override fun clear()
+    override fun drainTo(c: MutableCollection<in E>): Int
+    override fun drainTo(c: MutableCollection<in E>, maxElements: Int): Int
+}
 
 expect open class LinkedBlockingQueue<E> : AbstractQueue<E>, BlockingQueue<E>, Serializable {
     constructor()
@@ -256,7 +331,7 @@ expect open class SynchronousQueue<E> : AbstractQueue<E>, BlockingQueue<E>, Seri
     override fun drainTo(c: MutableCollection<in E>, maxElements: Int): Int
 }
 
-expect open class ThreadPoolExecutor : ExecutorService {
+expect open class ThreadPoolExecutor : AbstractExecutorService {
     constructor(
         corePoolSize: Int,
         maximumPoolSize: Int,
@@ -335,6 +410,132 @@ expect open class ConcurrentLinkedQueue<E> : AbstractQueue<E>, Queue<E>, Seriali
     override fun peek(): E?
 }
 
+expect abstract class ForkJoinTask<V>() : Future<V>, Serializable {
+    fun fork(): ForkJoinTask<V>
+    fun join(): V
+    fun invoke(): V
+    open override fun cancel(mayInterruptIfRunning: Boolean): Boolean
+    final override fun isDone(): Boolean
+    final override fun isCancelled(): Boolean
+    override val isDone: Boolean
+    override val isCancelled: Boolean
+    fun isCompletedAbnormally(): Boolean
+    fun isCompletedNormally(): Boolean
+    fun getException(): Throwable?
+    open fun completeExceptionally(ex: Throwable)
+    open fun complete(value: V)
+    fun quietlyComplete()
+    final override fun get(): V
+    final override fun get(timeout: Long, unit: TimeUnit): V
+    fun quietlyJoin()
+    fun quietlyInvoke()
+    open fun reinitialize()
+    open fun tryUnfork(): Boolean
+    abstract fun getRawResult(): V
+    protected abstract fun setRawResult(value: V)
+    protected abstract fun exec(): Boolean
+    fun getForkJoinTaskTag(): Short
+    fun setForkJoinTaskTag(newValue: Short): Short
+    fun compareAndSetForkJoinTaskTag(expect: Short, update: Short): Boolean
+
+    companion object {
+        fun invokeAll(t1: ForkJoinTask<*>, t2: ForkJoinTask<*>)
+        fun invokeAll(vararg tasks: ForkJoinTask<*>)
+        fun <T : ForkJoinTask<*>> invokeAll(tasks: Collection<T>): Collection<T>
+        fun helpQuiesce()
+        fun getPool(): ForkJoinPool?
+        fun inForkJoinPool(): Boolean
+        fun getQueuedTaskCount(): Int
+        fun getSurplusQueuedTaskCount(): Int
+        fun adapt(runnable: Runnable): ForkJoinTask<*>
+        fun <T> adapt(runnable: Runnable, result: T): ForkJoinTask<T>
+        fun <T> adapt(callable: Callable<out T>): ForkJoinTask<T>
+    }
+}
+
+expect abstract class RecursiveAction() : ForkJoinTask<java.lang.Void?> {
+    protected abstract fun compute()
+    final override fun getRawResult(): java.lang.Void?
+    final override fun setRawResult(mustBeNull: java.lang.Void?)
+    final override fun exec(): Boolean
+}
+
+expect abstract class RecursiveTask<V>() : ForkJoinTask<V> {
+    protected abstract fun compute(): V
+    final override fun getRawResult(): V
+    final override fun setRawResult(value: V)
+    final override fun exec(): Boolean
+}
+
+expect abstract class CountedCompleter<T> : ForkJoinTask<T> {
+    protected constructor(completer: CountedCompleter<*>?, initialPendingCount: Int)
+    protected constructor(completer: CountedCompleter<*>?)
+    protected constructor()
+
+    abstract fun compute()
+    open fun onCompletion(caller: CountedCompleter<*>)
+    open fun onExceptionalCompletion(ex: Throwable, caller: CountedCompleter<*>): Boolean
+    fun getCompleter(): CountedCompleter<*>?
+    fun getPendingCount(): Int
+    fun setPendingCount(count: Int)
+    fun addToPendingCount(delta: Int)
+    fun compareAndSetPendingCount(expected: Int, count: Int): Boolean
+    fun decrementPendingCountUnlessZero(): Int
+    fun getRoot(): CountedCompleter<*>
+    fun tryComplete()
+    fun propagateCompletion()
+    override fun complete(rawResult: T)
+    fun firstComplete(): CountedCompleter<*>?
+    fun nextComplete(): CountedCompleter<*>?
+    fun quietlyCompleteRoot()
+    fun helpComplete(maxTasks: Int)
+    final override fun exec(): Boolean
+    override fun getRawResult(): T
+    override fun setRawResult(t: T)
+}
+
+expect open class ForkJoinPool : AbstractExecutorService {
+    constructor()
+    constructor(parallelism: Int)
+
+    open fun <T> invoke(task: ForkJoinTask<T>): T
+    open fun execute(task: ForkJoinTask<*>)
+    override fun execute(task: Runnable)
+    open fun <T> submit(task: ForkJoinTask<T>): ForkJoinTask<T>
+    override fun <T> submit(task: Callable<T>): ForkJoinTask<T>
+    override fun <T> submit(task: Runnable, result: T): ForkJoinTask<T>
+    override fun submit(task: Runnable): ForkJoinTask<*>
+    override fun <T> invokeAll(tasks: Collection<Callable<T>>): List<Future<T>>
+    open fun getParallelism(): Int
+    open fun getPoolSize(): Int
+    open fun getAsyncMode(): Boolean
+    open fun getRunningThreadCount(): Int
+    open fun getActiveThreadCount(): Int
+    open fun isQuiescent(): Boolean
+    open fun getStealCount(): Long
+    open fun getQueuedTaskCount(): Long
+    open fun getQueuedSubmissionCount(): Int
+    open fun hasQueuedSubmissions(): Boolean
+    override fun shutdown()
+    override fun shutdownNow(): List<Runnable>
+    override fun isTerminated(): Boolean
+    open fun isTerminating(): Boolean
+    override fun isShutdown(): Boolean
+    override fun awaitTermination(timeout: Long, unit: TimeUnit): Boolean
+    open fun awaitQuiescence(timeout: Long, unit: TimeUnit): Boolean
+
+    interface ManagedBlocker {
+        fun block(): Boolean
+        fun isReleasable(): Boolean
+    }
+
+    companion object {
+        fun commonPool(): ForkJoinPool
+        fun getCommonPoolParallelism(): Int
+        fun managedBlock(blocker: ManagedBlocker)
+    }
+}
+
 expect object Executors {
     fun newSingleThreadExecutor(): ExecutorService
     fun newSingleThreadExecutor(threadFactory: ThreadFactory): ExecutorService
@@ -342,4 +543,16 @@ expect object Executors {
     fun newFixedThreadPool(nThreads: Int, threadFactory: ThreadFactory): ExecutorService
     fun newCachedThreadPool(): ExecutorService
     fun newCachedThreadPool(threadFactory: ThreadFactory): ExecutorService
+    fun newSingleThreadScheduledExecutor(): ScheduledExecutorService
+    fun newSingleThreadScheduledExecutor(threadFactory: ThreadFactory): ScheduledExecutorService
+    fun newScheduledThreadPool(corePoolSize: Int): ScheduledExecutorService
+    fun newScheduledThreadPool(corePoolSize: Int, threadFactory: ThreadFactory): ScheduledExecutorService
+    fun newWorkStealingPool(parallelism: Int): ExecutorService
+    fun newWorkStealingPool(): ExecutorService
+    fun unconfigurableExecutorService(executor: ExecutorService): ExecutorService
+    fun unconfigurableScheduledExecutorService(executor: ScheduledExecutorService): ScheduledExecutorService
+    fun defaultThreadFactory(): ThreadFactory
+    fun <T> callable(task: Runnable, result: T): Callable<T>
+    fun callable(task: Runnable): Callable<Any?>
 }
+

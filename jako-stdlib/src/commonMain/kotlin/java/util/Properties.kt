@@ -9,8 +9,9 @@ import java.io.PrintWriter
 import java.io.Reader
 import java.io.Serializable
 import java.io.Writer
+import java.lang.Cloneable
 
-expect open class Properties : Serializable {
+expect open class Properties : Hashtable<Any, Any>, MutableMap<Any, Any>, Cloneable, Serializable {
     constructor()
     constructor(defaults: Properties?)
 
@@ -25,11 +26,17 @@ expect open class Properties : Serializable {
     open fun store(writer: Writer, comments: String?)
     open fun list(out: PrintStream)
     open fun list(out: PrintWriter)
-    open fun clear()
-    open fun size(): Int
-    open fun isEmpty(): Boolean
-    open fun containsKey(key: Any): Boolean
-    open fun get(key: Any): Any?
-    open fun put(key: Any, value: Any): Any?
-    open fun remove(key: Any): Any?
+    override val size: Int
+    override fun isEmpty(): Boolean
+    override fun containsKey(key: Any): Boolean
+    override fun containsValue(value: Any): Boolean
+    override fun get(key: Any): Any?
+    override fun put(key: Any, value: Any): Any?
+    override fun remove(key: Any): Any?
+    override fun putAll(from: Map<out Any, Any>)
+    override fun clear()
+    override val keys: MutableSet<Any>
+    override val values: MutableCollection<Any>
+    override val entries: MutableSet<MutableMap.MutableEntry<Any, Any>>
+    override fun clone(): Any
 }

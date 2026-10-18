@@ -117,5 +117,79 @@ actual class Arrays {
         actual fun deepToString(a: Array<*>?): String = a.contentDeepToString()
         actual fun deepEquals(a1: Array<*>?, a2: Array<*>?): Boolean = a1.contentDeepEquals(a2)
         actual fun deepHashCode(a: Array<*>?): Int = a.contentDeepHashCode()
+
+        actual fun <T> spliterator(array: Array<T>): Spliterator<T> =
+            spliterator(array, 0, array.size)
+
+        actual fun <T> spliterator(array: Array<T>, startInclusive: Int, endExclusive: Int): Spliterator<T> {
+            checkRange(array.size, startInclusive, endExclusive)
+            return ListSpliterator(
+                array.asList(),
+                startInclusive,
+                endExclusive,
+                Spliterator.ORDERED or Spliterator.IMMUTABLE or Spliterator.SIZED or Spliterator.SUBSIZED
+            )
+        }
+
+        actual fun spliterator(array: IntArray): Spliterator.OfInt =
+            spliterator(array, 0, array.size)
+
+        actual fun spliterator(array: IntArray, startInclusive: Int, endExclusive: Int): Spliterator.OfInt {
+            checkRange(array.size, startInclusive, endExclusive)
+            return IntArraySpliterator(array, startInclusive, endExclusive)
+        }
+
+        actual fun spliterator(array: LongArray): Spliterator.OfLong =
+            spliterator(array, 0, array.size)
+
+        actual fun spliterator(array: LongArray, startInclusive: Int, endExclusive: Int): Spliterator.OfLong {
+            checkRange(array.size, startInclusive, endExclusive)
+            return LongArraySpliterator(array, startInclusive, endExclusive)
+        }
+
+        actual fun spliterator(array: DoubleArray): Spliterator.OfDouble =
+            spliterator(array, 0, array.size)
+
+        actual fun spliterator(array: DoubleArray, startInclusive: Int, endExclusive: Int): Spliterator.OfDouble {
+            checkRange(array.size, startInclusive, endExclusive)
+            return DoubleArraySpliterator(array, startInclusive, endExclusive)
+        }
+
+        actual fun <T> stream(array: Array<T>): java.util.stream.Stream<T> =
+            stream(array, 0, array.size)
+
+        actual fun <T> stream(array: Array<T>, startInclusive: Int, endExclusive: Int): java.util.stream.Stream<T> =
+            java.util.stream.StreamSupport.stream(spliterator(array, startInclusive, endExclusive), false)
+
+        actual fun stream(array: IntArray): java.util.stream.IntStream =
+            stream(array, 0, array.size)
+
+        actual fun stream(array: IntArray, startInclusive: Int, endExclusive: Int): java.util.stream.IntStream =
+            java.util.stream.StreamSupport.intStream(spliterator(array, startInclusive, endExclusive), false)
+
+        actual fun stream(array: LongArray): java.util.stream.LongStream =
+            stream(array, 0, array.size)
+
+        actual fun stream(array: LongArray, startInclusive: Int, endExclusive: Int): java.util.stream.LongStream =
+            java.util.stream.StreamSupport.longStream(spliterator(array, startInclusive, endExclusive), false)
+
+        actual fun stream(array: DoubleArray): java.util.stream.DoubleStream =
+            stream(array, 0, array.size)
+
+        actual fun stream(array: DoubleArray, startInclusive: Int, endExclusive: Int): java.util.stream.DoubleStream =
+            java.util.stream.StreamSupport.doubleStream(spliterator(array, startInclusive, endExclusive), false)
+
+        private fun checkRange(arrayLen: Int, startInclusive: Int, endExclusive: Int) {
+            if (startInclusive > endExclusive) {
+                throw IllegalArgumentException("origin($startInclusive) > fence($endExclusive)")
+            }
+            if (startInclusive < 0) {
+                throw IndexOutOfBoundsException("Index out of range: $startInclusive")
+            }
+            if (endExclusive > arrayLen) {
+                throw IndexOutOfBoundsException("Index out of range: $endExclusive")
+            }
+        }
     }
 }
+

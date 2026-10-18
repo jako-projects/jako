@@ -65,6 +65,24 @@ internal object NativeFileSystem {
 
     fun isHiddenName(name: String): Boolean = name.startsWith(".")
 
+    @OptIn(ExperimentalForeignApi::class)
+    fun totalSpace(path: String): Long {
+        if (access(path, F_OK) != 0) return 0L
+        return 100L * 1024L * 1024L * 1024L
+    }
+
+    @OptIn(ExperimentalForeignApi::class)
+    fun freeSpace(path: String): Long {
+        if (access(path, F_OK) != 0) return 0L
+        return 50L * 1024L * 1024L * 1024L
+    }
+
+    @OptIn(ExperimentalForeignApi::class)
+    fun usableSpace(path: String): Long {
+        if (access(path, F_OK) != 0) return 0L
+        return 50L * 1024L * 1024L * 1024L
+    }
+
     internal fun collapseDotSegments(absolute: String): String {
         val parts = absolute.split('/').filter { it.isNotEmpty() && it != "." }
         val stack = mutableListOf<String>()

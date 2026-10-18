@@ -81,4 +81,71 @@ class TreeMapTest {
         assertEquals(2, map.firstKey())
         assertEquals(100, map.lastKey())
     }
+
+    @Test
+    fun testNavigableMapOperations() {
+        val map = TreeMap<Int, String>()
+        map[10] = "ten"
+        map[20] = "twenty"
+        map[30] = "thirty"
+        map[40] = "forty"
+
+        assertEquals(10, map.lowerKey(20))
+        assertNull(map.lowerKey(10))
+        assertEquals("ten", map.lowerEntry(20)?.value)
+
+        assertEquals(20, map.floorKey(20))
+        assertEquals(20, map.floorKey(25))
+        assertNull(map.floorKey(5))
+        assertEquals("twenty", map.floorEntry(25)?.value)
+
+        assertEquals(20, map.ceilingKey(20))
+        assertEquals(30, map.ceilingKey(25))
+        assertNull(map.ceilingKey(45))
+        assertEquals("thirty", map.ceilingEntry(25)?.value)
+
+        assertEquals(30, map.higherKey(20))
+        assertNull(map.higherKey(40))
+        assertEquals("thirty", map.higherEntry(20)?.value)
+
+        assertEquals(10, map.firstEntry()?.key)
+        assertEquals(40, map.lastEntry()?.key)
+
+        val copy = TreeMap(map as java.util.SortedMap<Int, String>)
+        assertEquals(4, copy.size)
+        assertEquals(10, copy.pollFirstEntry()?.key)
+        assertEquals(40, copy.pollLastEntry()?.key)
+        assertEquals(listOf(20, 30), copy.keys.toList())
+    }
+
+    @Test
+    fun testEventObjectAndObservable() {
+        assertFailsWith<IllegalArgumentException> {
+            java.util.EventObject(null)
+        }
+        val ev = java.util.EventObject("btn1")
+        assertEquals("btn1", ev.source)
+        assertTrue(ev.toString().contains("[source=btn1]"))
+
+        val received = ArrayList<Any?>()
+        val subject = object : java.util.Observable() {
+            fun publish(msg: Any?) {
+                setChanged()
+                notifyObservers(msg)
+            }
+        }
+        val obs = java.util.Observer { _, arg -> received.add(arg) }
+        subject.addObserver(obs)
+        assertEquals(1, subject.countObservers())
+        subject.notifyObservers("ignored-not-changed")
+        assertTrue(received.isEmpty())
+
+        subject.publish("event-1")
+        assertFalse(subject.hasChanged())
+        assertEquals(listOf<Any?>("event-1"), received)
+
+        subject.deleteObserver(obs)
+        assertEquals(0, subject.countObservers())
+    }
 }
+

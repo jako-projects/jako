@@ -46,7 +46,7 @@ actual open class ArrayDeque<E> : AbstractQueue<E>, Deque<E>, Cloneable, Seriali
 
     actual override fun descendingIterator(): MutableIterator<E> = elements.asReversed().iterator()
 
-    override fun clone(): Any {
+    actual open fun clone(): ArrayDeque<E> {
         val result = ArrayDeque<E>()
         result.elements.addAll(this.elements)
         return result

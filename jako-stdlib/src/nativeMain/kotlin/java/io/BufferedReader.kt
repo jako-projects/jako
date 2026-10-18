@@ -136,6 +136,38 @@ actual open class BufferedReader : Reader {
         nextChar = markedChar
     }
 
+    actual open fun lines(): java.util.stream.Stream<String> {
+        val iter = object : Iterator<String> {
+            private var nextLine: String? = null
+
+            override fun hasNext(): Boolean {
+                if (nextLine != null) return true
+                return try {
+                    nextLine = readLine()
+                    nextLine != null
+                } catch (e: IOException) {
+                    throw UncheckedIOException(e)
+                }
+            }
+
+            override fun next(): String {
+                if (nextLine != null || hasNext()) {
+                    val line = nextLine!!
+                    nextLine = null
+                    return line
+                }
+                throw NoSuchElementException()
+            }
+        }
+        return java.util.stream.StreamSupport.stream(
+            java.util.Spliterators.spliteratorUnknownSize(
+                iter,
+                java.util.Spliterator.ORDERED or java.util.Spliterator.NONNULL
+            ),
+            false
+        )
+    }
+
     actual override fun close() {
         inReader.close()
     }

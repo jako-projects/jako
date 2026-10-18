@@ -1,6 +1,7 @@
 package java.time
 
 import java.io.Serializable
+import java.time.format.DateTimeParseException
 import java.time.temporal.TemporalAmount
 
 actual class Period private constructor(
@@ -75,6 +76,29 @@ actual class Period private constructor(
         }
     }
 
+    actual fun multipliedBy(scalar: Int): Period {
+        if (this === ZERO || scalar == 1) return this
+        return of(
+            multiplyExact(years, scalar),
+            multiplyExact(months, scalar),
+            multiplyExact(days, scalar)
+        )
+    }
+
+    actual fun negated(): Period = multipliedBy(-1)
+
+    actual fun normalized(): Period {
+        val totalMonths = toTotalMonths()
+        val splitYears = totalMonths / 12L
+        val splitMonths = (totalMonths % 12L).toInt()
+        if (splitYears == years.toLong() && splitMonths == months) {
+            return this
+        }
+        return of(toIntExact(splitYears), splitMonths, days)
+    }
+
+    actual fun toTotalMonths(): Long = years * 12L + months
+
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is Period) return false
@@ -110,6 +134,58 @@ actual class Period private constructor(
         actual fun ofMonths(months: Int): Period = of(0, months, 0)
         actual fun ofWeeks(weeks: Int): Period = of(0, 0, multiplyExact(weeks, 7))
         actual fun ofDays(days: Int): Period = of(0, 0, days)
+
+        actual fun between(startDateInclusive: LocalDate, endDateExclusive: LocalDate): Period {
+            return startDateInclusive.until(endDateExclusive)
+        }
+
+        actual fun parse(text: CharSequence): Period {
+            val s = text.toString()
+            if (s.length < 3) throw DateTimeParseException("Text cannot be parsed to a Period", s, 0)
+            var idx = 0
+            var negative = false
+            if (s[idx] == '+' || s[idx] == '-') {
+                negative = s[idx] == '-'
+                idx++
+            }
+            if (idx >= s.length || (s[idx] != 'P' && s[idx] != 'p')) {
+                throw DateTimeParseException("Text cannot be parsed to a Period", s, idx)
+            }
+            idx++
+            var years = 0
+            var months = 0
+            var weeks = 0
+            var days = 0
+            var parsedAny = false
+            while (idx < s.length) {
+                var sign = 1
+                if (s[idx] == '+' || s[idx] == '-') {
+                    if (s[idx] == '-') sign = -1
+                    idx++
+                }
+                val numStart = idx
+                while (idx < s.length && s[idx] in '0'..'9') idx++
+                if (idx == numStart || idx >= s.length) {
+                    throw DateTimeParseException("Text cannot be parsed to a Period", s, idx)
+                }
+                val num = s.substring(numStart, idx).toIntOrNull()
+                    ?: throw DateTimeParseException("Text cannot be parsed to a Period", s, numStart)
+                val unitChar = s[idx].uppercaseChar()
+                idx++
+                parsedAny = true
+                when (unitChar) {
+                    'Y' -> years = num * sign
+                    'M' -> months = num * sign
+                    'W' -> weeks = num * sign
+                    'D' -> days = num * sign
+                    else -> throw DateTimeParseException("Text cannot be parsed to a Period", s, idx - 1)
+                }
+            }
+            if (!parsedAny) throw DateTimeParseException("Text cannot be parsed to a Period", s, 0)
+            val totalDays = addExact(days, multiplyExact(weeks, 7))
+            val result = of(years, months, totalDays)
+            return if (negative) result.negated() else result
+        }
 
         private fun fromAmount(amount: TemporalAmount): Period {
             if (amount is Period) return amount

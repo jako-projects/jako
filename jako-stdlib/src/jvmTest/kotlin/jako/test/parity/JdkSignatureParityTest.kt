@@ -85,6 +85,7 @@ class JdkSignatureParityTest {
             "java.lang.Cloneable" to "Cloneable",
             "java.lang.Number" to "Number",
             "java.lang.Throwable" to "Throwable",
+            "java.lang.Error" to "Error",
             "java.lang.Exception" to "Exception",
             "java.lang.RuntimeException" to "RuntimeException",
             "java.lang.IllegalArgumentException" to "IllegalArgumentException",
@@ -106,7 +107,11 @@ class JdkSignatureParityTest {
         val ignoredJdkSupertypes = setOf(
             // JDK 19+ / JDK 21+ / JDK 25+ additions:
             "java.util.concurrent.ExecutorService->AutoCloseable",
+            "java.util.concurrent.AbstractExecutorService->AutoCloseable",
             "java.util.concurrent.ThreadPoolExecutor->AutoCloseable",
+            "java.util.concurrent.ScheduledExecutorService->AutoCloseable",
+            "java.util.concurrent.ScheduledThreadPoolExecutor->AutoCloseable",
+            "java.util.concurrent.ForkJoinPool->AutoCloseable",
             "java.util.zip.Deflater->AutoCloseable",
             "java.util.zip.Inflater->AutoCloseable",
             // Wrapper/utility classes in jako that only provide static helpers (Kotlin maps primitives to Int/Char):
@@ -115,14 +120,6 @@ class JdkSignatureParityTest {
             "java.lang.Integer->Serializable",
             "java.lang.Character->Comparable",
             "java.lang.Character->Serializable",
-            // Properties in jako does not inherit legacy Dictionary/Hashtable<Object,Object>
-            "java.util.Properties->MutableMap",
-            "java.util.Properties->Cloneable",
-            // RandomAccessFile / ObjectInputStream / ObjectOutputStream do not implement DataInput/DataOutput in jako
-            "java.io.RandomAccessFile->DataInput",
-            "java.io.RandomAccessFile->DataOutput",
-            "java.io.ObjectInputStream->DataInput",
-            "java.io.ObjectOutputStream->DataOutput",
             // ZonedDateTime in JDK implements ChronoZonedDateTime (Comparable<ChronoZonedDateTime<?>>), not Comparable<ZonedDateTime>
             "java.time.ZonedDateTime->Comparable"
         )
@@ -241,10 +238,9 @@ class JdkSignatureParityTest {
         while (queue.isNotEmpty()) {
             val curr = queue.removeFirst()
             if (result.add(curr)) {
-                val match = allDecls.values.firstOrNull {
+                allDecls.values.filter {
                     it.fqName.substringAfterLast('.').substringAfterLast('$') == curr
-                }
-                if (match != null) {
+                }.forEach { match ->
                     queue.addAll(match.supertypes)
                 }
                 when (curr) {
@@ -255,15 +251,19 @@ class JdkSignatureParityTest {
                     "BlockingDeque" -> { queue.add("BlockingQueue"); queue.add("Deque") }
                     "NavigableSet" -> queue.add("SortedSet")
                     "SortedSet" -> queue.add("MutableSet")
+                    "NavigableMap" -> queue.add("SortedMap")
+                    "SortedMap" -> queue.add("MutableMap")
                     "AbstractMutableSet" -> queue.add("MutableSet")
+                    "AbstractMutableList" -> { queue.add("AbstractMutableCollection"); queue.add("MutableList") }
                     "MutableSet" -> queue.add("MutableCollection")
                     "MutableList" -> queue.add("MutableCollection")
                     "AbstractMutableCollection" -> queue.add("MutableCollection")
                     "MutableCollection" -> queue.add("Iterable")
                     "AbstractMutableMap" -> queue.add("MutableMap")
+                    "MutableIterator" -> queue.add("Iterator")
                     "RuntimeException", "IOException", "GeneralSecurityException" -> queue.add("Exception")
                     "IllegalArgumentException", "IllegalStateException", "UnsupportedOperationException", "IndexOutOfBoundsException", "NoSuchElementException" -> queue.add("RuntimeException")
-                    "Exception" -> queue.add("Throwable")
+                    "Exception", "Error" -> queue.add("Throwable")
                     "Throwable" -> queue.add("Serializable")
                     "Enum" -> { queue.add("Comparable"); queue.add("Serializable") }
                 }

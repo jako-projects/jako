@@ -82,7 +82,27 @@ actual open class CharBuffer internal constructor(
     private val byteOffset: Int,
     private val byteOrder: ByteOrder,
     private val isDirectBuffer: Boolean
-) : Buffer(capacity, capacity), Comparable<CharBuffer>, Appendable {
+) : Buffer(capacity, capacity), Comparable<CharBuffer>, Appendable, java.lang.Readable {
+
+    actual override fun read(target: CharBuffer): Int {
+        val targetRemaining = target.remaining()
+        val n = remaining()
+        if (n == 0) return -1
+        if (targetRemaining <= 0) return 0
+        val toRead = minOf(n, targetRemaining)
+        val savedLimit = limit()
+        if (targetRemaining < n) {
+            limit(position() + toRead)
+        }
+        try {
+            if (toRead > 0) {
+                target.put(this)
+            }
+        } finally {
+            limit(savedLimit)
+        }
+        return toRead
+    }
 
     actual open fun get(): Char {
         val p = position()

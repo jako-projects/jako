@@ -3,9 +3,11 @@
 package java.time
 
 import java.io.Serializable
+import java.time.temporal.Temporal
 import java.time.temporal.TemporalAccessor
+import java.time.temporal.TemporalAdjuster
 
-expect class OffsetDateTime : TemporalAccessor, Serializable, Comparable<OffsetDateTime> {
+expect class OffsetDateTime : Temporal, TemporalAdjuster, Serializable, Comparable<OffsetDateTime> {
     val offset: ZoneOffset
     fun getOffset(): ZoneOffset
     fun toLocalDateTime(): LocalDateTime
@@ -15,6 +17,7 @@ expect class OffsetDateTime : TemporalAccessor, Serializable, Comparable<OffsetD
     fun toEpochSecond(): Long
     fun isAfter(other: OffsetDateTime): Boolean
     fun isBefore(other: OffsetDateTime): Boolean
+    override fun adjustInto(temporal: Temporal): Temporal
     override fun compareTo(other: OffsetDateTime): Int
 
     companion object {

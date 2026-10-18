@@ -192,10 +192,7 @@ internal class NativePath(private val pathString: String) : Path {
         return NativePath(if (parts.isEmpty()) "" else parts.joinToString("/"))
     }
 
-    override fun toUri(): URI {
-        val abs = toAbsolutePath().toString()
-        return URI("file://$abs")
-    }
+    override fun toUri(): URI = toFile().toURI()
 
     override fun toAbsolutePath(): Path {
         if (isAbsolute()) return this
@@ -241,7 +238,7 @@ actual class Paths {
         }
 
         actual fun get(uri: URI): Path {
-            return NativePath(uri.path ?: "")
+            return File(uri).toPath()
         }
     }
 }

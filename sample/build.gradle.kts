@@ -42,6 +42,11 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation("com.bennyhuo.jako:jako-stdlib")
+            implementation("com.bennyhuo.jako:jako-android")
+        }
+
+        jvmMain.dependencies {
+            implementation("org.robolectric:android-all:10-robolectric-5803371")
         }
 
         commonTest.dependencies {
@@ -50,6 +55,7 @@ kotlin {
 
         jvmTest.dependencies {
             implementation(kotlin("test-junit5"))
+            implementation("org.robolectric:android-all:10-robolectric-5803371")
         }
     }
 }

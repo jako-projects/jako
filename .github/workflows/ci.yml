@@ -28,7 +28,7 @@ jobs:
       - name: Setup Gradle Cache
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Run jako-stdlib Build & Tests
+      - name: Run jako Build & Tests
         shell: bash
         run: |
           ./gradlew check

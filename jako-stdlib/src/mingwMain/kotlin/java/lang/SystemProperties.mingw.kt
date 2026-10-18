@@ -29,3 +29,30 @@ internal actual fun nativeTmpDir(): String =
     platform.posix.getenv("TEMP")?.toKString()
         ?: platform.posix.getenv("TMP")?.toKString()
         ?: "C:\\Windows\\Temp"
+
+internal actual fun nativeAvailableProcessors(): Int {
+    val env = platform.posix.getenv("NUMBER_OF_PROCESSORS")?.toKString()?.toIntOrNull()
+    return if (env != null && env > 0) env else 1
+}
+
+internal actual fun nativeCreatePipe(): IntArray? = null
+
+internal actual fun nativeWriteFd(fd: Int, buf: ByteArray, off: Int, len: Int): Int = -1
+
+internal actual fun nativeCloseFd(fd: Int) {}
+
+internal actual fun nativeKillProcess(pid: Int, forcibly: Boolean) {
+    if (pid > 0) {
+        val flag = if (forcibly) "/F " else ""
+        platform.posix.system("taskkill ${flag}/PID $pid /T >NUL 2>&1")
+    }
+}
+
+internal actual fun nativeDecodeWaitStatus(rawStatus: Int): Int = rawStatus
+
+internal actual fun nativeIsWindows(): Boolean = true
+
+internal actual fun nativeCanExecute(path: String): Boolean = java.io.File(path).exists()
+
+internal actual fun nativeRunSystemCommand(cmd: String): Int = platform.posix.system(cmd)
+

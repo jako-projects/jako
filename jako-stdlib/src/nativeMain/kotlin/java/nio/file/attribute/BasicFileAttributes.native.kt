@@ -25,6 +25,11 @@ actual interface BasicFileAttributes {
     actual val size: Long
 }
 
+actual interface FileAttribute<T> {
+    actual fun name(): String
+    actual fun value(): T
+}
+
 internal class NativeBasicFileAttributes(
     private val lastModified: FileTime,
     private val directory: Boolean,

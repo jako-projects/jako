@@ -5,33 +5,49 @@ import java.lang.Cloneable
 
 actual open class LinkedHashMap<K, V> : MutableMap<K, V>, Cloneable, Serializable {
     private val map: kotlin.collections.LinkedHashMap<K, V>
+    private val accessOrder: Boolean
 
     actual constructor(initialCapacity: Int, loadFactor: Float, accessOrder: Boolean) {
-        map = kotlin.collections.LinkedHashMap(initialCapacity, loadFactor)
+        this.map = kotlin.collections.LinkedHashMap(initialCapacity, loadFactor)
+        this.accessOrder = accessOrder
     }
 
-    actual constructor(initialCapacity: Int, loadFactor: Float) {
-        map = kotlin.collections.LinkedHashMap(initialCapacity, loadFactor)
-    }
+    actual constructor(initialCapacity: Int, loadFactor: Float) : this(initialCapacity, loadFactor, false)
 
     actual constructor(initialCapacity: Int) {
-        map = kotlin.collections.LinkedHashMap(initialCapacity)
+        this.map = kotlin.collections.LinkedHashMap(initialCapacity)
+        this.accessOrder = false
     }
 
     actual constructor() {
-        map = kotlin.collections.LinkedHashMap()
+        this.map = kotlin.collections.LinkedHashMap()
+        this.accessOrder = false
     }
 
     actual constructor(m: Map<out K, V>) {
-        map = kotlin.collections.LinkedHashMap(m)
+        this.map = kotlin.collections.LinkedHashMap(m)
+        this.accessOrder = false
     }
 
     actual override val size: Int get() = map.size
     actual override fun isEmpty(): Boolean = map.isEmpty()
     actual override fun containsKey(key: K): Boolean = map.containsKey(key)
     actual override fun containsValue(value: V): Boolean = map.containsValue(value)
-    actual override fun get(key: K): V? = map[key]
-    actual override fun put(key: K, value: V): V? = map.put(key, value)
+    actual override fun get(key: K): V? {
+        if (!accessOrder) return map[key]
+        if (!map.containsKey(key)) return null
+        val v = map.remove(key) as V
+        map[key] = v
+        return v
+    }
+    actual override fun put(key: K, value: V): V? {
+        if (accessOrder && map.containsKey(key)) {
+            val prev = map.remove(key)
+            map[key] = value
+            return prev
+        }
+        return map.put(key, value)
+    }
     actual override fun remove(key: K): V? = map.remove(key)
     actual override fun putAll(from: Map<out K, V>) = map.putAll(from)
     actual override fun clear() = map.clear()

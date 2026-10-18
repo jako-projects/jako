@@ -3,14 +3,17 @@
 package java.time
 
 import java.io.Serializable
+import java.time.temporal.Temporal
 import java.time.temporal.TemporalAccessor
+import java.time.temporal.TemporalAdjuster
 
-expect class ZoneOffset : ZoneId, TemporalAccessor, Comparable<ZoneOffset>, Serializable {
+expect class ZoneOffset : ZoneId, TemporalAccessor, TemporalAdjuster, Comparable<ZoneOffset>, Serializable {
     val totalSeconds: Int
     fun getTotalSeconds(): Int
 
     override val id: String
     override fun getId(): String
+    override fun adjustInto(temporal: Temporal): Temporal
     override fun compareTo(other: ZoneOffset): Int
 
     companion object {

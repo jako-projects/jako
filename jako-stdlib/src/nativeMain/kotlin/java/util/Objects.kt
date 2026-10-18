@@ -4,6 +4,23 @@ actual class Objects private constructor() {
     actual companion object {
         actual fun equals(a: Any?, b: Any?): Boolean = a == b || (a != null && a == b)
 
+        actual fun deepEquals(a: Any?, b: Any?): Boolean {
+            if (a === b) return true
+            if (a == null || b == null) return false
+            return when {
+                a is Array<*> && b is Array<*> -> Arrays.deepEquals(a as Array<Any?>, b as Array<Any?>)
+                a is ByteArray && b is ByteArray -> a.contentEquals(b)
+                a is ShortArray && b is ShortArray -> a.contentEquals(b)
+                a is IntArray && b is IntArray -> a.contentEquals(b)
+                a is LongArray && b is LongArray -> a.contentEquals(b)
+                a is CharArray && b is CharArray -> a.contentEquals(b)
+                a is FloatArray && b is FloatArray -> a.contentEquals(b)
+                a is DoubleArray && b is DoubleArray -> a.contentEquals(b)
+                a is BooleanArray && b is BooleanArray -> a.contentEquals(b)
+                else -> a == b
+            }
+        }
+
         actual fun hashCode(o: Any?): Int = o?.hashCode() ?: 0
 
         actual fun hash(vararg values: Any?): Int = Arrays.hashCode(values)
@@ -23,6 +40,11 @@ actual class Objects private constructor() {
 
         actual fun <T> requireNonNull(obj: T?, message: String): T {
             if (obj == null) throw NullPointerException(message)
+            return obj
+        }
+
+        actual fun <T> requireNonNull(obj: T?, messageSupplier: java.util.function.Supplier<String>): T {
+            if (obj == null) throw NullPointerException(messageSupplier.get())
             return obj
         }
 

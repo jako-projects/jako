@@ -3,9 +3,10 @@
 package java.time
 
 import java.io.Serializable
+import java.time.temporal.Temporal
 import java.time.temporal.TemporalAccessor
 
-expect class ZonedDateTime : TemporalAccessor, Serializable {
+expect class ZonedDateTime : Temporal, Serializable {
     val zone: ZoneId
     val offset: ZoneOffset
     fun getZone(): ZoneId
