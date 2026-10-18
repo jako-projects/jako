@@ -18,6 +18,7 @@ public typealias Cloneable = java.lang.Cloneable
 public typealias Character = java.lang.Character
 public typealias SafeVarargs = java.lang.SafeVarargs
 public typealias NoSuchFieldException = java.lang.NoSuchFieldException
+public typealias IllegalMonitorStateException = java.lang.IllegalMonitorStateException
 public typealias MalformedURLException = java.net.MalformedURLException
 public typealias URISyntaxException = java.net.URISyntaxException
 public typealias SuppressWarnings = Suppress

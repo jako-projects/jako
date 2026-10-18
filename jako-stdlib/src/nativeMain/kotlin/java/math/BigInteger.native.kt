@@ -27,6 +27,26 @@ actual class BigInteger : Number, Comparable<BigInteger>, Serializable {
         }
     }
 
+    actual constructor(valBytes: ByteArray) {
+        if (valBytes.isEmpty()) throw NumberFormatException("Zero length BigInteger")
+        if (valBytes[0] < 0) {
+            val mag = ByteArray(valBytes.size)
+            var carry = 1
+            for (i in valBytes.indices.reversed()) {
+                val inv = (valBytes[i].toInt().inv() and 0xFF) + carry
+                mag[i] = inv.toByte()
+                carry = inv ushr 8
+            }
+            val temp = BigInteger(-1, mag)
+            this.signumVal = temp.signumVal
+            this.digits = temp.digits
+        } else {
+            val temp = BigInteger(1, valBytes)
+            this.signumVal = temp.signumVal
+            this.digits = temp.digits
+        }
+    }
+
     actual constructor(valStr: String) : this(valStr, 10)
 
     actual constructor(valStr: String, radix: Int) {
@@ -124,6 +144,13 @@ actual class BigInteger : Number, Comparable<BigInteger>, Serializable {
         this.digits = temp.digits
     }
 
+    actual constructor(bitLength: Int, certainty: Int, rnd: Random) {
+        if (bitLength < 2) throw ArithmeticException("bitLength < 2")
+        val p = generateProbablePrime(bitLength, maxOf(1, certainty), rnd)
+        this.signumVal = p.signumVal
+        this.digits = p.digits
+    }
+
     actual fun add(valOther: BigInteger): BigInteger {
         if (signumVal == 0) return valOther
         if (valOther.signumVal == 0) return this
@@ -208,9 +235,63 @@ actual class BigInteger : Number, Comparable<BigInteger>, Serializable {
     actual fun signum(): Int = signumVal
 
     actual fun mod(m: BigInteger): BigInteger {
-        require(m.signumVal > 0) { "BigInteger: modulus not positive" }
+        if (m.signumVal <= 0) throw ArithmeticException("BigInteger: modulus not positive")
         val result = remainder(m)
         return if (result.signumVal < 0) result.add(m) else result
+    }
+
+    actual fun modPow(exponent: BigInteger, m: BigInteger): BigInteger {
+        if (m.signumVal <= 0) throw ArithmeticException("BigInteger: modulus not positive")
+        if (exponent.signumVal == 0) return if (m == ONE) ZERO else ONE
+        if (this == ZERO) return if (exponent.signumVal < 0) throw ArithmeticException("BigInteger not invertible.") else ZERO
+        if (exponent.signumVal < 0) {
+            return modInverse(m).modPow(exponent.negate(), m)
+        }
+        if (m == ONE) return ZERO
+        var base = this.mod(m)
+        var result = ONE
+        val expBytes = exponent.toByteArray()
+        var started = false
+        for (b in expBytes) {
+            val ub = b.toInt() and 0xFF
+            for (bit in 7 downTo 0) {
+                val isSet = ((ub ushr bit) and 1) != 0
+                if (!started) {
+                    if (isSet) {
+                        started = true
+                        result = base
+                    }
+                } else {
+                    result = result.multiply(result).remainder(m)
+                    if (isSet) {
+                        result = result.multiply(base).remainder(m)
+                    }
+                }
+            }
+        }
+        return result
+    }
+
+    actual fun modInverse(m: BigInteger): BigInteger {
+        if (m.signumVal <= 0) throw ArithmeticException("BigInteger: modulus not positive")
+        if (m == ONE) return ZERO
+        var t = ZERO
+        var newT = ONE
+        var r = m
+        var newR = this.mod(m)
+        while (newR.signumVal != 0) {
+            val qr = r.divideAndRemainder(newR)
+            val q = qr[0]
+            val rem = qr[1]
+            val nextT = t.subtract(q.multiply(newT))
+            t = newT
+            newT = nextT
+            r = newR
+            newR = rem
+        }
+        if (r > ONE) throw ArithmeticException("BigInteger not invertible.")
+        if (t.signumVal < 0) t = t.add(m)
+        return t
     }
 
     actual fun shiftLeft(n: Int): BigInteger {
@@ -287,6 +368,57 @@ actual class BigInteger : Number, Comparable<BigInteger>, Serializable {
             }
         }
         return count
+    }
+
+    actual fun isProbablePrime(certainty: Int): Boolean {
+        if (certainty <= 0) return true
+        val w = this.abs()
+        if (w == TWO) return true
+        if (w.signumVal == 0 || w == ONE || (w.digits[0] and 1) == 0) return false
+        for (p in SMALL_PRIMES) {
+            val bp = valueOf(p.toLong())
+            if (w == bp) return true
+            if (w.remainder(bp).signumVal == 0) return false
+        }
+        val wMinusOne = w.subtract(ONE)
+        var d = wMinusOne
+        var s = 0
+        while (d.signumVal > 0 && (d.digits[0] and 1) == 0) {
+            d = d.shiftRight(1)
+            s++
+        }
+        val rounds = minOf(6, maxOf(2, (certainty + 1) / 2))
+        val bases = intArrayOf(2, 3, 5, 7, 11, 13, 17, 19)
+        for (i in 0 until rounds) {
+            val a = valueOf(bases[i].toLong())
+            if (a >= wMinusOne) break
+            var x = a.modPow(d, w)
+            if (x == ONE || x == wMinusOne) continue
+            var composite = true
+            for (r in 1 until s) {
+                x = x.multiply(x).remainder(w)
+                if (x == ONE) return false
+                if (x == wMinusOne) {
+                    composite = false
+                    break
+                }
+            }
+            if (composite) return false
+        }
+        return true
+    }
+
+    actual fun nextProbablePrime(): BigInteger {
+        if (this.signumVal < 0) throw ArithmeticException("start < 0: $this")
+        if (this < TWO) return TWO
+        var candidate = this.add(ONE)
+        if ((candidate.digits[0] and 1) == 0) {
+            candidate = candidate.add(ONE)
+        }
+        while (!candidate.isProbablePrime(20)) {
+            candidate = candidate.add(TWO)
+        }
+        return candidate
     }
 
     actual fun toByteArray(): ByteArray {
@@ -398,7 +530,36 @@ actual class BigInteger : Number, Comparable<BigInteger>, Serializable {
 
         actual val ZERO: BigInteger = BigInteger(0, IntArray(0))
         actual val ONE: BigInteger = BigInteger(1, intArrayOf(1))
+        private val TWO: BigInteger = BigInteger(1, intArrayOf(2))
         actual val TEN: BigInteger = BigInteger(1, intArrayOf(10))
+
+        private val SMALL_PRIMES = intArrayOf(
+            3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73,
+            79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151, 157,
+            163, 167, 173, 179, 181, 191, 193, 197, 199, 211, 223, 227, 229, 233, 239, 241, 251
+        )
+
+        actual fun probablePrime(bitLength: Int, rnd: Random): BigInteger {
+            if (bitLength < 2) throw ArithmeticException("bitLength < 2")
+            return generateProbablePrime(bitLength, 20, rnd)
+        }
+
+        private fun generateProbablePrime(bitLength: Int, certainty: Int, rnd: Random): BigInteger {
+            val numBytes = (bitLength + 7) / 8
+            val excessBits = (numBytes * 8) - bitLength
+            val topBitMask = 1 shl (7 - excessBits)
+            val topMask = 0xFF ushr excessBits
+            val bytes = ByteArray(numBytes)
+            while (true) {
+                rnd.nextBytes(bytes)
+                bytes[0] = ((bytes[0].toInt() and topMask) or topBitMask).toByte()
+                bytes[numBytes - 1] = (bytes[numBytes - 1].toInt() or 1).toByte()
+                val candidate = BigInteger(1, bytes)
+                if (candidate.isProbablePrime(certainty)) {
+                    return candidate
+                }
+            }
+        }
 
         actual fun valueOf(valLong: Long): BigInteger {
             if (valLong == 0L) return ZERO

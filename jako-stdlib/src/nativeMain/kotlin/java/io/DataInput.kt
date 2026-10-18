@@ -14,6 +14,7 @@ actual interface DataInput {
     actual fun readLong(): Long
     actual fun readFloat(): Float
     actual fun readDouble(): Double
+    actual fun readLine(): String?
     actual fun readUTF(): String
 }
 

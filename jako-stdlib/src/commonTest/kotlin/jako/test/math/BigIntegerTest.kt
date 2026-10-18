@@ -71,4 +71,31 @@ class BigIntegerTest {
         assertEquals("11111111", num.toString(2))
         assertEquals("ff", num.toString(16))
     }
+
+    @Test
+    fun testTwosComplementAndModularAndPrimes() {
+        val neg = BigInteger("-123456789")
+        val negBytes = neg.toByteArray()
+        assertEquals(neg, BigInteger(negBytes))
+
+        val base = BigInteger.valueOf(4L)
+        val exp = BigInteger.valueOf(13L)
+        val mod = BigInteger.valueOf(497L)
+        assertEquals(BigInteger.valueOf(445L), base.modPow(exp, mod))
+
+        val inv = BigInteger.valueOf(3L).modInverse(BigInteger.valueOf(11L))
+        assertEquals(BigInteger.valueOf(4L), inv)
+
+        // Negated exponent modPow
+        assertEquals(BigInteger.valueOf(4L), BigInteger.valueOf(3L).modPow(BigInteger.valueOf(-1L), BigInteger.valueOf(11L)))
+
+        assertTrue(BigInteger.valueOf(104729L).isProbablePrime(20))
+        assertFalse(BigInteger.valueOf(104730L).isProbablePrime(20))
+        assertEquals(BigInteger.valueOf(101L), BigInteger.valueOf(97L).nextProbablePrime())
+
+        val p = BigInteger.probablePrime(64, java.util.Random(42L))
+        assertEquals(64, p.bitLength())
+        assertTrue(p.isProbablePrime(20))
+    }
 }
+

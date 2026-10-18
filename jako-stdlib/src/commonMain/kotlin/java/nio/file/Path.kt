@@ -9,6 +9,7 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.net.URI
 import java.nio.charset.Charset
+import java.nio.file.attribute.FileAttribute
 import java.nio.file.attribute.FileTime
 
 expect interface OpenOption
@@ -36,6 +37,13 @@ expect enum class StandardCopyOption : CopyOption {
 
 expect enum class LinkOption : OpenOption, CopyOption {
     NOFOLLOW_LINKS
+}
+
+expect interface DirectoryStream<T> : java.io.Closeable, Iterable<T> {
+    fun interface Filter<T> {
+        fun accept(entry: T): Boolean
+    }
+    override fun iterator(): MutableIterator<T>
 }
 
 expect interface Path : Comparable<Path>, Iterable<Path> {
@@ -85,10 +93,19 @@ expect class Files {
         fun isReadable(path: Path): Boolean
         fun isWritable(path: Path): Boolean
         fun isExecutable(path: Path): Boolean
+        fun isSameFile(path: Path, path2: Path): Boolean
+        fun isHidden(path: Path): Boolean
         fun size(path: Path): Long
-        fun createFile(path: Path): Path
-        fun createDirectory(path: Path): Path
-        fun createDirectories(path: Path): Path
+        fun createFile(path: Path, vararg attrs: FileAttribute<*>): Path
+        fun createDirectory(path: Path, vararg attrs: FileAttribute<*>): Path
+        fun createDirectories(path: Path, vararg attrs: FileAttribute<*>): Path
+        fun createTempFile(dir: Path, prefix: String?, suffix: String?, vararg attrs: FileAttribute<*>): Path
+        fun createTempFile(prefix: String?, suffix: String?, vararg attrs: FileAttribute<*>): Path
+        fun createTempDirectory(dir: Path, prefix: String?, vararg attrs: FileAttribute<*>): Path
+        fun createTempDirectory(prefix: String?, vararg attrs: FileAttribute<*>): Path
+        fun newDirectoryStream(dir: Path): DirectoryStream<Path>
+        fun newDirectoryStream(dir: Path, glob: String): DirectoryStream<Path>
+        fun newDirectoryStream(dir: Path, filter: DirectoryStream.Filter<in Path>): DirectoryStream<Path>
         fun delete(path: Path)
         fun deleteIfExists(path: Path): Boolean
         fun copy(source: Path, target: Path, vararg options: CopyOption): Path
@@ -131,4 +148,12 @@ expect open class NoSuchFileException : FileSystemException {
 expect open class FileAlreadyExistsException : FileSystemException {
     constructor(file: String?)
     constructor(file: String?, other: String?, reason: String?)
+}
+
+expect open class NotDirectoryException : FileSystemException {
+    constructor(file: String?)
+}
+
+expect open class DirectoryNotEmptyException : FileSystemException {
+    constructor(dir: String?)
 }

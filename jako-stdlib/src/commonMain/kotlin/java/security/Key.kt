@@ -8,5 +8,7 @@ expect interface Key : Serializable {
     fun getAlgorithm(): String
     fun getFormat(): String?
     fun getEncoded(): ByteArray?
+    open val algorithm: String
+    open val format: String?
     open val encoded: ByteArray
 }

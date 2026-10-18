@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 rootProject.name = "jako"
 
 include(":jako-stdlib")
+include(":jako-android")

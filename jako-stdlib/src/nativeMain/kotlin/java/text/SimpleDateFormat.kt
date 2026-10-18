@@ -6,25 +6,48 @@ import java.util.GregorianCalendar
 import java.util.Locale
 import java.util.TimeZone
 
-actual open class SimpleDateFormat actual constructor(
-    actual val pattern: String,
-    actual val locale: Locale
-) : DateFormat() {
+actual open class SimpleDateFormat : DateFormat {
+    private var patternStr: String
+    private var symbols: DateFormatSymbols
+
+    actual constructor() : this("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+
     actual constructor(pattern: String) : this(pattern, Locale.getDefault())
 
-    private val monthsShort = arrayOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
-    private val monthsLong = arrayOf("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")
-    private val daysShort = arrayOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
-    private val daysLong = arrayOf("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")
+    actual constructor(pattern: String, locale: Locale) : super() {
+        this.patternStr = pattern
+        this.symbols = DateFormatSymbols.getInstance(locale)
+        compilePattern(pattern)
+    }
+
+    actual constructor(pattern: String, formatSymbols: DateFormatSymbols) : super() {
+        this.patternStr = pattern
+        this.symbols = formatSymbols.clone() as DateFormatSymbols
+        compilePattern(pattern)
+    }
+
+    actual open fun toPattern(): String = patternStr
+
+    actual open fun applyPattern(pattern: String) {
+        this.patternStr = pattern
+        compilePattern(pattern)
+    }
+
+    actual open fun getDateFormatSymbols(): DateFormatSymbols =
+        symbols.clone() as DateFormatSymbols
+
+    actual open fun setDateFormatSymbols(newFormatSymbols: DateFormatSymbols) {
+        this.symbols = newFormatSymbols.clone() as DateFormatSymbols
+    }
 
     private enum class DateField {
         YEAR, YEAR_2DIGIT, MONTH_NUM, MONTH_SHORT, MONTH_LONG, DAY, HOUR, MINUTE, SECOND, MILLIS, TZ_OFFSET, TZ_NAME, SKIP
     }
 
-    private val compiledRegex: Regex?
-    private val compiledFields: List<DateField>
+    private var compiledRegex: Regex? = null
+    private var compiledFields: List<DateField> = emptyList()
 
-    init {
+    private fun compilePattern(pattern: String) {
         val fields = mutableListOf<DateField>()
         val regexPattern = StringBuilder("^")
         var i = 0
@@ -65,11 +88,11 @@ actual open class SimpleDateFormat actual constructor(
                     }
                     when {
                         count >= 4 -> {
-                            regexPattern.append("([A-Za-z]+)")
+                            regexPattern.append("([^\\s,/-]+)")
                             fields.add(DateField.MONTH_LONG)
                         }
                         count == 3 -> {
-                            regexPattern.append("([A-Za-z]{3})")
+                            regexPattern.append("([^\\s,/-]+)")
                             fields.add(DateField.MONTH_SHORT)
                         }
                         else -> {
@@ -85,7 +108,7 @@ actual open class SimpleDateFormat actual constructor(
                 }
                 'E' -> {
                     while (i < pattern.length && pattern[i] == 'E') i++
-                    regexPattern.append("([A-Za-z]+)")
+                    regexPattern.append("([^\\s,]+)")
                     fields.add(DateField.SKIP)
                 }
                 'H', 'h', 'K', 'k' -> {
@@ -152,30 +175,85 @@ actual open class SimpleDateFormat actual constructor(
         val absMinutes = kotlin.math.abs(offsetMinutes)
         val tzRfc822 = "$sign${(absMinutes / 60).toString().padStart(2, '0')}${(absMinutes % 60).toString().padStart(2, '0')}"
 
-        var result = pattern
-        result = result.replace("yyyy", year.toString().padStart(4, '0'))
-        result = result.replace("yy", (year % 100).toString().padStart(2, '0'))
-        result = result.replace("MMMM", monthsLong.getOrElse(month) { "" })
-        result = result.replace("MMM", monthsShort.getOrElse(month) { "" })
-        result = result.replace("MM", (month + 1).toString().padStart(2, '0'))
-        result = result.replace("dd", day.toString().padStart(2, '0'))
-        result = result.replace("EEEE", daysLong.getOrElse(dayOfWeek - 1) { "" })
-        result = result.replace("EEE", daysShort.getOrElse(dayOfWeek - 1) { "" })
-        result = result.replace("HH", hour.toString().padStart(2, '0'))
-        result = result.replace("mm", minute.toString().padStart(2, '0'))
-        result = result.replace("ss", second.toString().padStart(2, '0'))
-        result = result.replace("SSS", millis.toString().padStart(3, '0'))
-        result = result.replace("Z", tzRfc822)
-        result = result.replace("z", timeZone.getID())
-        result = result.replace(Regex("'(.*?)'")) { it.groupValues[1] }
-        return result
+        val monthsLong = symbols.getMonths()
+        val monthsShort = symbols.getShortMonths()
+        val daysLong = symbols.getWeekdays()
+        val daysShort = symbols.getShortWeekdays()
+        val amPm = symbols.getAmPmStrings()
+
+        val sb = StringBuilder()
+        var i = 0
+        while (i < patternStr.length) {
+            val c = patternStr[i]
+            if (c == '\'') {
+                val endQuote = patternStr.indexOf('\'', i + 1)
+                if (endQuote != -1) {
+                    if (endQuote == i + 1) {
+                        sb.append('\'')
+                    } else {
+                        sb.append(patternStr.substring(i + 1, endQuote))
+                    }
+                    i = endQuote + 1
+                } else {
+                    sb.append('\'')
+                    i++
+                }
+                continue
+            }
+            var count = 0
+            while (i < patternStr.length && patternStr[i] == c) {
+                count++
+                i++
+            }
+            when (c) {
+                'y' -> {
+                    if (count == 2) {
+                        sb.append((year % 100).toString().padStart(2, '0'))
+                    } else {
+                        sb.append(year.toString().padStart(count, '0'))
+                    }
+                }
+                'M' -> {
+                    when {
+                        count >= 4 -> sb.append(monthsLong.getOrElse(month) { "" })
+                        count == 3 -> sb.append(monthsShort.getOrElse(month) { "" })
+                        else -> sb.append((month + 1).toString().padStart(count, '0'))
+                    }
+                }
+                'd' -> sb.append(day.toString().padStart(count, '0'))
+                'E' -> {
+                    if (count >= 4) {
+                        sb.append(daysLong.getOrElse(dayOfWeek) { "" })
+                    } else {
+                        sb.append(daysShort.getOrElse(dayOfWeek) { "" })
+                    }
+                }
+                'a' -> sb.append(amPm.getOrElse(if (hour < 12) 0 else 1) { "" })
+                'H' -> sb.append(hour.toString().padStart(count, '0'))
+                'h' -> {
+                    val h12 = if (hour % 12 == 0) 12 else hour % 12
+                    sb.append(h12.toString().padStart(count, '0'))
+                }
+                'm' -> sb.append(minute.toString().padStart(count, '0'))
+                's' -> sb.append(second.toString().padStart(count, '0'))
+                'S' -> sb.append(millis.toString().padStart(count, '0'))
+                'Z' -> sb.append(tzRfc822)
+                'z' -> sb.append(timeZone.getID())
+                else -> repeat(count) { sb.append(c) }
+            }
+        }
+        return sb.toString()
     }
 
+    /**
+     * [Nullability Decision] parse returns Date? (null when date cannot be parsed at pos).
+     */
     actual override fun parse(source: String, pos: ParsePosition): Date? {
         val dateString = source.substring(pos.getIndex()).trim()
 
-        if (compiledRegex != null) {
-            val match = compiledRegex.find(dateString)
+        val regex = compiledRegex
+        if (regex != null) {
+            val match = regex.find(dateString)
             if (match != null) {
                 var year = 1970
                 var month = 0
@@ -265,9 +343,11 @@ actual open class SimpleDateFormat actual constructor(
     }
 
     private fun parseMonth(monthStr: String): Int {
-        val idxShort = monthsShort.indexOfFirst { it.equals(monthStr, ignoreCase = true) }
+        val monthsShort = symbols.getShortMonths()
+        val monthsLong = symbols.getMonths()
+        val idxShort = monthsShort.indexOfFirst { it.isNotEmpty() && it.equals(monthStr, ignoreCase = true) }
         if (idxShort >= 0) return idxShort
-        val idxLong = monthsLong.indexOfFirst { it.equals(monthStr, ignoreCase = true) }
+        val idxLong = monthsLong.indexOfFirst { it.isNotEmpty() && it.equals(monthStr, ignoreCase = true) }
         return if (idxLong >= 0) idxLong else 0
     }
 

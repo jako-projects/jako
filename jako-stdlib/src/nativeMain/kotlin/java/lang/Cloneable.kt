@@ -5,9 +5,7 @@ package java.lang
  * On JVM, clone() is inherited from Object; on Native, we declare it here
  * so interfaces extending Cloneable can override it.
  */
-public actual interface Cloneable {
-    fun clone(): Any = throw CloneNotSupportedException()
-}
+public actual interface Cloneable
 
 actual open class CloneNotSupportedException : Exception {
     actual constructor() : super()

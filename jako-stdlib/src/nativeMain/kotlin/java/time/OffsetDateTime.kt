@@ -2,12 +2,14 @@ package java.time
 
 import java.io.Serializable
 import java.time.format.DateTimeParseException
+import java.time.temporal.Temporal
 import java.time.temporal.TemporalAccessor
+import java.time.temporal.TemporalAdjuster
 
 actual class OffsetDateTime private constructor(
     private val dateTime: LocalDateTime,
     actual val offset: ZoneOffset
-) : TemporalAccessor, Serializable, Comparable<OffsetDateTime> {
+) : Temporal, TemporalAdjuster, Serializable, Comparable<OffsetDateTime> {
 
     actual fun getOffset(): ZoneOffset = offset
     actual fun toLocalDateTime(): LocalDateTime = dateTime
@@ -26,6 +28,14 @@ actual class OffsetDateTime private constructor(
         val secsThis = toEpochSecond()
         val secsOth = other.toEpochSecond()
         return secsThis < secsOth || (secsThis == secsOth && dateTime.nano < other.dateTime.nano)
+    }
+
+    actual override fun adjustInto(temporal: Temporal): Temporal {
+        return when (temporal) {
+            is OffsetDateTime -> this
+            is ZonedDateTime -> ZonedDateTime.of(dateTime, temporal.zone)
+            else -> throw DateTimeException("Unable to adjust temporal with OffsetDateTime: $temporal")
+        }
     }
 
     actual override fun compareTo(other: OffsetDateTime): Int {

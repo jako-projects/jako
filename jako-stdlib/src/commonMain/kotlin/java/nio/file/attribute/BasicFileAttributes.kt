@@ -23,3 +23,8 @@ expect interface BasicFileAttributes {
     val isOther: Boolean
     val size: Long
 }
+
+expect interface FileAttribute<T> {
+    fun name(): String
+    fun value(): T
+}

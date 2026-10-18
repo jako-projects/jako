@@ -11,6 +11,13 @@ expect fun interface Runnable {
     fun run()
 }
 
+/**
+ * [Nullability Decision] Java Readable.read(CharBuffer) takes a non-null CharBuffer.
+ */
+expect fun interface Readable {
+    fun read(cb: java.nio.CharBuffer): Int
+}
+
 expect open class Object {
     fun wait()
     fun wait(timeoutMillis: Long)
@@ -35,11 +42,27 @@ expect open class Thread : Runnable {
     constructor(name: String)
     constructor(target: Runnable?, name: String)
 
+    enum class State {
+        NEW,
+        RUNNABLE,
+        BLOCKED,
+        WAITING,
+        TIMED_WAITING,
+        TERMINATED
+    }
+
+    fun interface UncaughtExceptionHandler {
+        fun uncaughtException(t: Thread, e: Throwable)
+    }
+
     open var name: String
     open var isDaemon: Boolean
+    open var priority: Int
     open val id: Long
     open val isAlive: Boolean
     open val isInterrupted: Boolean
+    open val state: State
+    open var uncaughtExceptionHandler: UncaughtExceptionHandler?
 
     open fun start()
     override fun run()
@@ -51,16 +74,29 @@ expect open class Thread : Runnable {
     open fun getId(): Long
     open fun isDaemon(): Boolean
     open fun setDaemon(on: Boolean)
+    open fun getPriority(): Int
+    open fun setPriority(newPriority: Int)
+    open fun getState(): State
+    open fun getUncaughtExceptionHandler(): UncaughtExceptionHandler?
+    open fun setUncaughtExceptionHandler(eh: UncaughtExceptionHandler?)
     open fun join()
     open fun join(millis: Long)
     open fun join(millis: Long, nanos: Int)
 
     companion object {
+        val MIN_PRIORITY: Int
+        val NORM_PRIORITY: Int
+        val MAX_PRIORITY: Int
+        var defaultUncaughtExceptionHandler: UncaughtExceptionHandler?
+
         fun currentThread(): Thread
         fun sleep(millis: Long)
         fun sleep(millis: Long, nanos: Int)
         fun yield()
         fun interrupted(): Boolean
+        fun holdsLock(obj: Any): Boolean
+        fun getDefaultUncaughtExceptionHandler(): UncaughtExceptionHandler?
+        fun setDefaultUncaughtExceptionHandler(eh: UncaughtExceptionHandler?)
     }
 }
 
@@ -74,6 +110,38 @@ expect open class ThreadLocal<T> {
     companion object {
         fun <S> withInitial(supplier: () -> S): ThreadLocal<S>
     }
+}
+
+expect open class InheritableThreadLocal<T> : ThreadLocal<T> {
+    constructor()
+    protected open fun childValue(parentValue: T?): T?
+}
+
+/**
+ * [Nullability Decision] declaringClass and methodName are non-null (Java throws NPE if null);
+ * fileName is nullable (null indicates Unknown Source).
+ */
+expect class StackTraceElement(
+    declaringClass: String,
+    methodName: String,
+    fileName: String?,
+    lineNumber: Int
+) : Serializable {
+    fun getClassName(): String
+    fun getMethodName(): String
+    fun getFileName(): String?
+    fun getLineNumber(): Int
+    fun isNativeMethod(): Boolean
+
+    val className: String
+    val methodName: String
+    val fileName: String?
+    val lineNumber: Int
+    val isNativeMethod: Boolean
+
+    override fun toString(): String
+    override fun equals(other: Any?): Boolean
+    override fun hashCode(): Int
 }
 
 expect object Character {
@@ -103,12 +171,28 @@ expect object Character {
 expect class Class<T> : Serializable {
     fun getName(): String
     fun getSimpleName(): String
+    fun getCanonicalName(): String?
+    fun isPrimitive(): Boolean
+    fun isArray(): Boolean
+    fun isInstance(obj: Any?): Boolean
+    fun getComponentType(): Class<*>?
+    fun cast(obj: Any?): T?
+
     val name: String
     val simpleName: String
-    fun <U> cast(obj: Any?): U?
+    val canonicalName: String?
+    val isPrimitive: Boolean
+    val isArray: Boolean
+    val componentType: Class<*>?
 
     companion object {
         fun forName(className: String): Class<*>
+    }
+}
+
+expect class Void {
+    companion object {
+        val TYPE: Class<Void>
     }
 }
 
@@ -116,6 +200,7 @@ expect open class ClassNotFoundException : Exception {
     constructor()
     constructor(s: String?)
     constructor(s: String?, ex: Throwable?)
+    open fun getException(): Throwable?
 }
 
 expect open class NoSuchFieldException : Exception {
@@ -123,9 +208,32 @@ expect open class NoSuchFieldException : Exception {
     constructor(s: String?)
 }
 
-expect open class NoSuchMethodException : Exception {
+expect open class SecurityException : RuntimeException {
     constructor()
     constructor(s: String?)
+    constructor(message: String?, cause: Throwable?)
+    constructor(cause: Throwable?)
+}
+
+expect open class IllegalMonitorStateException : RuntimeException {
+    constructor()
+    constructor(s: String?)
+}
+
+expect open class NegativeArraySizeException : RuntimeException {
+    constructor()
+    constructor(s: String?)
+}
+
+expect open class ArrayStoreException : RuntimeException {
+    constructor()
+    constructor(s: String?)
+}
+
+expect open class StringIndexOutOfBoundsException : IndexOutOfBoundsException {
+    constructor()
+    constructor(s: String?)
+    constructor(index: Int)
 }
 
 expect object Integer {
@@ -162,4 +270,3 @@ expect object Math {
 @Target(AnnotationTarget.FUNCTION, AnnotationTarget.CONSTRUCTOR)
 @Retention(AnnotationRetention.SOURCE)
 expect annotation class SafeVarargs()
-

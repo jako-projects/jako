@@ -14,13 +14,16 @@ import kotlin.native.concurrent.TransferMode
 import kotlin.native.concurrent.Worker
 import platform.posix.sched_yield
 
-private const val NEW = 0
-private const val RUNNABLE = 1
-private const val TERMINATED = 2
+private const val NEW_STATE = 0
+private const val RUNNABLE_STATE = 1
+private const val WAITING_STATE = 2
+private const val TIMED_WAITING_STATE = 3
+private const val TERMINATED_STATE = 4
 
 private val threadSeq = AtomicInt(0)
 private val threadIdSeq = AtomicLong(0)
 private val attachedOnce = AtomicInt(0)
+private val defaultUncaughtHandlerRef = AtomicReference<Thread.UncaughtExceptionHandler?>(null)
 
 @kotlin.native.concurrent.ThreadLocal
 private var boundCurrentThread: Thread? = null
@@ -30,12 +33,29 @@ private fun nextDefaultName(): String = "Thread-${threadSeq.addAndGet(1) - 1}"
 private fun nextThreadId(): Long = threadIdSeq.addAndGet(1)
 
 actual open class Thread : Runnable {
-    private val threadId: Long = nextThreadId()
+    actual enum class State {
+        NEW,
+        RUNNABLE,
+        BLOCKED,
+        WAITING,
+        TIMED_WAITING,
+        TERMINATED
+    }
+
+    actual fun interface UncaughtExceptionHandler {
+        actual fun uncaughtException(t: Thread, e: Throwable)
+    }
+
+    private val tid: Long = nextThreadId()
     private var threadName: String
     private var target: Runnable?
     private var daemon: Boolean
-    private val state = AtomicInt(NEW)
+    private var threadPriority: Int = NORM_PRIORITY
+    private val rawState = AtomicInt(NEW_STATE)
     private val interruptedFlag = AtomicInt(0)
+    private val parkPermit = AtomicInt(0)
+    internal val parkBlocker = AtomicReference<Any?>(null)
+    private val uncaughtHandlerRef = AtomicReference<UncaughtExceptionHandler?>(null)
     private val parkLock = ReentrantLock()
     private val parkCondition: Condition = parkLock.newCondition()
     private val completionLock = ReentrantLock()
@@ -53,7 +73,16 @@ actual open class Thread : Runnable {
         // [Nullability Decision] Java allows a null Runnable; run() is then a no-op unless subclassed.
         this.target = target
         this.threadName = name
-        this.daemon = boundCurrentThread?.daemon ?: false
+        val parent = boundCurrentThread
+        this.daemon = parent?.daemon ?: false
+        this.threadPriority = parent?.threadPriority ?: NORM_PRIORITY
+        if (parent != null) {
+            for ((tl, v) in parent.threadLocalValues) {
+                if (tl is InheritableThreadLocal<*>) {
+                    threadLocalValues[tl] = tl.copyForChild(v)
+                }
+            }
+        }
     }
 
     actual open var name: String
@@ -68,8 +97,14 @@ actual open class Thread : Runnable {
             setDaemon(value)
         }
 
+    actual open var priority: Int
+        get() = getPriority()
+        set(value) {
+            setPriority(value)
+        }
+
     actual open val id: Long
-        get() = threadId
+        get() = tid
 
     actual open val isAlive: Boolean
         get() = isAlive()
@@ -77,8 +112,17 @@ actual open class Thread : Runnable {
     actual open val isInterrupted: Boolean
         get() = isInterrupted()
 
+    actual open val state: State
+        get() = getState()
+
+    actual open var uncaughtExceptionHandler: UncaughtExceptionHandler?
+        get() = getUncaughtExceptionHandler()
+        set(value) {
+            setUncaughtExceptionHandler(value)
+        }
+
     actual open fun start() {
-        if (!state.compareAndSet(NEW, RUNNABLE)) {
+        if (!rawState.compareAndSet(NEW_STATE, RUNNABLE_STATE)) {
             throw IllegalThreadStateException("Thread already started")
         }
         val self = this
@@ -88,7 +132,15 @@ actual open class Thread : Runnable {
             try {
                 thread.run()
             } catch (t: Throwable) {
-                t.printStackTrace()
+                val handler = thread.getUncaughtExceptionHandler() ?: getDefaultUncaughtExceptionHandler()
+                if (handler != null) {
+                    try {
+                        handler.uncaughtException(thread, t)
+                    } catch (_: Throwable) {
+                    }
+                } else {
+                    t.printStackTrace()
+                }
             } finally {
                 thread.finish()
                 Worker.current.requestTermination()
@@ -108,7 +160,10 @@ actual open class Thread : Runnable {
 
     actual open fun isInterrupted(): Boolean = interruptedFlag.value != 0
 
-    actual open fun isAlive(): Boolean = state.value == RUNNABLE
+    actual open fun isAlive(): Boolean {
+        val s = rawState.value
+        return s != NEW_STATE && s != TERMINATED_STATE
+    }
 
     actual open fun getName(): String = threadName
 
@@ -116,15 +171,40 @@ actual open class Thread : Runnable {
         threadName = name
     }
 
-    actual open fun getId(): Long = threadId
+    actual open fun getId(): Long = tid
 
     actual open fun isDaemon(): Boolean = daemon
 
     actual open fun setDaemon(on: Boolean) {
-        if (state.value != NEW) {
+        if (rawState.value != NEW_STATE) {
             throw IllegalThreadStateException()
         }
         daemon = on
+    }
+
+    actual open fun getPriority(): Int = threadPriority
+
+    actual open fun setPriority(newPriority: Int) {
+        if (newPriority < MIN_PRIORITY || newPriority > MAX_PRIORITY) {
+            throw IllegalArgumentException("Priority out of range: $newPriority")
+        }
+        threadPriority = newPriority
+    }
+
+    actual open fun getState(): State = when (rawState.value) {
+        NEW_STATE -> State.NEW
+        RUNNABLE_STATE -> State.RUNNABLE
+        WAITING_STATE -> State.WAITING
+        TIMED_WAITING_STATE -> State.TIMED_WAITING
+        TERMINATED_STATE -> State.TERMINATED
+        else -> State.RUNNABLE
+    }
+
+    actual open fun getUncaughtExceptionHandler(): UncaughtExceptionHandler? =
+        uncaughtHandlerRef.value ?: defaultUncaughtHandlerRef.value
+
+    actual open fun setUncaughtExceptionHandler(eh: UncaughtExceptionHandler?) {
+        uncaughtHandlerRef.value = eh
     }
 
     actual open fun join() {
@@ -155,6 +235,8 @@ actual open class Thread : Runnable {
         }
 
         current.joiningOn.value = this
+        val prevState = current.rawState.value
+        current.rawState.value = if (timed) TIMED_WAITING_STATE else WAITING_STATE
         try {
             completionLock.lock()
             try {
@@ -174,12 +256,13 @@ actual open class Thread : Runnable {
                 completionLock.unlock()
             }
         } finally {
+            current.rawState.compareAndSet(if (timed) TIMED_WAITING_STATE else WAITING_STATE, prevState)
             current.joiningOn.value = null
         }
     }
 
     private fun finish() {
-        state.value = TERMINATED
+        rawState.value = TERMINATED_STATE
         signalCompletion()
         if (boundCurrentThread === this) {
             boundCurrentThread = null
@@ -195,17 +278,50 @@ actual open class Thread : Runnable {
         }
     }
 
-    private fun unpark() {
+    internal fun unpark() {
         parkLock.lock()
         try {
+            parkPermit.value = 1
             parkCondition.signalAll()
         } finally {
             parkLock.unlock()
         }
     }
 
+    internal fun lockSupportPark(isAbsolute: Boolean, time: Long) {
+        if (parkPermit.compareAndSet(1, 0)) {
+            return
+        }
+        if (isInterrupted()) {
+            return
+        }
+        val prevState = rawState.value
+        val waitState = if (time > 0L || isAbsolute) TIMED_WAITING_STATE else WAITING_STATE
+        rawState.value = waitState
+        parkLock.lock()
+        try {
+            if (parkPermit.compareAndSet(1, 0) || isInterrupted()) {
+                return
+            }
+            if (isAbsolute) {
+                val waitMillis = time - System.currentTimeMillis()
+                if (waitMillis > 0L) {
+                    parkCondition.awaitNanos(waitMillis * 1_000_000L)
+                }
+            } else if (time > 0L) {
+                parkCondition.awaitNanos(time)
+            } else {
+                parkCondition.await()
+            }
+            parkPermit.value = 0
+        } finally {
+            parkLock.unlock()
+            rawState.compareAndSet(waitState, prevState)
+        }
+    }
+
     internal fun markAttachedAndRunning() {
-        state.compareAndSet(NEW, RUNNABLE)
+        rawState.compareAndSet(NEW_STATE, RUNNABLE_STATE)
     }
 
     internal fun clearInterrupted(): Boolean = interruptedFlag.compareAndSet(1, 0)
@@ -216,6 +332,8 @@ actual open class Thread : Runnable {
             return
         }
         val deadline = System.nanoTime() + nanos
+        val prevState = rawState.value
+        rawState.value = TIMED_WAITING_STATE
         parkLock.lock()
         try {
             while (true) {
@@ -228,10 +346,28 @@ actual open class Thread : Runnable {
             }
         } finally {
             parkLock.unlock()
+            rawState.compareAndSet(TIMED_WAITING_STATE, prevState)
         }
     }
 
     actual companion object {
+        actual val MIN_PRIORITY: Int = 1
+        actual val NORM_PRIORITY: Int = 5
+        actual val MAX_PRIORITY: Int = 10
+
+        actual var defaultUncaughtExceptionHandler: UncaughtExceptionHandler?
+            get() = getDefaultUncaughtExceptionHandler()
+            set(value) {
+                setDefaultUncaughtExceptionHandler(value)
+            }
+
+        actual fun getDefaultUncaughtExceptionHandler(): UncaughtExceptionHandler? =
+            defaultUncaughtHandlerRef.value
+
+        actual fun setDefaultUncaughtExceptionHandler(eh: UncaughtExceptionHandler?) {
+            defaultUncaughtHandlerRef.value = eh
+        }
+
         actual fun currentThread(): Thread {
             boundCurrentThread?.let { return it }
             val created = attachCurrentNativeThread()
@@ -266,7 +402,7 @@ actual open class Thread : Runnable {
             return currentThread().clearInterrupted()
         }
 
-        fun holdsLock(obj: Any): Boolean = getObjectMonitor(obj).lock.isHeldByCurrentThread()
+        actual fun holdsLock(obj: Any): Boolean = getObjectMonitor(obj).lock.isHeldByCurrentThread()
     }
 }
 

@@ -3,7 +3,28 @@ package java.util
 import java.io.Serializable
 import java.lang.Cloneable
 
-actual open class TreeMap<K, V> : AbstractMutableMap<K, V>, Cloneable, Serializable {
+actual interface SortedMap<K, V> : MutableMap<K, V> {
+    actual fun comparator(): Comparator<in K>?
+    actual fun firstKey(): K
+    actual fun lastKey(): K
+}
+
+actual interface NavigableMap<K, V> : SortedMap<K, V> {
+    actual fun lowerEntry(key: K): MutableMap.MutableEntry<K, V>?
+    actual fun lowerKey(key: K): K?
+    actual fun floorEntry(key: K): MutableMap.MutableEntry<K, V>?
+    actual fun floorKey(key: K): K?
+    actual fun ceilingEntry(key: K): MutableMap.MutableEntry<K, V>?
+    actual fun ceilingKey(key: K): K?
+    actual fun higherEntry(key: K): MutableMap.MutableEntry<K, V>?
+    actual fun higherKey(key: K): K?
+    actual fun firstEntry(): MutableMap.MutableEntry<K, V>?
+    actual fun lastEntry(): MutableMap.MutableEntry<K, V>?
+    actual fun pollFirstEntry(): MutableMap.MutableEntry<K, V>?
+    actual fun pollLastEntry(): MutableMap.MutableEntry<K, V>?
+}
+
+actual open class TreeMap<K, V> : AbstractMutableMap<K, V>, NavigableMap<K, V>, Cloneable, Serializable {
     private var root: Entry<K, V>? = null
     private var _size: Int = 0
     private val _comparator: Comparator<in K>?
@@ -21,13 +42,184 @@ actual open class TreeMap<K, V> : AbstractMutableMap<K, V>, Cloneable, Serializa
         putAll(m)
     }
 
-    actual fun comparator(): Comparator<in K>? = _comparator
+    actual constructor(m: SortedMap<K, out V>) : super() {
+        _comparator = m.comparator()
+        putAll(m)
+    }
+
+    actual override fun comparator(): Comparator<in K>? = _comparator
 
     override val size: Int get() = _size
     override fun isEmpty(): Boolean = _size == 0
 
-    actual fun firstKey(): K = (getFirstEntry() ?: throw NoSuchElementException()).key
-    actual fun lastKey(): K = (getLastEntry() ?: throw NoSuchElementException()).key
+    actual override fun firstKey(): K = (getFirstEntry() ?: throw NoSuchElementException()).key
+    actual override fun lastKey(): K = (getLastEntry() ?: throw NoSuchElementException()).key
+
+    @Suppress("UNCHECKED_CAST")
+    private fun compare(k1: K, k2: K): Int {
+        val c = _comparator
+        if (c != null) return c.compare(k1, k2)
+        if (k1 == null) throw NullPointerException("key is null")
+        return (k1 as Comparable<K>).compareTo(k2)
+    }
+
+    private fun exportEntry(e: Entry<K, V>?): MutableMap.MutableEntry<K, V>? {
+        if (e == null) return null
+        return ImmutableEntry(e.key, e.value)
+    }
+
+    private fun getLowerEntry(key: K): Entry<K, V>? {
+        var p = root
+        if (p == null) {
+            compare(key, key)
+            return null
+        }
+        while (p != null) {
+            val cmp = compare(key, p.key)
+            if (cmp > 0) {
+                if (p.right != null) {
+                    p = p.right
+                } else {
+                    return p
+                }
+            } else {
+                if (p.left != null) {
+                    p = p.left
+                } else {
+                    var parent = p.parent
+                    var ch = p
+                    while (parent != null && ch == parent.left) {
+                        ch = parent
+                        parent = parent.parent
+                    }
+                    return parent
+                }
+            }
+        }
+        return null
+    }
+
+    private fun getFloorEntry(key: K): Entry<K, V>? {
+        var p = root
+        if (p == null) {
+            compare(key, key)
+            return null
+        }
+        while (p != null) {
+            val cmp = compare(key, p.key)
+            if (cmp > 0) {
+                if (p.right != null) {
+                    p = p.right
+                } else {
+                    return p
+                }
+            } else if (cmp < 0) {
+                if (p.left != null) {
+                    p = p.left
+                } else {
+                    var parent = p.parent
+                    var ch = p
+                    while (parent != null && ch == parent.left) {
+                        ch = parent
+                        parent = parent.parent
+                    }
+                    return parent
+                }
+            } else {
+                return p
+            }
+        }
+        return null
+    }
+
+    private fun getCeilingEntry(key: K): Entry<K, V>? {
+        var p = root
+        if (p == null) {
+            compare(key, key)
+            return null
+        }
+        while (p != null) {
+            val cmp = compare(key, p.key)
+            if (cmp < 0) {
+                if (p.left != null) {
+                    p = p.left
+                } else {
+                    return p
+                }
+            } else if (cmp > 0) {
+                if (p.right != null) {
+                    p = p.right
+                } else {
+                    var parent = p.parent
+                    var ch = p
+                    while (parent != null && ch == parent.right) {
+                        ch = parent
+                        parent = parent.parent
+                    }
+                    return parent
+                }
+            } else {
+                return p
+            }
+        }
+        return null
+    }
+
+    private fun getHigherEntry(key: K): Entry<K, V>? {
+        var p = root
+        if (p == null) {
+            compare(key, key)
+            return null
+        }
+        while (p != null) {
+            val cmp = compare(key, p.key)
+            if (cmp < 0) {
+                if (p.left != null) {
+                    p = p.left
+                } else {
+                    return p
+                }
+            } else {
+                if (p.right != null) {
+                    p = p.right
+                } else {
+                    var parent = p.parent
+                    var ch = p
+                    while (parent != null && ch == parent.right) {
+                        ch = parent
+                        parent = parent.parent
+                    }
+                    return parent
+                }
+            }
+        }
+        return null
+    }
+
+    actual override fun lowerEntry(key: K): MutableMap.MutableEntry<K, V>? = exportEntry(getLowerEntry(key))
+    actual override fun lowerKey(key: K): K? = getLowerEntry(key)?.key
+    actual override fun floorEntry(key: K): MutableMap.MutableEntry<K, V>? = exportEntry(getFloorEntry(key))
+    actual override fun floorKey(key: K): K? = getFloorEntry(key)?.key
+    actual override fun ceilingEntry(key: K): MutableMap.MutableEntry<K, V>? = exportEntry(getCeilingEntry(key))
+    actual override fun ceilingKey(key: K): K? = getCeilingEntry(key)?.key
+    actual override fun higherEntry(key: K): MutableMap.MutableEntry<K, V>? = exportEntry(getHigherEntry(key))
+    actual override fun higherKey(key: K): K? = getHigherEntry(key)?.key
+    actual override fun firstEntry(): MutableMap.MutableEntry<K, V>? = exportEntry(getFirstEntry())
+    actual override fun lastEntry(): MutableMap.MutableEntry<K, V>? = exportEntry(getLastEntry())
+
+    actual override fun pollFirstEntry(): MutableMap.MutableEntry<K, V>? {
+        val p = getFirstEntry() ?: return null
+        val result = exportEntry(p)
+        deleteEntry(p)
+        return result
+    }
+
+    actual override fun pollLastEntry(): MutableMap.MutableEntry<K, V>? {
+        val p = getLastEntry() ?: return null
+        val result = exportEntry(p)
+        deleteEntry(p)
+        return result
+    }
 
     override fun containsKey(key: K): Boolean = getEntry(key) != null
 
@@ -483,6 +675,22 @@ actual open class TreeMap<K, V> : AbstractMutableMap<K, V>, Cloneable, Serializa
             value = newValue
             return oldValue
         }
+
+        override fun equals(other: Any?): Boolean {
+            if (other !is Map.Entry<*, *>) return false
+            return key == other.key && value == other.value
+        }
+
+        override fun hashCode(): Int = (key?.hashCode() ?: 0) xor (value?.hashCode() ?: 0)
+
+        override fun toString(): String = "$key=$value"
+    }
+
+    private class ImmutableEntry<K, V>(
+        override val key: K,
+        override val value: V
+    ) : MutableMap.MutableEntry<K, V> {
+        override fun setValue(newValue: V): V = throw UnsupportedOperationException()
 
         override fun equals(other: Any?): Boolean {
             if (other !is Map.Entry<*, *>) return false

@@ -104,5 +104,24 @@ expect class Arrays {
         fun deepToString(a: Array<*>?): String
         fun deepEquals(a1: Array<*>?, a2: Array<*>?): Boolean
         fun deepHashCode(a: Array<*>?): Int
+
+        fun <T> spliterator(array: Array<T>): Spliterator<T>
+        fun <T> spliterator(array: Array<T>, startInclusive: Int, endExclusive: Int): Spliterator<T>
+        fun spliterator(array: IntArray): Spliterator.OfInt
+        fun spliterator(array: IntArray, startInclusive: Int, endExclusive: Int): Spliterator.OfInt
+        fun spliterator(array: LongArray): Spliterator.OfLong
+        fun spliterator(array: LongArray, startInclusive: Int, endExclusive: Int): Spliterator.OfLong
+        fun spliterator(array: DoubleArray): Spliterator.OfDouble
+        fun spliterator(array: DoubleArray, startInclusive: Int, endExclusive: Int): Spliterator.OfDouble
+
+        fun <T> stream(array: Array<T>): java.util.stream.Stream<T>
+        fun <T> stream(array: Array<T>, startInclusive: Int, endExclusive: Int): java.util.stream.Stream<T>
+        fun stream(array: IntArray): java.util.stream.IntStream
+        fun stream(array: IntArray, startInclusive: Int, endExclusive: Int): java.util.stream.IntStream
+        fun stream(array: LongArray): java.util.stream.LongStream
+        fun stream(array: LongArray, startInclusive: Int, endExclusive: Int): java.util.stream.LongStream
+        fun stream(array: DoubleArray): java.util.stream.DoubleStream
+        fun stream(array: DoubleArray, startInclusive: Int, endExclusive: Int): java.util.stream.DoubleStream
     }
 }
+

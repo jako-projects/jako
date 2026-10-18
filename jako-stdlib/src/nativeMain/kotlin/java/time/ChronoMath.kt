@@ -50,6 +50,18 @@ internal fun multiplyExact(a: Int, b: Int): Int {
     return r.toInt()
 }
 
+internal fun multiplyExact(a: Long, b: Long): Long {
+    val r = a * b
+    val ax = kotlin.math.abs(a)
+    val ay = kotlin.math.abs(b)
+    if ((ax or ay) ushr 31 != 0L) {
+        if ((b != 0L && r / b != a) || (a == Long.MIN_VALUE && b == -1L)) {
+            throw ArithmeticException("long overflow")
+        }
+    }
+    return r
+}
+
 internal fun toIntExact(value: Long): Int {
     val i = value.toInt()
     if (i.toLong() != value) {

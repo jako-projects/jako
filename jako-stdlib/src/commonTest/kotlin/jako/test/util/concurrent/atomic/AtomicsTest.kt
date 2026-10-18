@@ -98,5 +98,85 @@ class AtomicsTest {
 
         assertFalse(ar.compareAndSet("kotlin", "java"))
         assertEquals("native", ar.get())
+
+        assertEquals("native", ar.getAndUpdate { s -> "$s-updated" })
+        assertEquals("native-updated", ar.get())
+        assertEquals("NATIVE-UPDATED", ar.updateAndGet { s -> s?.uppercase() })
+        assertEquals("NATIVE-UPDATED!", ar.accumulateAndGet("!") { a, b -> "$a$b" })
+    }
+
+    @Test
+    fun testAtomicFunctionalMethodsAndArrays() {
+        val ai = AtomicInteger(5)
+        assertEquals(5, ai.getAndUpdate { it * 2 })
+        assertEquals(10, ai.get())
+        assertEquals(13, ai.updateAndGet { it + 3 })
+        assertEquals(13, ai.getAndAccumulate(7) { a, b -> a + b })
+        assertEquals(20, ai.get())
+        assertEquals(40, ai.accumulateAndGet(2) { a, b -> a * b })
+
+        val al = AtomicLong(10L)
+        assertEquals(10L, al.getAndUpdate { it + 5L })
+        assertEquals(30L, al.updateAndGet { it * 2L })
+        assertEquals(30L, al.getAndAccumulate(12L) { a, b -> a + b })
+        assertEquals(50L, al.accumulateAndGet(8L) { a, b -> a + b })
+
+        val intArr = java.util.concurrent.atomic.AtomicIntegerArray(intArrayOf(1, 2, 3))
+        assertEquals(3, intArr.length())
+        assertEquals("[1, 2, 3]", intArr.toString())
+        assertEquals(2, intArr.getAndAdd(1, 5))
+        assertEquals(7, intArr.get(1))
+        assertEquals(14, intArr.updateAndGet(1) { it * 2 })
+        assertTrue(intArr.compareAndSet(0, 1, 10))
+        assertEquals(10, intArr.get(0))
+        assertFailsWith<IndexOutOfBoundsException> { intArr.get(-1) }
+        assertFailsWith<IndexOutOfBoundsException> { intArr.get(3) }
+
+        val longArr = java.util.concurrent.atomic.AtomicLongArray(2)
+        longArr.set(0, 100L)
+        assertEquals(101L, longArr.incrementAndGet(0))
+        assertEquals(202L, longArr.accumulateAndGet(0, 2L) { a, b -> a * b })
+        assertEquals("[202, 0]", longArr.toString())
+
+        val refArr = java.util.concurrent.atomic.AtomicReferenceArray(arrayOf<String?>("a", "b"))
+        assertEquals(2, refArr.length())
+        assertEquals("a", refArr.getAndSet(0, "x"))
+        assertEquals("x-y", refArr.accumulateAndGet(0, "y") { a, b -> "$a-$b" })
+        assertEquals("[x-y, b]", refArr.toString())
+    }
+
+    @Test
+    fun testAtomicStampedAndMarkableReference() {
+        val v1 = "first"
+        val v2 = "second"
+        val stamped = java.util.concurrent.atomic.AtomicStampedReference(v1, 1)
+        assertEquals(v1, stamped.reference)
+        assertEquals(1, stamped.stamp)
+
+        val holder = IntArray(1)
+        assertEquals(v1, stamped.get(holder))
+        assertEquals(1, holder[0])
+
+        assertFalse(stamped.compareAndSet(v1, v2, 99, 2))
+        assertTrue(stamped.compareAndSet(v1, v2, 1, 2))
+        assertEquals(v2, stamped.get(holder))
+        assertEquals(2, holder[0])
+        assertTrue(stamped.attemptStamp(v2, 3))
+        assertEquals(3, stamped.stamp)
+
+        val markable = java.util.concurrent.atomic.AtomicMarkableReference(v1, false)
+        assertEquals(v1, markable.reference)
+        assertFalse(markable.isMarked)
+
+        val markHolder = BooleanArray(1)
+        assertEquals(v1, markable.get(markHolder))
+        assertFalse(markHolder[0])
+
+        assertTrue(markable.compareAndSet(v1, v2, false, true))
+        assertEquals(v2, markable.get(markHolder))
+        assertTrue(markHolder[0])
+        assertTrue(markable.attemptMark(v2, false))
+        assertFalse(markable.isMarked)
     }
 }
+

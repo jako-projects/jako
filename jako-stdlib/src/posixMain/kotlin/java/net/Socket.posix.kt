@@ -202,6 +202,10 @@ actual open class Socket : java.io.Closeable {
         get() = getSoTimeout()
         set(value) = setSoTimeout(value)
 
+    actual open var reuseAddress: Boolean
+        get() = getReuseAddress()
+        set(value) = setReuseAddress(value)
+
     actual open val isClosed: Boolean get() = isClosed()
     actual open val isConnected: Boolean get() = isConnected()
     actual open val isBound: Boolean get() = isBound()
@@ -214,14 +218,14 @@ actual open class Socket : java.io.Closeable {
     actual open val remoteSocketAddress: SocketAddress? get() = getRemoteSocketAddress()
     actual open val localSocketAddress: SocketAddress? get() = getLocalSocketAddress()
 
-    open fun shutdownInput() {
+    actual open fun shutdownInput() {
         if (!inputShutdown && fd >= 0) {
             inputShutdown = true
             shutdown(fd, SHUT_RD)
         }
     }
 
-    open fun shutdownOutput() {
+    actual open fun shutdownOutput() {
         if (!outputShutdown && fd >= 0) {
             outputShutdown = true
             shutdown(fd, SHUT_WR)
@@ -291,11 +295,11 @@ actual open class Socket : java.io.Closeable {
 
     actual open fun getKeepAlive(): Boolean = getSockOptInt(SOL_SOCKET, SO_KEEPALIVE) != 0
 
-    open fun setReuseAddress(on: Boolean) {
+    actual open fun setReuseAddress(on: Boolean) {
         setSockOptInt(SOL_SOCKET, SO_REUSEADDR, if (on) 1 else 0)
     }
 
-    open fun getReuseAddress(): Boolean = getSockOptInt(SOL_SOCKET, SO_REUSEADDR) != 0
+    actual open fun getReuseAddress(): Boolean = getSockOptInt(SOL_SOCKET, SO_REUSEADDR) != 0
 
     private fun ensureFdCreated() {
         if (fd < 0) {

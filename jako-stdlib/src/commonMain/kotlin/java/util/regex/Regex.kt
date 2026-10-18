@@ -27,6 +27,8 @@ expect class Pattern : Serializable {
     fun pattern(): String
     fun flags(): Int
     fun matcher(input: CharSequence): Matcher
+    fun split(input: CharSequence): Array<String>
+    fun split(input: CharSequence, limit: Int): Array<String>
 
     companion object {
         val UNIX_LINES: Int

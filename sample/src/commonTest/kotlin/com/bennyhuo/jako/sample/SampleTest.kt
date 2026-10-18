@@ -36,4 +36,13 @@ class SampleTest {
         val reply = NetworkDemo.runEcho("ping-jako")
         assertEquals("ECHO:ping-jako", reply)
     }
+
+    @Test
+    fun testAndroidDemo() {
+        val report = AndroidDemo.run()
+        assertEquals("https://api.example.com/v1/projects/jako?target=native#overview", report.endpointUrl)
+        assertEquals("10:Uri, 20:JSONObject, 30:SparseArray", report.activeFeatures)
+        assertEquals(1600 * 1000, report.viewportArea)
+        assertEquals(4, report.parsedTokenCount)
+    }
 }

@@ -82,11 +82,27 @@ actual open class ServerSocket : java.io.Closeable {
 
     actual open fun getLocalSocketAddress(): SocketAddress? = localAddress
 
+    internal fun hasPendingConnection(): Boolean {
+        if (closed || !bound || sock == INVALID_SOCKET.convert<ULong>()) return false
+        return memScoped {
+            val readFdSet = alloc<fd_set>()
+            readFdSet.fd_count = 1u
+            readFdSet.fd_array[0] = sock.convert()
+            val tv = alloc<timeval>()
+            tv.tv_sec = 0
+            tv.tv_usec = 0
+            platform.windows.select(0, readFdSet.ptr.reinterpret(), null, null, tv.ptr.reinterpret()) > 0
+        }
+    }
+
     actual open fun accept(): Socket {
         if (closed) throw SocketException("ServerSocket is closed")
         if (!bound) throw SocketException("ServerSocket is not bound")
 
         return memScoped {
+            val timeoutVal = alloc<IntVar>()
+            timeoutVal.value = soTimeoutMs
+            setsockopt(sock.convert(), SOL_SOCKET, SO_RCVTIMEO, timeoutVal.ptr.reinterpret<ByteVar>().toKString(), sizeOf<IntVar>().convert())
             val sa = alloc<sockaddr_in>()
             val len = alloc<IntVar>()
             len.value = sizeOf<sockaddr_in>().convert()
@@ -94,7 +110,7 @@ actual open class ServerSocket : java.io.Closeable {
             val clientFd = platform.posix.accept(sock.convert(), sa.ptr.reinterpret(), len.ptr)
             if (clientFd == INVALID_SOCKET.convert<ULong>()) {
                 val err = WSAGetLastError()
-                if (err == WSAEWOULDBLOCK) {
+                if (err == WSAEWOULDBLOCK || err == WSAETIMEDOUT) {
                     throw SocketTimeoutException("Accept timed out")
                 }
                 throw SocketException("Accept failed: WSA error $err")
@@ -131,11 +147,15 @@ actual open class ServerSocket : java.io.Closeable {
     actual open val localPort: Int get() = getLocalPort()
     actual open val localSocketAddress: SocketAddress? get() = getLocalSocketAddress()
 
-    open fun setSoTimeout(timeout: Int) {
+    actual open fun setSoTimeout(timeout: Int) {
         soTimeoutMs = timeout
     }
 
-    open fun getSoTimeout(): Int = soTimeoutMs
+    actual open fun getSoTimeout(): Int = soTimeoutMs
+
+    actual open var soTimeout: Int
+        get() = getSoTimeout()
+        set(value) = setSoTimeout(value)
 
     actual open fun setReuseAddress(on: Boolean) {
         if (sock != INVALID_SOCKET.convert<ULong>()) {
@@ -162,7 +182,7 @@ actual open class ServerSocket : java.io.Closeable {
         get() = getReuseAddress()
         set(value) = setReuseAddress(value)
 
-    open fun setReceiveBufferSize(size: Int) {
+    actual open fun setReceiveBufferSize(size: Int) {
         if (sock != INVALID_SOCKET.convert<ULong>()) {
             memScoped {
                 val v = alloc<IntVar>()
@@ -172,7 +192,7 @@ actual open class ServerSocket : java.io.Closeable {
         }
     }
 
-    open fun getReceiveBufferSize(): Int {
+    actual open fun getReceiveBufferSize(): Int {
         if (sock == INVALID_SOCKET.convert<ULong>()) return 0
         return memScoped {
             val v = alloc<IntVar>()
@@ -181,6 +201,10 @@ actual open class ServerSocket : java.io.Closeable {
             if (getsockopt(sock.convert(), SOL_SOCKET, SO_RCVBUF, v.ptr.reinterpret<ByteVar>(), len.ptr) == 0) v.value else 0
         }
     }
+
+    actual open var receiveBufferSize: Int
+        get() = getReceiveBufferSize()
+        set(value) = setReceiveBufferSize(value)
 
     private fun updateLocalAddress(socketFd: ULong): InetSocketAddress? {
         return memScoped {
@@ -199,3 +223,7 @@ actual open class ServerSocket : java.io.Closeable {
         }
     }
 }
+
+internal actual fun serverSocketHasPendingConnection(serverSocket: ServerSocket): Boolean =
+    serverSocket.hasPendingConnection()
+

@@ -55,10 +55,12 @@ actual class URI actual constructor(
         if (s.startsWith("//")) {
             val nextSlash = s.indexOf('/', 2)
             if (nextSlash >= 0) {
-                authorityStr = s.substring(2, nextSlash)
+                val auth = s.substring(2, nextSlash)
+                authorityStr = if (auth.isEmpty()) null else auth
                 pathStr = s.substring(nextSlash)
             } else {
-                authorityStr = s.substring(2)
+                val auth = s.substring(2)
+                authorityStr = if (auth.isEmpty()) null else auth
                 pathStr = ""
             }
         } else {

@@ -27,11 +27,11 @@ public actual annotation class Synchronized actual constructor()
 @Retention(AnnotationRetention.BINARY)
 public actual annotation class JvmSuppressWildcards actual constructor(actual val suppress: Boolean)
 
-public actual val <T : Any> KClass<T>.java: Class<T> get() = Class(this)
-public actual val <T : Any> KClass<T>.javaObjectType: Class<T> get() = Class(this)
-public actual val <T : Any> KClass<T>.javaPrimitiveType: Class<T>? get() = Class(this)
+public actual val <T : Any> KClass<T>.java: Class<T> get() = Class(this, primitiveFlag = Class.isPrimitiveKClass(this))
+public actual val <T : Any> KClass<T>.javaObjectType: Class<T> get() = Class(this, primitiveFlag = false)
+public actual val <T : Any> KClass<T>.javaPrimitiveType: Class<T>? get() = if (Class.isPrimitiveKClass(this)) Class(this, primitiveFlag = true) else null
 @Suppress("UNCHECKED_CAST")
 public actual val <T : Any> Class<T>.kotlin: KClass<T> get() = kClass as KClass<T>
 @Suppress("UNCHECKED_CAST")
-public actual val <T : Any> T.javaClass: Class<T> get() = Class(this::class as KClass<T>)
+public actual val <T : Any> T.javaClass: Class<T> get() = Class(this::class as KClass<T>, primitiveFlag = false)
 

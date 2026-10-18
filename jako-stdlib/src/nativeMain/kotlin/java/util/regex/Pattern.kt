@@ -150,6 +150,24 @@ actual class Pattern constructor(val patternStr: String, val regex: Regex, val f
     actual fun flags(): Int = flags
     actual fun matcher(input: CharSequence): Matcher = Matcher(this, input)
 
+    actual fun split(input: CharSequence): Array<String> = split(input, 0)
+
+    actual fun split(input: CharSequence, limit: Int): Array<String> {
+        val list = if (limit > 0) {
+            regex.split(input, limit)
+        } else {
+            regex.split(input, 0)
+        }
+        if (limit == 0 && list.size > 1) {
+            var end = list.size
+            while (end > 0 && list[end - 1].isEmpty()) {
+                end--
+            }
+            return list.subList(0, end).toTypedArray()
+        }
+        return list.toTypedArray()
+    }
+
     actual companion object {
         actual const val UNIX_LINES = 1
         actual const val CASE_INSENSITIVE = 2

@@ -37,4 +37,5 @@ expect open class ArrayDeque<E> : AbstractQueue<E>, Deque<E>, Cloneable, Seriali
     override fun pop(): E
     override fun push(e: E)
     override fun descendingIterator(): MutableIterator<E>
+    open fun clone(): ArrayDeque<E>
 }

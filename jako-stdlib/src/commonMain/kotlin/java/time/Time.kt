@@ -3,8 +3,11 @@
 package java.time
 
 import java.io.Serializable
+import java.time.temporal.Temporal
 import java.time.temporal.TemporalAccessor
+import java.time.temporal.TemporalAdjuster
 import java.time.temporal.TemporalAmount
+import java.time.temporal.TemporalUnit
 
 expect class Duration : TemporalAmount, Serializable, Comparable<Duration> {
     val seconds: Long
@@ -12,10 +15,29 @@ expect class Duration : TemporalAmount, Serializable, Comparable<Duration> {
 
     fun getSeconds(): Long
     fun getNano(): Int
+    fun toDays(): Long
+    fun toHours(): Long
+    fun toMinutes(): Long
     fun toMillis(): Long
     fun toNanos(): Long
     fun plus(duration: Duration): Duration
+    fun plusDays(daysToAdd: Long): Duration
+    fun plusHours(hoursToAdd: Long): Duration
+    fun plusMinutes(minutesToAdd: Long): Duration
+    fun plusSeconds(secondsToAdd: Long): Duration
+    fun plusMillis(millisToAdd: Long): Duration
+    fun plusNanos(nanosToAdd: Long): Duration
     fun minus(duration: Duration): Duration
+    fun minusDays(daysToSubtract: Long): Duration
+    fun minusHours(hoursToSubtract: Long): Duration
+    fun minusMinutes(minutesToSubtract: Long): Duration
+    fun minusSeconds(secondsToSubtract: Long): Duration
+    fun minusMillis(millisToSubtract: Long): Duration
+    fun minusNanos(nanosToSubtract: Long): Duration
+    fun multipliedBy(multiplicand: Long): Duration
+    fun dividedBy(divisor: Long): Duration
+    fun negated(): Duration
+    fun abs(): Duration
     fun isZero(): Boolean
     fun isNegative(): Boolean
     override fun compareTo(other: Duration): Int
@@ -29,24 +51,36 @@ expect class Duration : TemporalAmount, Serializable, Comparable<Duration> {
         fun ofMinutes(minutes: Long): Duration
         fun ofHours(hours: Long): Duration
         fun ofDays(days: Long): Duration
+        fun of(amount: Long, unit: TemporalUnit): Duration
+        fun between(startInclusive: Temporal, endExclusive: Temporal): Duration
+        fun parse(text: CharSequence): Duration
     }
 }
 
-expect class Instant : Serializable, Comparable<Instant>, TemporalAccessor {
+expect class Instant : Temporal, TemporalAdjuster, Serializable, Comparable<Instant> {
     val epochSecond: Long
     val nano: Int
 
     fun getEpochSecond(): Long
     fun getNano(): Int
     fun toEpochMilli(): Long
+    fun truncatedTo(unit: TemporalUnit): Instant
+    fun plus(amountToAdd: TemporalAmount): Instant
+    fun plus(amountToAdd: Long, unit: TemporalUnit): Instant
     fun plusSeconds(secondsToAdd: Long): Instant
     fun plusMillis(millisToAdd: Long): Instant
     fun plusNanos(nanosToAdd: Long): Instant
+    fun minus(amountToSubtract: TemporalAmount): Instant
+    fun minus(amountToSubtract: Long, unit: TemporalUnit): Instant
     fun minusSeconds(secondsToSubtract: Long): Instant
     fun minusMillis(millisToSubtract: Long): Instant
     fun minusNanos(nanosToSubtract: Long): Instant
+    fun until(endExclusive: Temporal, unit: TemporalUnit): Long
+    fun atOffset(offset: ZoneOffset): OffsetDateTime
+    fun atZone(zone: ZoneId): ZonedDateTime
     fun isAfter(otherInstant: Instant): Boolean
     fun isBefore(otherInstant: Instant): Boolean
+    override fun adjustInto(temporal: Temporal): Temporal
     override fun compareTo(other: Instant): Int
 
     companion object {
@@ -54,6 +88,7 @@ expect class Instant : Serializable, Comparable<Instant>, TemporalAccessor {
         val MIN: Instant
         val MAX: Instant
         fun now(): Instant
+        fun now(clock: Clock): Instant
         fun ofEpochMilli(epochMilli: Long): Instant
         fun ofEpochSecond(epochSecond: Long): Instant
         fun ofEpochSecond(epochSecond: Long, nanoAdjustment: Long): Instant

@@ -1,6 +1,6 @@
 package java.io
 
-actual abstract class Reader : Closeable {
+actual abstract class Reader : java.lang.Readable, Closeable {
     protected val lock: Any
 
     actual protected constructor() {
@@ -9,6 +9,16 @@ actual abstract class Reader : Closeable {
 
     protected constructor(lock: Any?) {
         this.lock = lock ?: this
+    }
+
+    actual override fun read(target: java.nio.CharBuffer): Int {
+        val len = target.remaining()
+        val cbuf = CharArray(len)
+        val n = read(cbuf, 0, len)
+        if (n > 0) {
+            target.put(cbuf, 0, n)
+        }
+        return n
     }
 
     actual open fun read(): Int {

@@ -24,6 +24,21 @@ actual open class File : Serializable, Comparable<File> {
         }
     }
 
+    actual constructor(uri: java.net.URI) {
+        if (!uri.isAbsolute()) throw IllegalArgumentException("URI is not absolute")
+        if (uri.isOpaque()) throw IllegalArgumentException("URI is not hierarchical")
+        val scheme = uri.getScheme()
+        if (scheme == null || !scheme.equals("file", ignoreCase = true)) {
+            throw IllegalArgumentException("URI scheme is not \"file\"")
+        }
+        if (uri.getAuthority() != null) throw IllegalArgumentException("URI has an authority component")
+        if (uri.getFragment() != null) throw IllegalArgumentException("URI has a fragment component")
+        if (uri.getQuery() != null) throw IllegalArgumentException("URI has a query component")
+        val p = uri.getPath()
+        if (p == null || p.isEmpty()) throw IllegalArgumentException("URI path component is empty")
+        this.pathString = normalizePath(p)
+    }
+
     actual open fun getName(): String {
         val idx = pathString.lastIndexOf('/')
         return if (idx >= 0) pathString.substring(idx + 1) else pathString
@@ -93,6 +108,10 @@ actual open class File : Serializable, Comparable<File> {
         }
     }
 
+    actual open fun deleteOnExit() {
+        deleteOnExitPaths.add(pathString)
+    }
+
     actual open fun mkdir(): Boolean {
         return NativeFileSystem.mkdir(pathString)
     }
@@ -154,6 +173,37 @@ actual open class File : Serializable, Comparable<File> {
 
     actual open fun renameTo(dest: File): Boolean = NativeFileSystem.rename(pathString, dest.getPath())
 
+    private fun updatePermissions(mask: Int, enable: Boolean): Boolean = memScoped {
+        val statBuf = alloc<stat>()
+        if (stat(pathString, statBuf.ptr) != 0) return false
+        val currentMode = statBuf.st_mode.convert<Int>()
+        val newMode = if (enable) currentMode or mask else currentMode and mask.inv()
+        chmod(pathString, newMode.convert()) == 0
+    }
+
+    actual open fun setReadOnly(): Boolean = updatePermissions(146, false)
+
+    actual open fun setWritable(writable: Boolean, ownerOnly: Boolean): Boolean {
+        val mask = if (ownerOnly) 128 else 146
+        return updatePermissions(mask, writable)
+    }
+
+    actual open fun setWritable(writable: Boolean): Boolean = setWritable(writable, true)
+
+    actual open fun setReadable(readable: Boolean, ownerOnly: Boolean): Boolean {
+        val mask = if (ownerOnly) 256 else 292
+        return updatePermissions(mask, readable)
+    }
+
+    actual open fun setReadable(readable: Boolean): Boolean = setReadable(readable, true)
+
+    actual open fun setExecutable(executable: Boolean, ownerOnly: Boolean): Boolean {
+        val mask = if (ownerOnly) 64 else 73
+        return updatePermissions(mask, executable)
+    }
+
+    actual open fun setExecutable(executable: Boolean): Boolean = setExecutable(executable, true)
+
     actual open fun canRead(): Boolean = NativeFileSystem.canAccess(pathString, R_OK)
 
     actual open fun canWrite(): Boolean = NativeFileSystem.canAccess(pathString, W_OK)
@@ -167,6 +217,22 @@ actual open class File : Serializable, Comparable<File> {
     actual open fun createNewFile(): Boolean = NativeFileSystem.createNewFile(pathString)
 
     actual open fun isHidden(): Boolean = NativeFileSystem.isHiddenName(getName())
+
+    actual open fun getTotalSpace(): Long = NativeFileSystem.totalSpace(pathString)
+
+    actual open fun getFreeSpace(): Long = NativeFileSystem.freeSpace(pathString)
+
+    actual open fun getUsableSpace(): Long = NativeFileSystem.usableSpace(pathString)
+
+    actual open fun toURI(): java.net.URI {
+        val f = getAbsoluteFile()
+        var sp = f.getPath().replace('\\', '/')
+        if (!sp.startsWith("/")) sp = "/$sp"
+        if (!sp.endsWith("/") && f.isDirectory()) sp = "$sp/"
+        return java.net.URI("file", null, sp, null, null)
+    }
+
+    actual open fun toPath(): java.nio.file.Path = java.nio.file.Paths.get(pathString)
 
     actual override fun compareTo(other: File): Int = pathString.compareTo(other.pathString)
 
@@ -182,6 +248,9 @@ actual open class File : Serializable, Comparable<File> {
     actual open val isDirectory: Boolean get() = isDirectory()
     actual open val isFile: Boolean get() = isFile()
     actual open val isHidden: Boolean get() = isHidden()
+    actual open val totalSpace: Long get() = getTotalSpace()
+    actual open val freeSpace: Long get() = getFreeSpace()
+    actual open val usableSpace: Long get() = getUsableSpace()
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -198,6 +267,9 @@ actual open class File : Serializable, Comparable<File> {
         actual val separator: String = "/"
         actual val pathSeparatorChar: Char = ':'
         actual val pathSeparator: String = ":"
+        private val deleteOnExitPaths = linkedSetOf<String>()
+
+        actual fun listRoots(): Array<File> = arrayOf(File("/"))
 
         private fun normalizePath(p: String): String {
             if (p.isEmpty()) return ""

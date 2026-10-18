@@ -2,7 +2,8 @@
 
 package java.nio
 
-expect open class CharBuffer : Buffer, Comparable<CharBuffer>, Appendable {
+expect open class CharBuffer : Buffer, Comparable<CharBuffer>, Appendable, java.lang.Readable {
+    override fun read(target: CharBuffer): Int
     open fun get(): Char
     open fun put(c: Char): CharBuffer
     open fun get(index: Int): Char

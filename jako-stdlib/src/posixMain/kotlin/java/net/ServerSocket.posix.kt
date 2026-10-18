@@ -79,6 +79,19 @@ actual open class ServerSocket : java.io.Closeable {
 
     actual open fun getLocalSocketAddress(): SocketAddress? = localAddress
 
+    internal fun hasPendingConnection(): Boolean {
+        if (closed || !bound || fd < 0) return false
+        return memScoped {
+            val readFdSet = alloc<fd_set>()
+            posix_fd_zero(readFdSet.ptr)
+            posix_fd_set(fd, readFdSet.ptr)
+            val tv = alloc<timeval>()
+            tv.tv_sec = 0.convert()
+            tv.tv_usec = 0.convert()
+            select(fd + 1, readFdSet.ptr, null, null, tv.ptr) > 0
+        }
+    }
+
     actual open fun accept(): Socket {
         if (closed) throw SocketException("ServerSocket is closed")
         if (!bound) throw SocketException("ServerSocket is not bound")
@@ -144,11 +157,15 @@ actual open class ServerSocket : java.io.Closeable {
     actual open val localPort: Int get() = getLocalPort()
     actual open val localSocketAddress: SocketAddress? get() = getLocalSocketAddress()
 
-    fun setSoTimeout(timeout: Int) {
+    actual open fun setSoTimeout(timeout: Int) {
         soTimeoutMs = timeout
     }
 
-    fun getSoTimeout(): Int = soTimeoutMs
+    actual open fun getSoTimeout(): Int = soTimeoutMs
+
+    actual open var soTimeout: Int
+        get() = getSoTimeout()
+        set(value) = setSoTimeout(value)
 
     actual open fun setReuseAddress(on: Boolean) {
         if (fd >= 0) {
@@ -174,7 +191,7 @@ actual open class ServerSocket : java.io.Closeable {
         get() = getReuseAddress()
         set(value) = setReuseAddress(value)
 
-    fun setReceiveBufferSize(size: Int) {
+    actual open fun setReceiveBufferSize(size: Int) {
         if (fd >= 0) {
             memScoped {
                 val v = alloc<IntVar>()
@@ -184,7 +201,7 @@ actual open class ServerSocket : java.io.Closeable {
         }
     }
 
-    fun getReceiveBufferSize(): Int {
+    actual open fun getReceiveBufferSize(): Int {
         if (fd < 0) return 0
         return memScoped {
             val v = alloc<IntVar>()
@@ -193,6 +210,10 @@ actual open class ServerSocket : java.io.Closeable {
             if (getsockopt(fd, SOL_SOCKET, SO_RCVBUF, v.ptr, len.ptr) == 0) v.value else 0
         }
     }
+
+    actual open var receiveBufferSize: Int
+        get() = getReceiveBufferSize()
+        set(value) = setReceiveBufferSize(value)
 
     private fun updateLocalAddress(socketFd: Int): InetSocketAddress? {
         return memScoped {
@@ -211,3 +232,7 @@ actual open class ServerSocket : java.io.Closeable {
         }
     }
 }
+
+internal actual fun serverSocketHasPendingConnection(serverSocket: ServerSocket): Boolean =
+    serverSocket.hasPendingConnection()
+

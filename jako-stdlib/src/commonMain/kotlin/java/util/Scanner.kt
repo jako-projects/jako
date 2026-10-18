@@ -9,6 +9,7 @@ import java.nio.file.Path
 import java.util.regex.Pattern
 
 expect open class Scanner : Iterator<String>, Closeable {
+    constructor(source: java.lang.Readable)
     constructor(source: String)
     constructor(source: InputStream)
     constructor(source: InputStream, charsetName: String)

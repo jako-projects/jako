@@ -12,8 +12,16 @@ import java.io.OutputStream
 import java.io.OutputStreamWriter
 import java.nio.charset.Charset
 import java.nio.charset.StandardCharsets
+import java.nio.file.attribute.FileAttribute
 import java.nio.file.attribute.FileTime
 import java.nio.file.attribute.nativeReadBasicAttributes
+
+actual interface DirectoryStream<T> : java.io.Closeable, Iterable<T> {
+    actual fun interface Filter<T> {
+        actual fun accept(entry: T): Boolean
+    }
+    actual override fun iterator(): MutableIterator<T>
+}
 
 actual open class FileSystemException actual constructor(
     actual val file: String?,
@@ -53,6 +61,42 @@ actual open class FileAlreadyExistsException actual constructor(
     actual constructor(file: String?) : this(file, null, null)
 }
 
+actual open class NotDirectoryException actual constructor(
+    file: String?
+) : FileSystemException(file)
+
+actual open class DirectoryNotEmptyException actual constructor(
+    dir: String?
+) : FileSystemException(dir)
+
+private class NativeDirectoryStream(
+    private val entries: MutableList<Path>
+) : DirectoryStream<Path> {
+    private var closed = false
+    private var iteratorObtained = false
+
+    override fun iterator(): MutableIterator<Path> {
+        if (closed) throw IllegalStateException("Directory stream is closed")
+        if (iteratorObtained) throw IllegalStateException("Iterator already obtained")
+        iteratorObtained = true
+        val backing = entries.iterator()
+        return object : MutableIterator<Path> {
+            override fun hasNext(): Boolean = !closed && backing.hasNext()
+            override fun next(): Path {
+                if (closed) throw NoSuchElementException()
+                return backing.next()
+            }
+            override fun remove() {
+                throw UnsupportedOperationException("remove")
+            }
+        }
+    }
+
+    override fun close() {
+        closed = true
+    }
+}
+
 actual class Files {
     actual companion object {
         actual fun exists(path: Path, vararg options: LinkOption): Boolean = path.toFile().exists()
@@ -63,11 +107,22 @@ actual class Files {
 
         actual fun isRegularFile(path: Path, vararg options: LinkOption): Boolean = path.toFile().isFile()
 
-        actual fun isReadable(path: Path): Boolean = path.toFile().exists()
+        actual fun isReadable(path: Path): Boolean = path.toFile().canRead()
 
-        actual fun isWritable(path: Path): Boolean = path.toFile().exists()
+        actual fun isWritable(path: Path): Boolean = path.toFile().canWrite()
 
-        actual fun isExecutable(path: Path): Boolean = path.toFile().exists()
+        actual fun isExecutable(path: Path): Boolean = path.toFile().canExecute()
+
+        actual fun isSameFile(path: Path, path2: Path): Boolean {
+            if (path == path2) return true
+            val f1 = path.toFile()
+            val f2 = path2.toFile()
+            if (!f1.exists()) throw NoSuchFileException(path.toString())
+            if (!f2.exists()) throw NoSuchFileException(path2.toString())
+            return f1.getCanonicalPath() == f2.getCanonicalPath()
+        }
+
+        actual fun isHidden(path: Path): Boolean = path.toFile().isHidden()
 
         actual fun size(path: Path): Long {
             val file = path.toFile()
@@ -75,36 +130,145 @@ actual class Files {
             return file.length()
         }
 
-        actual fun createFile(path: Path): Path {
+        actual fun createFile(path: Path, vararg attrs: FileAttribute<*>): Path {
             val file = path.toFile()
             if (file.exists()) throw FileAlreadyExistsException(path.toString())
-            val fos = FileOutputStream(file)
-            fos.close()
+            if (!file.createNewFile()) throw FileAlreadyExistsException(path.toString())
             return path
         }
 
-        actual fun createDirectory(path: Path): Path {
+        actual fun createDirectory(path: Path, vararg attrs: FileAttribute<*>): Path {
             val file = path.toFile()
             if (file.exists()) throw FileAlreadyExistsException(path.toString())
             if (!file.mkdir()) throw IOException("Failed to create directory $path")
             return path
         }
 
-        actual fun createDirectories(path: Path): Path {
+        actual fun createDirectories(path: Path, vararg attrs: FileAttribute<*>): Path {
             val file = path.toFile()
             file.mkdirs()
             return path
         }
 
+        private fun checkTempPrefixSuffix(prefix: String?, suffix: String?) {
+            if (prefix != null && (prefix.contains('/') || prefix.contains('\\'))) {
+                throw IllegalArgumentException("Invalid prefix: $prefix")
+            }
+            if (suffix != null && (suffix.contains('/') || suffix.contains('\\'))) {
+                throw IllegalArgumentException("Invalid suffix: $suffix")
+            }
+        }
+
+        actual fun createTempFile(
+            dir: Path,
+            prefix: String?,
+            suffix: String?,
+            vararg attrs: FileAttribute<*>
+        ): Path {
+            checkTempPrefixSuffix(prefix, suffix)
+            val dirFile = dir.toFile()
+            if (!dirFile.exists()) throw NoSuchFileException(dir.toString())
+            if (!dirFile.isDirectory()) throw NotDirectoryException(dir.toString())
+            val pfx = prefix ?: ""
+            val sfx = suffix ?: ".tmp"
+            var attempts = 0
+            while (attempts < 10000) {
+                attempts++
+                val randomNum = kotlin.random.Random.nextLong().let { if (it < 0) -it else it }
+                val candidate = dir.resolve("$pfx$randomNum$sfx")
+                if (candidate.toFile().createNewFile()) {
+                    return candidate
+                }
+            }
+            throw IOException("Unable to create temporary file in $dir")
+        }
+
+        actual fun createTempFile(
+            prefix: String?,
+            suffix: String?,
+            vararg attrs: FileAttribute<*>
+        ): Path {
+            val tmpDir = Paths.get(java.lang.System.getProperty("java.io.tmpdir") ?: "/tmp")
+            return createTempFile(tmpDir, prefix, suffix, *attrs)
+        }
+
+        actual fun createTempDirectory(
+            dir: Path,
+            prefix: String?,
+            vararg attrs: FileAttribute<*>
+        ): Path {
+            checkTempPrefixSuffix(prefix, null)
+            val dirFile = dir.toFile()
+            if (!dirFile.exists()) throw NoSuchFileException(dir.toString())
+            if (!dirFile.isDirectory()) throw NotDirectoryException(dir.toString())
+            val pfx = prefix ?: ""
+            var attempts = 0
+            while (attempts < 10000) {
+                attempts++
+                val randomNum = kotlin.random.Random.nextLong().let { if (it < 0) -it else it }
+                val candidate = dir.resolve("$pfx$randomNum")
+                if (candidate.toFile().mkdir()) {
+                    return candidate
+                }
+            }
+            throw IOException("Unable to create temporary directory in $dir")
+        }
+
+        actual fun createTempDirectory(
+            prefix: String?,
+            vararg attrs: FileAttribute<*>
+        ): Path {
+            val tmpDir = Paths.get(java.lang.System.getProperty("java.io.tmpdir") ?: "/tmp")
+            return createTempDirectory(tmpDir, prefix, *attrs)
+        }
+
+        actual fun newDirectoryStream(dir: Path): DirectoryStream<Path> {
+            return newDirectoryStream(dir, DirectoryStream.Filter { true })
+        }
+
+        actual fun newDirectoryStream(dir: Path, glob: String): DirectoryStream<Path> {
+            if (glob == "*") return newDirectoryStream(dir)
+            val matcher = dir.getFileSystem().getPathMatcher("glob:$glob")
+            return newDirectoryStream(dir, DirectoryStream.Filter { entry ->
+                val name = entry.getFileName()
+                name != null && matcher.matches(name)
+            })
+        }
+
+        actual fun newDirectoryStream(
+            dir: Path,
+            filter: DirectoryStream.Filter<in Path>
+        ): DirectoryStream<Path> {
+            val dirFile = dir.toFile()
+            if (!dirFile.exists()) throw NoSuchFileException(dir.toString())
+            if (!dirFile.isDirectory()) throw NotDirectoryException(dir.toString())
+            val names = dirFile.list() ?: throw IOException("Failed to list directory: $dir")
+            val entries = mutableListOf<Path>()
+            for (name in names) {
+                val entry = dir.resolve(name)
+                if (filter.accept(entry)) {
+                    entries.add(entry)
+                }
+            }
+            return NativeDirectoryStream(entries)
+        }
+
         actual fun delete(path: Path) {
             val file = path.toFile()
             if (!file.exists()) throw NoSuchFileException(path.toString())
+            if (file.isDirectory() && (file.list()?.isNotEmpty() == true)) {
+                throw DirectoryNotEmptyException(path.toString())
+            }
             if (!file.delete()) throw IOException("Failed to delete $path")
         }
 
         actual fun deleteIfExists(path: Path): Boolean {
             val file = path.toFile()
-            return if (file.exists()) file.delete() else false
+            if (!file.exists()) return false
+            if (file.isDirectory() && (file.list()?.isNotEmpty() == true)) {
+                throw DirectoryNotEmptyException(path.toString())
+            }
+            return file.delete()
         }
 
         actual fun copy(source: Path, target: Path, vararg options: CopyOption): Path {

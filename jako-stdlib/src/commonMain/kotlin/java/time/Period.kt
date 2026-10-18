@@ -24,6 +24,10 @@ expect class Period : TemporalAmount, Serializable {
     fun minusYears(yearsToSubtract: Long): Period
     fun minusMonths(monthsToSubtract: Long): Period
     fun minusDays(daysToSubtract: Long): Period
+    fun multipliedBy(scalar: Int): Period
+    fun negated(): Period
+    fun normalized(): Period
+    fun toTotalMonths(): Long
 
     companion object {
         val ZERO: Period
@@ -32,5 +36,7 @@ expect class Period : TemporalAmount, Serializable {
         fun ofMonths(months: Int): Period
         fun ofWeeks(weeks: Int): Period
         fun ofDays(days: Int): Period
+        fun between(startDateInclusive: LocalDate, endDateExclusive: LocalDate): Period
+        fun parse(text: CharSequence): Period
     }
 }

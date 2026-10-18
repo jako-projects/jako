@@ -36,23 +36,34 @@ This document tracks the Java 8 Standard Library API porting progress for `jako-
 - [x] `listFiles(): Array<File>?`
 - [x] `list(FilenameFilter?)` / `listFiles(FileFilter?)` / `listFiles(FilenameFilter?)`
 - [x] `lastModified()` / `setLastModified(time)`
-- [x] `renameTo(dest)` / `createNewFile()` / `isHidden()`
-- [x] `canRead()` / `canWrite()` / `canExecute()`
+- [x] `renameTo(dest)` / `createNewFile()` / `isHidden()` / `deleteOnExit()`
+- [x] `canRead()` / `canWrite()` / `canExecute()` / `setReadable()` / `setWritable()` / `setExecutable()` / `setReadOnly()`
 - [x] `getCanonicalPath()` / `getCanonicalFile()`
+- [x] `File(uri: URI)` / `toURI(): URI` / `toPath(): Path`
+- [x] `File.listRoots(): Array<File>` / `getTotalSpace()` / `getFreeSpace()` / `getUsableSpace()`
 - [x] `File.separator` / `separatorChar` / `pathSeparator` / `pathSeparatorChar`
 
 ### `java.io` Interfaces & Filters
 - [x] `Closeable` (`close()`)
 - [x] `Flushable` (`flush()`)
 - [x] `Serializable`
+- [x] `Externalizable` (`writeExternal`, `readExternal`)
+- [x] `ObjectInput` (extends `DataInput`, `AutoCloseable`; `readObject`, `read`, `skip`, `available`, `close`)
+- [x] `ObjectOutput` (extends `DataOutput`, `AutoCloseable`; `writeObject`, `write`, `flush`, `close`)
+- [x] `ObjectStreamConstants` (`STREAM_MAGIC`, `STREAM_VERSION`, `TC_*`, `SC_*`, `PROTOCOL_VERSION_1`, `PROTOCOL_VERSION_2`)
 - [x] `FileFilter` (`accept(pathname: File): Boolean`)
 - [x] `FilenameFilter` (`accept(dir: File, name: String): Boolean`)
 
 ### `java.io` Exceptions
 - [x] `IOException`
+- [x] `UncheckedIOException` (`cause: IOException`)
 - [x] `FileNotFoundException`
 - [x] `EOFException`
 - [x] `InterruptedIOException`
+- [x] `UnsupportedEncodingException`
+- [x] `UTFDataFormatException`
+- [x] `CharConversionException`
+- [x] `ObjectStreamException`, `InvalidClassException`, `NotSerializableException`, `InvalidObjectException`, `StreamCorruptedException`, `NotActiveException`, `WriteAbortedException`
 
 ### `java.io.InputStream` & `java.io.OutputStream`
 - [x] `InputStream.read(): Int`
@@ -94,9 +105,7 @@ This document tracks the Java 8 Standard Library API porting progress for `jako-
 - [x] `PrintWriter(out: Writer)`
 
 ### `java.io.Reader` & `java.io.Writer`
-- [x] `Reader.read(): Int`
-- [x] `Reader.read(cbuf: CharArray): Int`
-- [x] `Reader.read(cbuf: CharArray, off: Int, len: Int): Int`
+- [x] `Reader` (implements `java.lang.Readable`, `Closeable`; `read(CharBuffer)`, `read()`, `read(CharArray)`, `read(CharArray, Int, Int)`)
 - [x] `Writer.write(c: Int)`
 - [x] `Writer.write(cbuf: CharArray)`
 - [x] `Writer.write(cbuf: CharArray, off: Int, len: Int)`
@@ -113,14 +122,14 @@ This document tracks the Java 8 Standard Library API porting progress for `jako-
 - [x] `OutputStreamWriter(out: OutputStream, cs: Charset)`
 
 ### Buffered & In-Memory Character Streams
-- [x] `BufferedReader(inReader: Reader)`
+- [x] `BufferedReader(inReader: Reader)` (`readLine()`, `lines(): Stream<String>`)
 - [x] `BufferedWriter(out: Writer)`
 - [x] `StringReader(s: String)`
 - [x] `StringWriter()`
 - [x] `CharArrayReader(buf: CharArray)`
 - [x] `CharArrayWriter()`
 
-### `java.io` Filter, Pushback & Special Streams
+### `java.io` Filter, Pushback, Tokenizer & Special Streams
 - [x] `FilterInputStream(inStream: InputStream)`
 - [x] `FilterOutputStream(out: OutputStream)`
 - [x] `FilterReader(inReader: Reader)`
@@ -129,38 +138,52 @@ This document tracks the Java 8 Standard Library API porting progress for `jako-
 - [x] `PushbackReader(inReader: Reader)`
 - [x] `SequenceInputStream(s1: InputStream, s2: InputStream)`
 - [x] `LineNumberReader(inReader: Reader)`
+- [x] `StreamTokenizer` (`TT_EOF`, `TT_EOL`, `TT_NUMBER`, `TT_WORD`, `nextToken`, `pushBack`, `lineno`, `wordChars`, `whitespaceChars`, `ordinaryChar`, `commentChar`, `quoteChar`, `parseNumbers`, `slashSlashComments`, `slashStarComments`, `lowerCaseMode`)
 
 ### `java.io` Piped, Random Access & Object Streams
 - [x] `PipedInputStream` / `PipedOutputStream`
 - [x] `PipedReader` / `PipedWriter`
-- [x] `RandomAccessFile(file: File, mode: String)`
-- [~] `ObjectInputStream` / `ObjectOutputStream`（`readObject()` 恒为 null，`writeObject()` 只写 `toString()`；序列化格式待单独设计）
+- [x] `RandomAccessFile(file: File, mode: String)` (implements `DataOutput`, `DataInput`, `Closeable`; `getChannel()`, `getFD()`)
+- [x] `ObjectInputStream` / `ObjectOutputStream` (implements `ObjectInput` / `ObjectOutput`, `ObjectStreamConstants`, stream header & standard type/collection binary serialization)
 
 ---
 
-## 2. `java.lang` Package
+## 2. `java.lang` & `java.lang.reflect` Packages
 
 ### `java.lang.System`
 - [x] `System.currentTimeMillis(): Long`
 - [x] `System.nanoTime(): Long`
 - [x] `System.arraycopy(src, srcPos, dest, destPos, length)`
-- [x] `System.getProperty(key: String): String?`
+- [x] `System.getProperty(key: String): String?` (`user.dir`, `user.home`, `user.name`, `java.io.tmpdir`, `os.name`, `os.arch`, `os.version`, `file.separator`, `path.separator`, `line.separator`)
 - [x] `System.lineSeparator(): String`
 - [x] `System.in` / `System.out` / `System.err`
 - [x] `System.setIn` / `setOut` / `setErr`
 
+### `java.lang.Process`, `ProcessBuilder` & `Runtime`
+- [x] `Process` (`inputStream`, `outputStream`, `errorStream`, `waitFor()`, `waitFor(timeout, unit)`, `exitValue()`, `destroy()`, `destroyForcibly()`, `isAlive`)
+- [x] `ProcessBuilder` (`command`, `environment`, `directory`, `redirectErrorStream`, `inheritIO`, `start`)
+- [x] `Runtime.getRuntime()` (`exec`, `availableProcessors`, `freeMemory`, `totalMemory`, `maxMemory`, `gc`, `exit`, `halt`)
+
 ### `java.lang.Thread`
 - [x] `Thread()` / `Thread(target)` / `Thread(name)` / `Thread(target, name)`
+- [x] `Thread.State` (`NEW`, `RUNNABLE`, `BLOCKED`, `WAITING`, `TIMED_WAITING`, `TERMINATED`) & `getState()`
+- [x] `Thread.UncaughtExceptionHandler` (`uncaughtExceptionHandler`, `defaultUncaughtExceptionHandler`)
 - [x] `start()` (Kotlin Native `Worker` 后台执行)
 - [x] `run()` / `join()` / `join(millis)` / `join(millis, nanos)`
 - [x] `interrupt()` / `isInterrupted()` / `Thread.interrupted()`
 - [x] `Thread.currentThread()` (按 OS 线程绑定同一实例)
-- [x] `Thread.sleep()` (可中断) / `Thread.yield()`
-- [x] `getName()` / `setName()` / `getId()` / `isAlive()` / `isDaemon()` / `setDaemon()`
+- [x] `Thread.sleep()` (可中断) / `Thread.yield()` / `Thread.holdsLock(obj)`
+- [x] `getName()` / `setName()` / `getId()` / `isAlive()` / `isDaemon()` / `setDaemon()` / `getPriority()` / `setPriority()` (`MIN_PRIORITY`, `NORM_PRIORITY`, `MAX_PRIORITY`)
 - [x] `IllegalThreadStateException`
 
-### `java.lang.ThreadLocal`
+### `java.lang.ThreadLocal` & `InheritableThreadLocal`
 - [x] `ThreadLocal<T>` (`get` / `set` / `remove` / `withInitial`，按 `currentThread()` 隔离)
+- [x] `InheritableThreadLocal<T>` (`childValue(parentValue)`，子线程自动继承父线程快照)
+
+### `java.lang.Class`, `Void` & `java.lang.reflect.Array`
+- [x] `Class<T>` (implements `Serializable`; `getName`, `getSimpleName`, `getCanonicalName`, `isPrimitive`, `isArray`, `isInstance`, `getComponentType`, `cast`, `forName`)
+- [x] `Void` (`Void.TYPE`)
+- [x] `java.lang.reflect.Array` (`newInstance`, `getLength`, `get*`, `set*` with widening primitive conversions)
 
 ### `java.lang.Character`
 - [x] `Character.isISOControl()`
@@ -174,12 +197,19 @@ This document tracks the Java 8 Standard Library API porting progress for `jako-
 - [x] `Character.codePointAt()`
 
 ### `java.lang.ref`
-- [x] `WeakReference<T>` (wraps Kotlin Native `WeakReference`)
+- [x] `Reference<T>` (`get()`, `clear()`, `isEnqueued()`, `enqueue()`)
+- [x] `ReferenceQueue<T>` (`poll()`, `remove()`, `remove(timeout)`)
+- [x] `WeakReference<T>` (wraps Kotlin Native `WeakReference`, supports `ReferenceQueue`)
+- [x] `SoftReference<T>` & `PhantomReference<T>`
 
-### `java.lang` Misc
-- [x] `Object` (`wait` / `notify` / `notifyAll` — 独立监视器；不是 Java `synchronized` 同一把锁)
+### `java.lang` Interfaces, StackTrace & Exceptions
+- [x] `Readable` (`read(cb: CharBuffer): Int`)
+- [x] `StackTraceElement` (`declaringClass`, `methodName`, `fileName`, `lineNumber`, `isNativeMethod`)
+- [x] `Object` (`wait` / `notify` / `notifyAll`)
+- [x] `ClassNotFoundException`, `NoSuchFieldException`
+- [x] `SecurityException`, `IllegalMonitorStateException`, `NegativeArraySizeException`, `ArrayStoreException`, `StringIndexOutOfBoundsException`
 - [x] `InterruptedException`
-- [x] `Throwable` extensions (`initCause`)
+- [x] `Throwable` extensions (`initCause`, `suppressed`, `getSuppressed`)
 
 ---
 
@@ -227,6 +257,7 @@ This document tracks the Java 8 Standard Library API porting progress for `jako-
 - [x] `Arrays.copyOf(array, newLength)` / `Arrays.copyOfRange(array, from, to)`
 - [x] `Arrays.hashCode(array)` / `Arrays.deepHashCode(array)`
 - [x] `Arrays.toString(array)` / `Arrays.deepToString(array)`
+- [x] `Arrays.spliterator(array)` / `Arrays.stream(array)` (all primitive and object arrays)
 
 ### `java.util.Collections`
 - [x] `emptyList()`, `emptySet()`, `emptyMap()`, `singletonList()`, `singleton()`, `singletonMap()`
@@ -241,8 +272,8 @@ This document tracks the Java 8 Standard Library API porting progress for `jako-
 - [x] `OptionalInt` / `OptionalLong` / `OptionalDouble`
 
 ### `java.util.Properties`
-- [x] `Properties()` / `Properties(defaults)`
-- [x] `getProperty()` / `setProperty()` / `stringPropertyNames()` / `propertyNames()`
+- [x] `Properties()` / `Properties(defaults)` (extends `Hashtable<Any, Any>`, implements `MutableMap<Any, Any>`, `Cloneable`, `Serializable`)
+- [x] `getProperty()` / `setProperty()` / `stringPropertyNames()` / `propertyNames()` / `clone()`
 - [x] `load(InputStream)` / `load(Reader)` / `store(OutputStream)` / `store(Writer)`
 
 ### `java.util.Date`
@@ -268,12 +299,14 @@ This document tracks the Java 8 Standard Library API porting progress for `jako-
 
 ### `java.util.Formatter`
 - [x] `Formatter()` / `Formatter(Appendable)` (`format` 支持 `%s` `%d` `%x` `%f` `%n` `%%`，`close`/`flush`)
+- [x] `Formattable` & `FormattableFlags`
+- [x] `FormatterClosedException` & `IllegalFormatException` (`DuplicateFormatFlagsException`, `FormatFlagsConversionMismatchException`, `IllegalFormatCodePointException`, `IllegalFormatConversionException`, `IllegalFormatFlagsException`, `IllegalFormatPrecisionException`, `IllegalFormatWidthException`, `MissingFormatArgumentException`, `MissingFormatWidthException`, `UnknownFormatConversionException`)
 
 ### `java.util.Timer` & `TimerTask`
 - [x] `Timer.schedule(task, delay)` / `schedule(task, delay, period)` / `cancel()`
 
 ### `java.util.Scanner`
-- [x] `Scanner(String)` / `Scanner(InputStream)` / `Scanner(File)` / `Scanner(Path)`
+- [x] `Scanner(String)` / `Scanner(InputStream)` / `Scanner(File)` / `Scanner(Path)` / `Scanner(Readable)`
 - [x] `hasNext()`, `next()`, `hasNextLine()`, `nextLine()`, `hasNextInt()`, `nextInt()`, `hasNextLong()`, `nextLong()`, `hasNextDouble()`, `nextDouble()`, `hasNextBoolean()`, `nextBoolean()`
 - [x] `useDelimiter(Pattern/String)`, `delimiter()`, `close()`
 - [x] `InputMismatchException`
@@ -281,12 +314,30 @@ This document tracks the Java 8 Standard Library API porting progress for `jako-
 ### `java.lang.Cloneable`
 - [x] `java.lang.Cloneable` & `CloneNotSupportedException`
 
-### `java.util.Deque`, `TreeMap`, `TreeSet` & Collections
+### `java.util.Deque`, `TreeMap`, `TreeSet`, Legacy Collections & Spliterators
 - [x] `Queue<E>`, `AbstractQueue<E>`, `Deque<E>`
 - [x] `ArrayDeque<E>` (`addFirst`, `addLast`, `offerFirst`, `offerLast`, `removeFirst`, `removeLast`, `pollFirst`, `pollLast`, `getFirst`, `getLast`, `peekFirst`, `peekLast`, `pop`, `push`, `descendingIterator`, `clone`)
-- [x] `SortedMap<K, V>`, `NavigableMap<K, V>`, `TreeMap<K, V>`
+- [x] `AbstractSequentialList<E>` & `LinkedList<E>` (implements `MutableList<E>`, `Deque<E>`, `Cloneable`, `Serializable`)
+- [x] `Dictionary<K, V>`, `Hashtable<K, V>`, `Vector<E>`, `Stack<E>` (`push`, `pop`, `peek`, `empty`, `search`)
+- [x] `PriorityQueue<E>` (binary min-heap, natural ordering & custom `Comparator`, `offer`, `poll`, `peek`, `remove`)
+- [x] `SortedMap<K, V>`, `NavigableMap<K, V>`, `TreeMap<K, V>` (`lowerEntry`, `floorEntry`, `ceilingEntry`, `higherEntry`, `firstEntry`, `lastEntry`, `pollFirstEntry`, `pollLastEntry`, `descendingMap`, `subMap`, `headMap`, `tailMap`)
 - [x] `SortedSet<E>`, `NavigableSet<E>`, `TreeSet<E>`
 - [x] `LinkedHashMap<K, V>` (including access-order constructor)
+- [x] `IdentityHashMap<K, V>` (reference-equality `===` keys and values)
+- [x] `WeakHashMap<K, V>`
+- [x] `EnumMap<K, V>` & `EnumSet<E>` (natural enum ordinal ordering, `noneOf`, `of`, `copyOf`, `clone`)
+- [x] `Objects` (`equals`, `deepEquals`, `hashCode`, `hash`, `toString`, `compare`, `requireNonNull`, `isNull`, `nonNull`)
+- [x] `EventListener`, `EventListenerProxy<T>`, `EventObject`, `Observer`, `Observable`
+- [x] `PrimitiveIterator<T, T_CONS>`, `PrimitiveIterator.OfInt`, `PrimitiveIterator.OfLong`, `PrimitiveIterator.OfDouble`
+- [x] `Spliterator<T>`, `Spliterator.OfPrimitive`, `Spliterator.OfInt`, `Spliterator.OfLong`, `Spliterator.OfDouble`, `Spliterators`
+- [x] `IntSummaryStatistics`, `LongSummaryStatistics`, `DoubleSummaryStatistics`
+- [x] `EmptyStackException`, `ConcurrentModificationException`, `TooManyListenersException`, `MissingResourceException`, `InvalidPropertiesFormatException`, `IllformedLocaleException`
+
+### `java.util.stream`
+- [x] `BaseStream<T, S>`, `Stream<T>`, `Stream.Builder<T>` (`filter`, `map`, `mapToInt`/`Long`/`Double`, `flatMap`, `distinct`, `sorted`, `peek`, `limit`, `skip`, `forEach`, `toArray`, `reduce`, `collect`, `min`, `max`, `count`, `anyMatch`, `allMatch`, `noneMatch`, `findFirst`, `findAny`, `concat`, `iterate`, `generate`)
+- [x] `IntStream` & `IntStream.Builder`, `LongStream` & `LongStream.Builder`, `DoubleStream` & `DoubleStream.Builder` (`range`, `rangeClosed`, `sum`, `min`, `max`, `average`, `summaryStatistics`, `boxed`, `asLongStream`, `asDoubleStream`)
+- [x] `Collector<T, A, R>`, `Collector.Characteristics`, `Collectors` (`toList`, `toSet`, `toCollection`, `toMap`, `joining`, `groupingBy`, `partitioningBy`, `counting`, `summingInt`/`Long`/`Double`, `averagingInt`/`Long`/`Double`, `summarizingInt`/`Long`/`Double`, `reducing`, `mapping`, `collectingAndThen`, `minBy`, `maxBy`)
+- [x] `StreamSupport` (`stream`, `intStream`, `longStream`, `doubleStream`)
 
 ### `java.util.regex`
 - [x] `Pattern` (`compile`, `matcher`, `matches`, `split`, `quote`)
@@ -300,47 +351,61 @@ This document tracks the Java 8 Standard Library API porting progress for `jako-
 - [x] `Handler`, `Formatter`, `SimpleFormatter`
 
 ### `java.util.concurrent.atomic`
-- [x] `AtomicInteger(initialValue: Int)`
-- [x] `AtomicLong(initialValue: Long)`
-- [x] `AtomicBoolean(initialValue: Boolean)`
-- [x] `AtomicReference<V>(initialValue: V)`
+- [x] `AtomicInteger(initialValue: Int)` (`get`, `set`, `lazySet`, `getAndSet`, `compareAndSet`, `weakCompareAndSet`, `getAndUpdate`, `updateAndGet`, `getAndAccumulate`, `accumulateAndGet`, `addAndGet`, `getAndAdd`)
+- [x] `AtomicLong(initialValue: Long)` (`get`, `set`, `lazySet`, `getAndSet`, `compareAndSet`, `weakCompareAndSet`, `getAndUpdate`, `updateAndGet`, `getAndAccumulate`, `accumulateAndGet`, `addAndGet`, `getAndAdd`)
+- [x] `AtomicBoolean(initialValue: Boolean)` (`get`, `set`, `lazySet`, `getAndSet`, `compareAndSet`, `weakCompareAndSet`)
+- [x] `AtomicReference<V>(initialValue: V)` (`get`, `set`, `lazySet`, `getAndSet`, `compareAndSet`, `weakCompareAndSet`, `getAndUpdate`, `updateAndGet`, `getAndAccumulate`, `accumulateAndGet`)
+- [x] `AtomicIntegerArray`, `AtomicLongArray`, `AtomicReferenceArray<E>`
+- [x] `AtomicStampedReference<V>` & `AtomicMarkableReference<V>`
+- [x] `LongAdder` / `DoubleAdder` (`add`, `increment`, `decrement`, `sum`, `reset`, `sumThenReset`)
 
 ### `java.util.concurrent`
 - [x] `TimeUnit` (`NANOSECONDS` → `DAYS`, conversion & unit helpers)
 - [x] `CountDownLatch(count: Int)` (`await`, `countDown`, `getCount`)
 - [x] `Semaphore(permits, fair)` (`acquire`, `release`, `tryAcquire`, `availablePermits`, `drainPermits`)
 - [x] `CyclicBarrier(parties, action)` (`await`, `reset`, `isBroken`, `getNumberWaiting`)
+- [x] `Phaser` (`register`, `bulkRegister`, `arrive`, `arriveAndDeregister`, `arriveAndAwaitAdvance`, `awaitAdvance`, `forceTermination`)
+- [x] `Exchanger<V>` (`exchange(x)`, `exchange(x, timeout, unit)`)
 - [x] `Callable<V>` (`call`)
 - [x] `Future<V>` (`cancel`, `isCancelled`, `isDone`, `get`)
 - [x] `RunnableFuture<V>` & `FutureTask<V>`
 - [x] `CompletableFuture<T>` & `CompletionStage<T>` (`completedFuture`, `supplyAsync`, `runAsync`, `thenApply`, `thenAccept`, `thenRun`, `thenCombine`, `thenCompose`, `exceptionally`, `handle`, `whenComplete`, `allOf`, `anyOf`, `join`, `getNow`)
-- [x] `Executor`, `ExecutorService`, `ThreadPoolExecutor`, `Executors`
-- [x] `BlockingQueue<E>`, `LinkedBlockingQueue<E>`, `LinkedBlockingDeque<E>`, `SynchronousQueue<E>`
-- [x] `ConcurrentHashMap<K, V>`, `CopyOnWriteArrayList<E>`, `CopyOnWriteArraySet<E>`, `ConcurrentLinkedQueue<E>`
+- [x] `Executor`, `ExecutorService`, `AbstractExecutorService`, `ThreadPoolExecutor`, `ScheduledExecutorService`, `ScheduledThreadPoolExecutor`, `Executors` (`newFixedThreadPool`, `newCachedThreadPool`, `newSingleThreadExecutor`, `newScheduledThreadPool`, `newWorkStealingPool`, `unconfigurableExecutorService`, `unconfigurableScheduledExecutorService`)
+- [x] `ForkJoinTask<V>`, `RecursiveAction`, `RecursiveTask<V>`, `CountedCompleter<T>` (`fork`, `join`, `invoke`, `invokeAll`, `complete`, `quietlyComplete`, `tryComplete`, `propagateCompletion`)
+- [x] `ForkJoinPool` & `ForkJoinPool.ManagedBlocker` (`commonPool()`, `invoke`, `submit`, `execute`, `managedBlock`, `getCommonPoolParallelism`, `isQuiescent`, `awaitQuiescence`)
+- [x] `CompletionService<V>` & `ExecutorCompletionService<V>` (`submit`, `take`, `poll`)
+- [x] `Delayed` & `ScheduledFuture<V>` (`schedule`, `scheduleAtFixedRate`, `scheduleWithFixedDelay`)
+- [x] `ThreadLocalRandom` (`current()`, bounded & range `nextInt`, `nextLong`, `nextDouble`)
+- [x] `BlockingQueue<E>`, `TransferQueue<E>`, `LinkedTransferQueue<E>`, `LinkedBlockingQueue<E>`, `LinkedBlockingDeque<E>`, `ArrayBlockingQueue<E>`, `PriorityBlockingQueue<E>`, `DelayQueue<E>`, `SynchronousQueue<E>`
+- [x] `ConcurrentHashMap<K, V>`, `ConcurrentSkipListMap<K, V>`, `ConcurrentSkipListSet<E>`, `CopyOnWriteArrayList<E>`, `CopyOnWriteArraySet<E>`, `ConcurrentLinkedQueue<E>`, `ConcurrentLinkedDeque<E>`
 - [x] `ExecutionException`, `TimeoutException`, `CancellationException`, `RejectedExecutionException`, `BrokenBarrierException`
 
 ### `java.util.function`
-- [x] `Function<T, R>`
-- [x] `BiFunction<T, U, R>`
-- [x] `Consumer<T>`
-- [x] `BiConsumer<T, U>`
-- [x] `Predicate<T>`
-- [x] `BiPredicate<T, U>`
-- [x] `Supplier<T>`
-- [x] `UnaryOperator<T>`
-- [x] `BinaryOperator<T>`
+- [x] `Function<T, R>`, `BiFunction<T, U, R>`, `UnaryOperator<T>`, `BinaryOperator<T>`
+- [x] `Consumer<T>`, `BiConsumer<T, U>`, `ObjIntConsumer<T>`, `ObjLongConsumer<T>`, `ObjDoubleConsumer<T>`
+- [x] `Predicate<T>`, `BiPredicate<T, U>`, `Supplier<T>`, `BooleanSupplier`
+- [x] `IntSupplier`, `LongSupplier`, `DoubleSupplier`, `IntConsumer`, `LongConsumer`, `DoubleConsumer`
+- [x] `IntPredicate`, `LongPredicate`, `DoublePredicate`, `IntFunction<R>`, `LongFunction<R>`, `DoubleFunction<R>`
+- [x] `ToIntFunction<T>`, `ToLongFunction<T>`, `ToDoubleFunction<T>`, `ToIntBiFunction<T, U>`, `ToLongBiFunction<T, U>`, `ToDoubleBiFunction<T, U>`
+- [x] `IntUnaryOperator`, `LongUnaryOperator`, `DoubleUnaryOperator`, `IntBinaryOperator`, `LongBinaryOperator`, `DoubleBinaryOperator`
+- [x] `IntToLongFunction`, `IntToDoubleFunction`, `LongToIntFunction`, `LongToDoubleFunction`, `DoubleToIntFunction`, `DoubleToLongFunction`
 
 ### `java.util.concurrent.locks`
 - [x] `Lock` (`lock`, `unlock`, `tryLock`, `newCondition`)
 - [x] `Condition` (`await`, `signal`, `signalAll`)
+- [x] `ReentrantLock` & `ReentrantReadWriteLock` (`ReadLock`, `WriteLock`)
+- [x] `LockSupport` (`park`, `parkNanos`, `parkUntil`, `unpark`, `getBlocker`)
+- [x] `StampedLock` (`writeLock`, `readLock`, `tryOptimisticRead`, `validate`, `unlockWrite`, `unlockRead`, `unlock`, `tryConvertToWriteLock`, `tryConvertToReadLock`, `tryConvertToOptimisticRead`, `asReadLock`, `asWriteLock`, `asReadWriteLock`)
 
 ### `java.util.zip`
 - [x] `Checksum` interface
 - [x] `CRC32` (`update`, `getValue`, `reset`)
 - [x] `Adler32` (`update`, `getValue`, `reset`)
+- [x] `CheckedInputStream` / `CheckedOutputStream` (`checksum`)
 - [x] `ZipException`
 - [x] `ZipEntry` (`name`, `size`, `compressedSize`, `time`, `crc`, `method`, `comment`, `isDirectory`)
 - [x] `Deflater` / `Inflater`（`platform.zlib`：`setInput`、`deflate`/`inflate`、`finish`/`reset`/`end`）
+- [x] `DeflaterInputStream` / `InflaterOutputStream`
 - [x] `GZIPInputStream` / `GZIPOutputStream`（真实 GZIP 头/CRC/ISIZE；不拼接多 member）
 - [x] `ZipInputStream` / `ZipOutputStream`（STORED 与 DEFLATED）
 - [x] `ZipFile` (`getEntry`, `getInputStream`, `entries`, `size`, `close`；无 ZIP64/加密)
@@ -369,9 +434,12 @@ This document tracks the Java 8 Standard Library API porting progress for `jako-
 - [x] `InetAddress.getAllByName(host: String): Array<InetAddress>`
 - [x] `InetAddress.getHostAddress(): String`
 - [x] `InetSocketAddress(host: String, port: Int)`
+- [x] `NetworkInterface` & `InterfaceAddress` (`getByName`, `getByIndex`, `getByInetAddress`, `getNetworkInterfaces`, `isUp`, `isLoopback`, `hardwareAddress`, `mtu`, `inetAddresses`, `interfaceAddresses`)
+- [x] `SocketOption<T>`, `StandardSocketOptions`, `SocketOptions`
 - [x] `Socket()` / `Socket.connect()` / `Socket.close()`
 - [x] `Socket.getInputStream()` / `Socket.getOutputStream()`
 - [x] `ServerSocket(port: Int)` / `ServerSocket.accept()` / `ServerSocket.close()`
+- [x] `DatagramPacket` & `DatagramSocket` (UDP `send`, `receive`, `bind`, `connect`, `soTimeout`, `localPort`, `close`)
 - [x] `Proxy(type, sa)` / `Proxy.NO_PROXY`
 - [x] `SocketFactory.getDefault()`
 - [x] `ServerSocketFactory.getDefault()`
@@ -380,17 +448,22 @@ This document tracks the Java 8 Standard Library API porting progress for `jako-
 
 ### `java.net` Exceptions
 - [x] `SocketException`
-- [x] `UnknownHostException`
+- [x] `BindException`
 - [x] `ConnectException`
+- [x] `NoRouteToHostException`
+- [x] `PortUnreachableException`
+- [x] `UnknownHostException`
 - [x] `SocketTimeoutException`
 - [x] `ProtocolException`
+- [x] `HttpRetryException`
 - [x] `MalformedURLException`
 - [x] `URISyntaxException`
 - [x] `UnknownServiceException`
 
-### `java.net` HTTP & Domain Name
+### `java.net` HTTP, Cookies & Domain Name
 - [x] `HttpURLConnection` (all standard HTTP 1xx-5xx status code constants + abstract class)
 - [x] `URLConnection` (abstract base class)
+- [x] `CookieHandler`, `CookieManager`, `CookiePolicy`, `CookieStore`, `HttpCookie`
 - [x] `IDN.toASCII()` / `IDN.toUnicode()` (RFC 3492 Punycode encoder / decoder)
 
 ---
@@ -404,19 +477,33 @@ This document tracks the Java 8 Standard Library API porting progress for `jako-
 
 ---
 
-## 6. `java.security` Package
+## 6. `java.security` & `javax.crypto` Packages
 
 ### `java.security` Core
-- [x] `MessageDigest.getInstance(algorithm)` (MD5, SHA-1, SHA-256)
+- [x] `MessageDigest.getInstance(algorithm)` (MD5, SHA-1, SHA-256, SHA-384, SHA-512)
 - [x] `SecureRandom` (platform random: `/dev/urandom`, `BCryptGenRandom`)
-- [x] `NoSuchAlgorithmException`
+- [x] `KeyPairGenerator` (`RSA`, `EC` `secp256r1` / P-256)
+- [x] `KeyFactory` (`RSA`, `EC`: X.509 `SubjectPublicKeyInfo` & PKCS#8 `PrivateKeyInfo` DER codec, `RSAPublicKeySpec`, `RSAPrivateKeySpec`)
+- [x] `Signature` (`MD5withRSA`, `SHA1withRSA`, `SHA256withRSA`, `SHA384withRSA`, `SHA512withRSA`, `NONEwithECDSA`, `SHA256withECDSA`)
+- [x] `GeneralSecurityException`, `NoSuchAlgorithmException`, `DigestException`, `KeyException`, `InvalidKeyException`, `InvalidAlgorithmParameterException`, `SignatureException`, `InvalidParameterException`, `InvalidKeySpecException`
 
-### `java.security` Interfaces & KeyStore
+### `java.security` Interfaces, Specs & KeyStore
 - [x] `KeyStore.getInstance(type)` / `getDefaultType()` / `load(stream, password)`
 - [x] `Principal` (`getName`, `name`)
-- [x] `Key` & `PublicKey` (`getAlgorithm`, `getFormat`, `getEncoded`, `encoded`)
+- [x] `Key`, `PublicKey`, `PrivateKey`, `KeyPair` (`getAlgorithm`, `getFormat`, `getEncoded`, `encoded`)
+- [x] `java.security.interfaces.RSAKey`, `RSAPublicKey`, `RSAPrivateKey`
+- [x] `java.security.spec.KeySpec`, `EncodedKeySpec`, `X509EncodedKeySpec`, `PKCS8EncodedKeySpec`, `RSAPublicKeySpec`, `RSAPrivateKeySpec`, `ECGenParameterSpec`, `AlgorithmParameterSpec`
 - [x] `java.security.cert.Certificate` & `java.security.cert.X509Certificate`
 - [x] `java.security.cert.CertificateException` / `CertificateParsingException`
+
+### `javax.crypto` & `javax.crypto.spec`
+- [x] `SecretKey` & `SecretKeySpec` (`algorithm`, `format`, `encoded`, `equals`, `hashCode`)
+- [x] `IvParameterSpec` (`iv`, `getIV()`) & `GCMParameterSpec` (`tLen`, `iv`)
+- [x] `PBEKeySpec` & `SecretKeyFactory` (`PBKDF2WithHmacSHA1`, `PBKDF2WithHmacSHA256`)
+- [x] `KeyGenerator` (`AES`, `HmacMD5`, `HmacSHA1`, `HmacSHA256`, `HmacSHA384`, `HmacSHA512`)
+- [x] `Mac` (`HmacMD5`, `HmacSHA1`, `HmacSHA256`, `HmacSHA384`, `HmacSHA512`: `init`, `update`, `doFinal`, `reset`, `clone`)
+- [x] `Cipher` (`AES/ECB/*`, `AES/CBC/*`, `AES/CTR/*`, `AES/GCM/NoPadding` with GHASH & AAD, `RSA/ECB/PKCS1Padding`)
+- [x] `ShortBufferException`, `NoSuchPaddingException`, `IllegalBlockSizeException`, `BadPaddingException`, `AEADBadTagException`
 
 ---
 
@@ -444,34 +531,47 @@ This document tracks the Java 8 Standard Library API porting progress for `jako-
 - [x] `FieldPosition` (`field`, `beginIndex`, `endIndex`)
 - [x] `ParsePosition` (`index`, `errorIndex`)
 - [x] `DateFormat` (`parse`, `format`, `timeZone`, `isLenient`)
-- [x] `SimpleDateFormat(pattern, locale)` (支持标准日期时间模式格式化与解析)
+- [x] `DateFormatSymbols` (`months`, `shortMonths`, `weekdays`, `shortWeekdays`, `amPmStrings`, `eras`, `zoneStrings`)
+- [x] `SimpleDateFormat(pattern, locale)` / `SimpleDateFormat(pattern, formatSymbols)` (`getDateFormatSymbols`, `setDateFormatSymbols`, `toPattern`, `applyPattern`, 支持标准日期时间模式格式化与解析)
 - [x] `NumberFormat` (`getInstance`, `getIntegerInstance`, `getCurrencyInstance`, `getPercentInstance`, `format`, `parse`, `groupingUsed`)
-- [x] `DecimalFormat(pattern)` (`applyPattern`, `toPattern`, `format`, `parse`)
+- [x] `DecimalFormatSymbols` (`decimalSeparator`, `groupingSeparator`, `minusSign`, `percent`, `perMill`, `zeroDigit`, `infinity`, `naN`, `currencySymbol`, `internationalCurrencySymbol`)
+- [x] `DecimalFormat(pattern)` / `DecimalFormat(pattern, symbols)` (`applyPattern`, `toPattern`, `getDecimalFormatSymbols`, `setDecimalFormatSymbols`, `format`, `parse`)
+- [x] `ChoiceFormat(pattern)` / `ChoiceFormat(limits, formats)` (`nextDouble`, `previousDouble`, `setChoices`, `toPattern`, `applyPattern`, `format`, `parse`)
 - [x] `MessageFormat` (`format("{0}", args)`，`{0} {1}` 占位；缺参保留 `{n}`)
-- [~] `Normalizer.normalize` / `isNormalized`（Native 目前按 identity 处理，无 ICU NFC）
+- [x] `Collator` & `CollationKey` (`PRIMARY`, `SECONDARY`, `TERTIARY`, `IDENTICAL`, `NO_DECOMPOSITION`, `CANONICAL_DECOMPOSITION`, `FULL_DECOMPOSITION`, `compare`, `equals`, `getCollationKey`, `toByteArray`)
+- [x] `CharacterIterator` & `StringCharacterIterator` (`first`, `last`, `current`, `next`, `previous`, `setIndex`, `beginIndex`, `endIndex`, `index`, `clone`)
+- [x] `BreakIterator` (`getCharacterInstance`, `getWordInstance`, `getLineInstance`, `getSentenceInstance`, `first`, `last`, `next`, `previous`, `following`, `preceding`, `isBoundary`)
+- [x] `Bidi` (`DIRECTION_LEFT_TO_RIGHT`, `DIRECTION_RIGHT_TO_LEFT`, `DIRECTION_DEFAULT_LEFT_TO_RIGHT`, `DIRECTION_DEFAULT_RIGHT_TO_LEFT`, `isLeftToRight`, `isRightToLeft`, `isMixed`, `baseIsLeftToRight`, `getRunCount`, `getRunStart`, `getRunLimit`, `getRunLevel`, `requiresBidi`, `reorderVisually`)
+- [x] `Normalizer.normalize` / `isNormalized` (`NFC`, `NFD`, `NFKC`, `NFKD` 规范分解与组合、变音符 CCC 排序、韩语音节算法分解与组合、全角/连字兼容映射)
 
 ---
 
-## 9. `java.time` Package
+## 9. `java.time` & `java.time.temporal` Packages
 
-- [x] `Duration` (`ofMillis`, `ofSeconds`, `ofNanos`, `toMillis`, `toNanos`, `plus`, `minus`)
-- [x] `Instant` (`now`, `ofEpochMilli`, `ofEpochSecond`, `toEpochMilli`, `plus`, `minus`, `parse`, `from`)
-- [x] `LocalDate` (`of`, `now`, `ofEpochDay`, `plus*`/`minus*`, `toEpochDay`, `atTime`, `parse`/`format`)
-- [x] `LocalTime` (`of`, `now`, `toSecondOfDay`/`toNanoOfDay`, `plusHours`/`plusMinutes`/`plusSeconds`, ISO parse)
-- [x] `LocalDateTime` (`of(date, time)`, `of(y,m,d,h,min,s)`, `plus*`, `atZone`, `toEpochSecond`, ISO parse)
-- [x] `ZoneOffset` (`UTC`, `of(String)`, `ofHours`, `ofHoursMinutes`, `getTotalSeconds`, `id`)
+- [x] `Duration` (`ofDays`, `ofHours`, `ofMinutes`, `ofMillis`, `ofSeconds`, `ofNanos`, `toDays`, `toHours`, `toMinutes`, `toMillis`, `toNanos`, `plus*`, `minus*`, `multipliedBy`, `dividedBy`, `abs`, `negated`, `between`)
+- [x] `Instant` (`now`, `ofEpochMilli`, `ofEpochSecond`, `toEpochMilli`, `plus*`, `minus*`, `truncatedTo`, `until`, `atOffset`, `atZone`, `parse`, `from`)
+- [x] `LocalDate` (`of`, `now`, `ofEpochDay`, `ofYearDay`, `with*`, `plus*`/`minus*`, `until`, `toEpochDay`, `atTime`, `atStartOfDay`, `parse`/`format`)
+- [x] `LocalTime` (`of`, `now`, `toSecondOfDay`/`toNanoOfDay`, `with*`, `truncatedTo`, `plus*`/`minus*`, `until`, `atDate`, `atOffset`, ISO parse)
+- [x] `LocalDateTime` (`of(date, time)`, `of(y,m,d,h,min,s)`, `with*`, `truncatedTo`, `plus*`/`minus*`, `until`, `atZone`, `atOffset`, `toEpochSecond`, ISO parse)
+- [x] `ZoneOffset` (`UTC`, `MIN`, `MAX`, `of(String)`, `ofHours`, `ofHoursMinutes`, `ofTotalSeconds`, `getTotalSeconds`, `id`)
 - [x] `ZoneId` (`of("UTC"/"Z"/"GMT"/offset)`, `systemDefault()`, `getId()`, `getAvailableZoneIds()` — 无完整 TZDB/DST)
-- [x] `Period` (`of`, `ofDays`/`ofMonths`/`ofYears`, `plus`, `minus`, `years`/`months`/`days`)
-- [x] `OffsetDateTime` (`of(ldt, offset)`, `now`, `toInstant`, `toLocalDateTime`, `toEpochSecond`)
-- [x] `ZonedDateTime` (`of(ldt, zone)`, `now`, `toInstant`, `toOffsetDateTime` — 固定偏移即可)
+- [x] `Period` (`of`, `ofWeeks`, `ofDays`/`ofMonths`/`ofYears`, `with*`, `plus*`, `minus*`, `multipliedBy`, `negated`, `normalized`, `toTotalMonths`, `between`)
+- [x] `OffsetDateTime` (`of(ldt, offset)`, `now`, `withOffsetSameInstant`, `withOffsetSameLocal`, `truncatedTo`, `plus*`/`minus*`, `until`, `toInstant`, `toLocalDateTime`, `toOffsetTime`, `toEpochSecond`)
+- [x] `ZonedDateTime` (`of(ldt, zone)`, `now`, `withZoneSameInstant`, `withZoneSameLocal`, `truncatedTo`, `plus*`/`minus*`, `until`, `toInstant`, `toOffsetDateTime`)
+- [x] `DayOfWeek` (`MONDAY`..`SUNDAY`, `of`, `from`, `plus`, `minus`, `adjustInto`)
+- [x] `Month` (`JANUARY`..`DECEMBER`, `of`, `from`, `plus`, `minus`, `length`, `minLength`, `maxLength`, `firstDayOfYear`)
+- [x] `Year`, `YearMonth`, `MonthDay`, `OffsetTime` (`of`, `now`, `parse`, `from`, `plus*`/`minus*`, `until`, `adjustInto`)
+- [x] `Clock` (`systemUTC`, `systemDefaultZone`, `system`, `fixed`, `offset`, `tick`, `tickSeconds`, `tickMinutes`, `millis`, `instant`, `withZone`)
+- [x] `Temporal`, `TemporalAccessor`, `TemporalAmount`, `TemporalAdjuster`, `TemporalAdjusters` (`firstDayOfMonth`, `lastDayOfMonth`, `firstDayOfNextMonth`, `firstDayOfYear`, `lastDayOfYear`, `firstDayOfNextYear`, `firstInMonth`, `lastInMonth`, `dayOfWeekInMonth`, `next`, `nextOrSame`, `previous`, `previousOrSame`)
+- [x] `TemporalField`, `ChronoField`, `TemporalUnit`, `ChronoUnit`, `ValueRange`, `UnsupportedTemporalTypeException`
 - [x] `DateTimeFormatter` (`ISO_LOCAL_DATE`/`TIME`/`DATE_TIME`, `ISO_INSTANT`, `ofPattern` 支持 `y M d H m s`)
-- [x] `DateTimeException` / `DateTimeParseException` / `Month`
+- [x] `DateTimeException` / `DateTimeParseException`
 
 ---
 
 ## 10. `java.math` Package
 
-- [x] `BigInteger` (`add`, `subtract`, `multiply`, `divide`, `remainder`, `pow`, `gcd`, bitwise ops, radix conversion)
+- [x] `BigInteger` (`add`, `subtract`, `multiply`, `divide`, `remainder`, `pow`, `gcd`, `mod`, `modPow`, `modInverse`, `isProbablePrime`, `probablePrime`, `nextProbablePrime`, bitwise ops, radix conversion)
 - [x] `BigDecimal` (`add`, `subtract`, `multiply`, `divide`, `pow`, `scale`, `precision`, `stripTrailingZeros`, `toPlainString`)
 - [x] `RoundingMode` (`UP`, `DOWN`, `CEILING`, `FLOOR`, `HALF_UP`, `HALF_DOWN`, `HALF_EVEN`, `UNNECESSARY`)
 - [x] `MathContext` (`UNLIMITED`, `DECIMAL32`, `DECIMAL64`, `DECIMAL128`)
@@ -494,21 +594,28 @@ This document tracks the Java 8 Standard Library API porting progress for `jako-
 - [x] `CharacterCodingException` / `MalformedInputException` / `UnmappableCharacterException` / `UnsupportedCharsetException`
 
 ### `java.nio.channels`
-- [x] `Channel` / `ReadableByteChannel` / `WritableByteChannel`
-- [x] `FileChannel` (`open(Path, options)`, `read`/`write`/`position`/`size`/`close`)
+- [x] `Channel` / `InterruptibleChannel` / `ReadableByteChannel` / `WritableByteChannel` / `ByteChannel` / `SeekableByteChannel` / `ScatteringByteChannel` / `GatheringByteChannel` / `NetworkChannel`
+- [x] `SelectableChannel`, `SelectionKey` (`OP_READ`, `OP_WRITE`, `OP_CONNECT`, `OP_ACCEPT`, `attachment`, `interestOps`, `readyOps`), `Selector` (`open`, `select`, `selectNow`, `wakeup`, `keys`, `selectedKeys`)
+- [x] `SocketChannel`, `ServerSocketChannel`, `DatagramChannel` (`open`, `bind`, `connect`, `finishConnect`, `accept`, `send`, `receive`, `read`, `write`, `configureBlocking`, `register`, `setOption`, `getOption`, `supportedOptions`)
+- [x] `FileChannel` (`open(Path, options)`, sequential & positional `read`/`write`, scatter/gather `read(dsts)`/`write(srcs)`, `position`, `size`, `truncate`, `force`, `transferTo`, `transferFrom`, `lock`, `tryLock`, `close`)
+- [x] `FileLock` & `OverlappingFileLockException`
+- [x] `Pipe`, `Pipe.SourceChannel`, `Pipe.SinkChannel` (extends `SelectableChannel`, `Pipe.open()`)
+- [x] `ClosedChannelException`, `NonReadableChannelException`, `NonWritableChannelException`, `AsynchronousCloseException`, `ClosedByInterruptException`, `AlreadyBoundException`, `AlreadyConnectedException`, `ConnectionPendingException`, `NoConnectionPendingException`, `NotYetBoundException`, `NotYetConnectedException`, `UnresolvedAddressException`, `UnsupportedAddressTypeException`, `CancelledKeyException`, `ClosedSelectorException`, `IllegalBlockingModeException`, `IllegalSelectorException`
 
 ### `java.nio.file`
 - [x] `Path` (`isAbsolute`, `getRoot`, `getFileName`, `getParent`, `getNameCount`, `getName`, `subpath`, `startsWith`, `endsWith`, `normalize`, `resolve`, `resolveSibling`, `relativize`, `toUri`, `toAbsolutePath`, `toRealPath`, `toFile`)
 - [x] `Paths` (`get(first, ...more)`, `get(uri)`)
-- [x] `Files` (`exists`, `notExists`, `isDirectory`, `isRegularFile`, `isReadable`, `isWritable`, `isExecutable`, `size`, `createFile`, `createDirectory`, `createDirectories`, `delete`, `deleteIfExists`, `copy`, `move`, `newInputStream`, `newOutputStream`, `newBufferedReader`, `newBufferedWriter`, `readAllBytes`, `readAllLines`, `write`)
+- [x] `Files` (`exists`, `notExists`, `isDirectory`, `isRegularFile`, `isReadable`, `isWritable`, `isExecutable`, `isSameFile`, `isHidden`, `size`, `createFile`, `createDirectory`, `createDirectories`, `createTempFile`, `createTempDirectory`, `newDirectoryStream`, `delete`, `deleteIfExists`, `copy`, `move`, `newInputStream`, `newOutputStream`, `newBufferedReader`, `newBufferedWriter`, `readAllBytes`, `readAllLines`, `write`)
+- [x] `DirectoryStream<T>` & `DirectoryStream.Filter<T>`
+- [x] `PathMatcher` & `FileSystem.getPathMatcher` (`glob:` & `regex:`)
 - [x] `OpenOption` / `StandardOpenOption` (`READ`, `WRITE`, `APPEND`, `TRUNCATE_EXISTING`, `CREATE`, `CREATE_NEW`, `DELETE_ON_CLOSE`)
 - [x] `CopyOption` / `StandardCopyOption` (`REPLACE_EXISTING`, `COPY_ATTRIBUTES`, `ATOMIC_MOVE`)
 - [x] `LinkOption` (`NOFOLLOW_LINKS`)
-- [x] `FileSystemException` / `NoSuchFileException` / `FileAlreadyExistsException`
-- [x] `FileSystem` / `FileSystems.getDefault()` (`getPath`, `getSeparator`, `isOpen`；默认 FS 的 `close()` 抛 `UnsupportedOperationException`)
+- [x] `FileSystemException` / `NoSuchFileException` / `FileAlreadyExistsException` / `NotDirectoryException` / `DirectoryNotEmptyException`
+- [x] `FileSystem` / `FileSystems.getDefault()` (`getPath`, `getPathMatcher`, `getSeparator`, `isOpen`；默认 FS 的 `close()` 抛 `UnsupportedOperationException`)
 - [x] `Path.getFileSystem()`
 - [x] `FileVisitor` / `SimpleFileVisitor` / `FileVisitResult` / `Files.walkFileTree`
-- [x] `FileTime` (`fromMillis`, `toMillis`, `compareTo`)
+- [x] `FileTime` (`fromMillis`, `toMillis`, `compareTo`) & `FileAttribute<T>`
 - [x] `BasicFileAttributes` / `Files.readAttributes`（size、isDirectory、isRegularFile、isSymbolicLink、lastModifiedTime；mtime 来自 `File.lastModified()`）
 - [x] `kotlin.io.path.*` Kotlin extensions (`/` operator, `readText`, `writeText`, `readBytes`, `writeBytes`, `exists`, `notExists`, `isDirectory`, `isRegularFile`, `extension`, `nameWithoutExtension`)
 
@@ -726,6 +833,12 @@ Kotlin 标准库在 JVM 平台上为大量 Java 8 类型提供了丰富的扩展
 - [x] `inline fun <T : Any> Optional<T>.getOrElse(onEmpty: () -> T): T`
 - [x] `fun <T : Any> Optional<T>.toList(): List<T>`
 - [x] `fun <T : Any> Optional<T>.asSequence(): Sequence<T>`
+
+#### `Stream` 扩展 (`kotlin.streams`)
+- [x] `fun <T> Stream<T>.asSequence(): Sequence<T>` / `fun <T> Sequence<T>.asStream(): Stream<T>`
+- [x] `fun IntStream.asSequence(): Sequence<Int>` / `fun LongStream.asSequence(): Sequence<Long>` / `fun DoubleStream.asSequence(): Sequence<Double>`
+- [x] `fun <T> Stream<T>.toList(): List<T>` / `fun IntStream.toList(): List<Int>` / `fun LongStream.toList(): List<Long>` / `fun DoubleStream.toList(): List<Double>`
+- [x] `fun IntStream.toIntArray(): IntArray` / `fun LongStream.toLongArray(): LongArray` / `fun DoubleStream.toDoubleArray(): DoubleArray`
 
 ---
 

@@ -2,13 +2,14 @@ package java.time
 
 import java.io.Serializable
 import java.time.format.DateTimeParseException
+import java.time.temporal.Temporal
 import java.time.temporal.TemporalAccessor
 
 actual class ZonedDateTime private constructor(
     private val dateTime: LocalDateTime,
     actual val offset: ZoneOffset,
     actual val zone: ZoneId
-) : TemporalAccessor, Serializable {
+) : Temporal, Serializable {
 
     actual fun getZone(): ZoneId = zone
     actual fun getOffset(): ZoneOffset = offset

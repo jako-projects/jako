@@ -31,4 +31,74 @@ class RandomAccessFileTest {
             if (tempFile.exists()) tempFile.delete()
         }
     }
+
+    @Test
+    fun testRandomAccessFileDataInputOutput() {
+        val tempFile = File("/tmp/raf_data_test_${System.currentTimeMillis()}.bin")
+        if (tempFile.exists()) tempFile.delete()
+
+        try {
+            RandomAccessFile(tempFile, "rw").use { raf ->
+                val out: DataOutput = raf
+                out.writeBoolean(true)
+                out.writeByte(0x7F)
+                out.writeShort(0x1234)
+                out.writeChar('K'.code)
+                out.writeInt(0x12345678)
+                out.writeLong(0x0102030405060708L)
+                out.writeFloat(3.25f)
+                out.writeDouble(2.718281828)
+                out.writeUTF("Hello jako RAF!")
+                out.writeBytes("line1\nline2\r\n")
+
+                raf.seek(0L)
+                val input: DataInput = raf
+                assertTrue(input.readBoolean())
+                assertEquals(0x7F.toByte(), input.readByte())
+                assertEquals(0x1234.toShort(), input.readShort())
+                assertEquals('K', input.readChar())
+                assertEquals(0x12345678, input.readInt())
+                assertEquals(0x0102030405060708L, input.readLong())
+                assertEquals(3.25f, input.readFloat())
+                assertEquals(2.718281828, input.readDouble())
+                assertEquals("Hello jako RAF!", input.readUTF())
+                assertEquals("line1", input.readLine())
+                assertEquals("line2", input.readLine())
+                assertNull(input.readLine())
+            }
+        } finally {
+            if (tempFile.exists()) tempFile.delete()
+        }
+    }
+
+    @Test
+    fun testObjectStreamDataAndObjectRoundTrip() {
+        val baos = ByteArrayOutputStream()
+        ObjectOutputStream(baos).use { oos ->
+            val dataOut: DataOutput = oos
+            dataOut.writeInt(42)
+            dataOut.writeUTF("header-meta")
+            oos.writeObject("jako-object")
+            oos.writeObject(null)
+            oos.writeObject(arrayListOf("a", "b", "c"))
+            val map = LinkedHashMap<String, Int>()
+            map["one"] = 1
+            map["two"] = 2
+            oos.writeObject(map)
+            oos.flush()
+        }
+
+        val bytes = baos.toByteArray()
+        ObjectInputStream(ByteArrayInputStream(bytes)).use { ois ->
+            val dataIn: DataInput = ois
+            assertEquals(42, dataIn.readInt())
+            assertEquals("header-meta", dataIn.readUTF())
+            assertEquals("jako-object", ois.readObject())
+            assertNull(ois.readObject())
+            assertEquals(listOf("a", "b", "c"), ois.readObject())
+            @Suppress("UNCHECKED_CAST")
+            val restoredMap = ois.readObject() as Map<String, Int>
+            assertEquals(mapOf("one" to 1, "two" to 2), restoredMap)
+        }
+    }
 }

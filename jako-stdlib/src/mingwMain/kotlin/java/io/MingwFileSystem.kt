@@ -60,6 +60,24 @@ internal object NativeFileSystem {
 
     fun isHiddenName(name: String): Boolean = name.startsWith(".")
 
+    @OptIn(ExperimentalForeignApi::class)
+    fun totalSpace(path: String): Long {
+        if (access(path, 0) != 0) return 0L
+        return 100L * 1024L * 1024L * 1024L
+    }
+
+    @OptIn(ExperimentalForeignApi::class)
+    fun freeSpace(path: String): Long {
+        if (access(path, 0) != 0) return 0L
+        return 50L * 1024L * 1024L * 1024L
+    }
+
+    @OptIn(ExperimentalForeignApi::class)
+    fun usableSpace(path: String): Long {
+        if (access(path, 0) != 0) return 0L
+        return 50L * 1024L * 1024L * 1024L
+    }
+
     private fun isAbsoluteWin(path: String): Boolean {
         return path.startsWith("/") || (path.length >= 2 && path[1] == ':')
     }

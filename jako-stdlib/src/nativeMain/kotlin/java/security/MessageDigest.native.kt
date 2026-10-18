@@ -1,5 +1,7 @@
 package java.security
 
+import java.nio.ByteBuffer
+
 actual abstract class MessageDigest protected actual constructor(
     actual val algorithm: String
 ) {
@@ -13,7 +15,27 @@ actual abstract class MessageDigest protected actual constructor(
 
     actual abstract fun update(input: ByteArray, offset: Int, len: Int)
 
+    actual open fun update(input: ByteBuffer) {
+        val rem = input.remaining()
+        if (rem <= 0) return
+        val temp = ByteArray(rem)
+        input.get(temp)
+        update(temp, 0, rem)
+    }
+
     actual abstract fun digest(): ByteArray
+
+    actual open fun digest(buf: ByteArray, offset: Int, len: Int): Int {
+        if (offset < 0 || len < 0 || buf.size - offset < len) {
+            throw IllegalArgumentException("Output buffer too small for specified offset and length")
+        }
+        val d = digest()
+        if (len < d.size) {
+            throw DigestException("partial digests not returned")
+        }
+        d.copyInto(buf, destinationOffset = offset, startIndex = 0, endIndex = d.size)
+        return d.size
+    }
 
     actual open fun digest(input: ByteArray): ByteArray {
         update(input)
@@ -31,6 +53,8 @@ actual abstract class MessageDigest protected actual constructor(
     actual companion object {
         actual fun getInstance(algorithm: String): MessageDigest {
             return when (algorithm.uppercase()) {
+                "SHA-512", "SHA512" -> Sha512MessageDigest()
+                "SHA-384", "SHA384" -> Sha384MessageDigest()
                 "SHA-256", "SHA256" -> Sha256MessageDigest()
                 "SHA-1", "SHA1" -> Sha1MessageDigest()
                 "MD5" -> Md5MessageDigest()
@@ -443,3 +467,173 @@ internal class Md5MessageDigest : MessageDigest("MD5") {
         state[3] += d
     }
 }
+
+internal abstract class Sha512BaseMessageDigest(
+    algorithm: String,
+    private val initialState: LongArray,
+    private val outputWords: Int
+) : MessageDigest(algorithm) {
+    private var state = initialState.copyOf()
+    private var countLow = 0L
+    private var countHigh = 0L
+    private val buffer = ByteArray(128)
+    private var bufferPos = 0
+
+    override fun getDigestLength(): Int = outputWords * 8
+
+    override fun update(input: ByteArray, offset: Int, len: Int) {
+        var i = offset
+        val end = offset + len
+        while (i < end) {
+            buffer[bufferPos++] = input[i++]
+            val prev = countLow.toULong()
+            val next = prev + 8uL
+            countLow = next.toLong()
+            if (next < prev) {
+                countHigh++
+            }
+            if (bufferPos == 128) {
+                processBlock(buffer, 0)
+                bufferPos = 0
+            }
+        }
+    }
+
+    override fun digest(): ByteArray {
+        val lowBits = countLow
+        val highBits = countHigh
+        buffer[bufferPos++] = 0x80.toByte()
+        if (bufferPos > 112) {
+            while (bufferPos < 128) {
+                buffer[bufferPos++] = 0
+            }
+            processBlock(buffer, 0)
+            bufferPos = 0
+        }
+        while (bufferPos < 112) {
+            buffer[bufferPos++] = 0
+        }
+        for (i in 7 downTo 0) {
+            buffer[112 + (7 - i)] = ((highBits ushr (i * 8)).toInt() and 0xFF).toByte()
+            buffer[120 + (7 - i)] = ((lowBits ushr (i * 8)).toInt() and 0xFF).toByte()
+        }
+        processBlock(buffer, 0)
+
+        val out = ByteArray(outputWords * 8)
+        for (i in 0 until outputWords) {
+            val v = state[i]
+            for (b in 0 until 8) {
+                out[i * 8 + b] = ((v ushr ((7 - b) * 8)).toInt() and 0xFF).toByte()
+            }
+        }
+        reset()
+        return out
+    }
+
+    override fun reset() {
+        state = initialState.copyOf()
+        countLow = 0L
+        countHigh = 0L
+        bufferPos = 0
+    }
+
+    private fun processBlock(block: ByteArray, offset: Int) {
+        val w = LongArray(80)
+        for (i in 0 until 16) {
+            var v = 0L
+            for (b in 0 until 8) {
+                v = (v shl 8) or (block[offset + i * 8 + b].toLong() and 0xFFL)
+            }
+            w[i] = v
+        }
+        for (i in 16 until 80) {
+            val w15 = w[i - 15]
+            val s0 = w15.rotateRight(1) xor w15.rotateRight(8) xor (w15 ushr 7)
+            val w2 = w[i - 2]
+            val s1 = w2.rotateRight(19) xor w2.rotateRight(61) xor (w2 ushr 6)
+            w[i] = w[i - 16] + s0 + w[i - 7] + s1
+        }
+
+        var a = state[0]
+        var b = state[1]
+        var c = state[2]
+        var d = state[3]
+        var e = state[4]
+        var f = state[5]
+        var g = state[6]
+        var h = state[7]
+
+        val k = K_SHA512
+        for (i in 0 until 80) {
+            val s1 = e.rotateRight(14) xor e.rotateRight(18) xor e.rotateRight(41)
+            val ch = (e and f) xor (e.inv() and g)
+            val temp1 = h + s1 + ch + k[i] + w[i]
+            val s0 = a.rotateRight(28) xor a.rotateRight(34) xor a.rotateRight(39)
+            val maj = (a and b) xor (a and c) xor (b and c)
+            val temp2 = s0 + maj
+
+            h = g
+            g = f
+            f = e
+            e = d + temp1
+            d = c
+            c = b
+            b = a
+            a = temp1 + temp2
+        }
+
+        state[0] += a
+        state[1] += b
+        state[2] += c
+        state[3] += d
+        state[4] += e
+        state[5] += f
+        state[6] += g
+        state[7] += h
+    }
+}
+
+internal class Sha512MessageDigest : Sha512BaseMessageDigest(
+    "SHA-512",
+    longArrayOf(
+        0x6a09e667f3bcc908UL.toLong(), 0xbb67ae8584caa73bUL.toLong(),
+        0x3c6ef372fe94f82bUL.toLong(), 0xa54ff53a5f1d36f1UL.toLong(),
+        0x510e527fade682d1UL.toLong(), 0x9b05688c2b3e6c1fUL.toLong(),
+        0x1f83d9abfb41bd6bUL.toLong(), 0x5be0cd19137e2179UL.toLong()
+    ),
+    8
+)
+
+internal class Sha384MessageDigest : Sha512BaseMessageDigest(
+    "SHA-384",
+    longArrayOf(
+        0xcbbb9d5dc1059ed8UL.toLong(), 0x629a292a367cd507UL.toLong(),
+        0x9159015a3070dd17UL.toLong(), 0x152fecd8f70e5939UL.toLong(),
+        0x67332667ffc00b31UL.toLong(), 0x8eb44a8768581511UL.toLong(),
+        0xdb0c2e0d64f98fa7UL.toLong(), 0x47b5481dbefa4fa4UL.toLong()
+    ),
+    6
+)
+
+private val K_SHA512 = longArrayOf(
+    0x428a2f98d728ae22UL.toLong(), 0x7137449123ef65cdUL.toLong(), 0xb5c0fbcfec4d3b2fUL.toLong(), 0xe9b5dba58189dbbcUL.toLong(),
+    0x3956c25bf348b538UL.toLong(), 0x59f111f1b605d019UL.toLong(), 0x923f82a4af194f9bUL.toLong(), 0xab1c5ed5da6d8118UL.toLong(),
+    0xd807aa98a3030242UL.toLong(), 0x12835b0145706fbeUL.toLong(), 0x243185be4ee4b28cUL.toLong(), 0x550c7dc3d5ffb4e2UL.toLong(),
+    0x72be5d74f27b896fUL.toLong(), 0x80deb1fe3b1696b1UL.toLong(), 0x9bdc06a725c71235UL.toLong(), 0xc19bf174cf692694UL.toLong(),
+    0xe49b69c19ef14ad2UL.toLong(), 0xefbe4786384f25e3UL.toLong(), 0x0fc19dc68b8cd5b5UL.toLong(), 0x240ca1cc77ac9c65UL.toLong(),
+    0x2de92c6f592b0275UL.toLong(), 0x4a7484aa6ea6e483UL.toLong(), 0x5cb0a9dcbd41fbd4UL.toLong(), 0x76f988da831153b5UL.toLong(),
+    0x983e5152ee66dfabUL.toLong(), 0xa831c66d2db43210UL.toLong(), 0xb00327c898fb213fUL.toLong(), 0xbf597fc7beef0ee4UL.toLong(),
+    0xc6e00bf33da88fc2UL.toLong(), 0xd5a79147930aa725UL.toLong(), 0x06ca6351e003826fUL.toLong(), 0x142929670a0e6e70UL.toLong(),
+    0x27b70a8546d22ffcUL.toLong(), 0x2e1b21385c26c926UL.toLong(), 0x4d2c6dfc5ac42aedUL.toLong(), 0x53380d139d95b3dfUL.toLong(),
+    0x650a73548baf63deUL.toLong(), 0x766a0abb3c77b2a8UL.toLong(), 0x81c2c92e47edaee6UL.toLong(), 0x92722c851482353bUL.toLong(),
+    0xa2bfe8a14cf10364UL.toLong(), 0xa81a664bbc423001UL.toLong(), 0xc24b8b70d0f89791UL.toLong(), 0xc76c51a30654be30UL.toLong(),
+    0xd192e819d6ef5218UL.toLong(), 0xd69906245565a910UL.toLong(), 0xf40e35855771202aUL.toLong(), 0x106aa07032bbd1b8UL.toLong(),
+    0x19a4c116b8d2d0c8UL.toLong(), 0x1e376c085141ab53UL.toLong(), 0x2748774cdf8eeb99UL.toLong(), 0x34b0bcb5e19b48a8UL.toLong(),
+    0x391c0cb3c5c95a63UL.toLong(), 0x4ed8aa4ae3418acbUL.toLong(), 0x5b9cca4f7763e373UL.toLong(), 0x682e6ff3d6b2b8a3UL.toLong(),
+    0x748f82ee5defb2fcUL.toLong(), 0x78a5636f43172f60UL.toLong(), 0x84c87814a1f0ab72UL.toLong(), 0x8cc702081a6439ecUL.toLong(),
+    0x90befffa23631e28UL.toLong(), 0xa4506cebde82bde9UL.toLong(), 0xbef9a3f7b2c67915UL.toLong(), 0xc67178f2e372532bUL.toLong(),
+    0xca273eceea26619cUL.toLong(), 0xd186b8c721c0c207UL.toLong(), 0xeada7dd6cde0eb1eUL.toLong(), 0xf57d4f7fee6ed178UL.toLong(),
+    0x06f067aa72176fbaUL.toLong(), 0x0a637dc5a2c898a6UL.toLong(), 0x113f9804bef90daeUL.toLong(), 0x1b710b35131c471bUL.toLong(),
+    0x28db77f523047d84UL.toLong(), 0x32caab7b40c72493UL.toLong(), 0x3c9ebe0a15c9bebcUL.toLong(), 0x431d67c49c100d4cUL.toLong(),
+    0x4cc5d4becb3e42b6UL.toLong(), 0x597f299cfc657e2aUL.toLong(), 0x5fcb6fab3ad6faecUL.toLong(), 0x6c44198c4a475817UL.toLong()
+)

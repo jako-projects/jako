@@ -11,21 +11,20 @@ import java.io.PrintWriter
 import java.io.Reader
 import java.io.Serializable
 import java.io.Writer
+import java.lang.Cloneable
 
 actual open class Properties actual constructor(
-    private val defaults: Properties?
-) : Serializable {
+    protected var defaults: Properties?
+) : Hashtable<Any, Any>(), MutableMap<Any, Any>, Cloneable, Serializable {
 
     actual constructor() : this(null)
 
-    private val map = mutableMapOf<Any, Any>()
-
     actual open fun setProperty(key: String, value: String): Any? {
-        return map.put(key, value)
+        return put(key, value)
     }
 
     actual open fun getProperty(key: String): String? {
-        val oval = map[key]
+        val oval = super.get(key)
         val sval = if (oval is String) oval else null
         return sval ?: defaults?.getProperty(key)
     }
@@ -37,9 +36,10 @@ actual open class Properties actual constructor(
 
     actual open fun propertyNames(): Enumeration<*> {
         val allKeys = mutableSetOf<Any>()
-        allKeys.addAll(map.keys)
-        if (defaults != null) {
-            val enum = defaults.propertyNames()
+        allKeys.addAll(keys)
+        val d = defaults
+        if (d != null) {
+            val enum = d.propertyNames()
             while (enum.hasMoreElements()) {
                 allKeys.add(enum.nextElement() as Any)
             }
@@ -53,13 +53,14 @@ actual open class Properties actual constructor(
 
     actual open fun stringPropertyNames(): Set<String> {
         val result = mutableSetOf<String>()
-        for (k in map.keys) {
+        for (k in keys) {
             if (k is String) {
                 result.add(k)
             }
         }
-        if (defaults != null) {
-            result.addAll(defaults.stringPropertyNames())
+        val d = defaults
+        if (d != null) {
+            result.addAll(d.stringPropertyNames())
         }
         return result
     }
@@ -85,9 +86,9 @@ actual open class Properties actual constructor(
                 if (sepIdx != -1) {
                     val key = unescape(trimmed.substring(0, sepIdx).trim())
                     val value = unescape(trimmed.substring(sepIdx + 1).trim())
-                    map[key] = value
+                    put(key, value)
                 } else {
-                    map[unescape(trimmed.trim())] = ""
+                    put(unescape(trimmed.trim()), "")
                 }
             }
             line = bufferedReader.readLine()
@@ -106,7 +107,7 @@ actual open class Properties actual constructor(
         }
         bw.write("#${Date()}")
         bw.newLine()
-        for ((k, v) in map) {
+        for ((k, v) in entries) {
             val keyStr = escape(k.toString(), isKey = true)
             val valStr = escape(v.toString(), isKey = false)
             bw.write("$keyStr=$valStr")
@@ -117,33 +118,55 @@ actual open class Properties actual constructor(
 
     actual open fun list(out: PrintStream) {
         out.println("-- listing properties --")
-        for ((k, v) in map) {
+        for ((k, v) in entries) {
             out.println("$k=$v")
         }
     }
 
     actual open fun list(out: PrintWriter) {
         out.println("-- listing properties --")
-        for ((k, v) in map) {
+        for ((k, v) in entries) {
             out.println("$k=$v")
         }
     }
 
-    actual open fun clear() {
-        map.clear()
+    actual override val size: Int
+        get() = super.size
+
+    actual override fun isEmpty(): Boolean = super.isEmpty()
+
+    actual override fun containsKey(key: Any): Boolean = super.containsKey(key)
+
+    actual override fun containsValue(value: Any): Boolean = super.containsValue(value)
+
+    actual override fun get(key: Any): Any? = super.get(key)
+
+    actual override fun put(key: Any, value: Any): Any? = super.put(key, value)
+
+    actual override fun remove(key: Any): Any? = super.remove(key)
+
+    actual override fun putAll(from: Map<out Any, Any>) {
+        super.putAll(from)
     }
 
-    actual open fun size(): Int = map.size
+    actual override fun clear() {
+        super.clear()
+    }
 
-    actual open fun isEmpty(): Boolean = map.isEmpty()
+    actual override val keys: MutableSet<Any>
+        get() = super.keys
 
-    actual open fun containsKey(key: Any): Boolean = map.containsKey(key)
+    actual override val values: MutableCollection<Any>
+        get() = super.values
 
-    actual open fun get(key: Any): Any? = map[key]
+    actual override val entries: MutableSet<MutableMap.MutableEntry<Any, Any>>
+        get() = super.entries
 
-    actual open fun put(key: Any, value: Any): Any? = map.put(key, value)
-
-    actual open fun remove(key: Any): Any? = map.remove(key)
+    actual override fun clone(): Any {
+        val copy = Properties(defaults)
+        copy.putAll(this)
+        return copy
+    }
 
     private fun escape(s: String, isKey: Boolean): String {
         val sb = StringBuilder()

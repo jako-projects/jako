@@ -28,6 +28,21 @@ internal class SocketInputStream(
         if (fd < 0 || socket.isClosed()) throw SocketException("Socket is closed")
 
         return memScoped {
+            val timeoutMs = socket.getSoTimeout()
+            if (timeoutMs > 0) {
+                val readSet = alloc<fd_set>()
+                posix_fd_zero(readSet.ptr)
+                posix_fd_set(fd, readSet.ptr)
+                val tv = alloc<timeval>()
+                tv.tv_sec = (timeoutMs / 1000).convert()
+                tv.tv_usec = ((timeoutMs % 1000) * 1000).convert()
+                val sel = select(fd + 1, readSet.ptr, null, null, tv.ptr)
+                if (sel == 0) {
+                    throw SocketTimeoutException("Read timed out")
+                } else if (sel < 0) {
+                    throw SocketException("select failed: errno $errno")
+                }
+            }
             val buf = allocArray<ByteVar>(len)
             val bytesRead = recv(fd, buf, len.convert(), 0).toInt()
             if (bytesRead < 0) {
@@ -44,6 +59,21 @@ internal class SocketInputStream(
                 b[off + i] = buf[i]
             }
             bytesRead
+        }
+    }
+
+    override fun available(): Int {
+        val fd = fdGetter()
+        if (fd < 0 || socket.isClosed()) return 0
+        return memScoped {
+            val readSet = alloc<fd_set>()
+            posix_fd_zero(readSet.ptr)
+            posix_fd_set(fd, readSet.ptr)
+            val tv = alloc<timeval>()
+            tv.tv_sec = 0.convert()
+            tv.tv_usec = 0.convert()
+            val sel = select(fd + 1, readSet.ptr, null, null, tv.ptr)
+            if (sel > 0) 1 else 0
         }
     }
 

@@ -10,6 +10,10 @@ actual open class Random : Serializable {
         this.seed = (seed xor 0x5DEECE66DL) and ((1L shl 48) - 1)
     }
 
+    actual open fun setSeed(seed: Long) {
+        this.seed = (seed xor 0x5DEECE66DL) and ((1L shl 48) - 1)
+    }
+
     protected open fun next(bits: Int): Int {
         seed = (seed * 0x5DEECE66DL + 0xBL) and ((1L shl 48) - 1)
         return (seed ushr (48 - bits)).toInt()

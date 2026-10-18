@@ -90,10 +90,70 @@ expect open class SyncFailedException : IOException {
     constructor(message: String?)
 }
 
+expect open class UncheckedIOException : RuntimeException {
+    constructor(message: String?, cause: IOException)
+    constructor(cause: IOException)
+    override val cause: IOException?
+}
+
+expect open class UnsupportedEncodingException : IOException {
+    constructor()
+    constructor(s: String?)
+}
+
+expect open class UTFDataFormatException : IOException {
+    constructor()
+    constructor(s: String?)
+}
+
+expect open class CharConversionException : IOException {
+    constructor()
+    constructor(s: String?)
+}
+
+expect abstract class ObjectStreamException : IOException {
+    protected constructor(classname: String?)
+    protected constructor()
+}
+
+expect open class InvalidClassException : ObjectStreamException {
+    var classname: String?
+    constructor(reason: String?)
+    constructor(cname: String?, reason: String?)
+    override val message: String?
+}
+
+expect open class NotSerializableException : ObjectStreamException {
+    constructor(classname: String?)
+    constructor()
+}
+
+expect open class InvalidObjectException : ObjectStreamException {
+    constructor(reason: String?)
+}
+
+expect open class StreamCorruptedException : ObjectStreamException {
+    constructor(reason: String?)
+    constructor()
+}
+
+expect open class NotActiveException : ObjectStreamException {
+    constructor(reason: String?)
+    constructor()
+}
+
+expect open class WriteAbortedException : ObjectStreamException {
+    var detail: Exception?
+    constructor(s: String?, ex: Exception?)
+    override val message: String?
+    override val cause: Throwable?
+}
+
 expect open class File : Serializable, Comparable<File> {
     constructor(pathname: String)
     constructor(parent: String?, child: String)
     constructor(parent: File?, child: String)
+    constructor(uri: java.net.URI)
 
     open fun getName(): String
     open fun getParent(): String?
@@ -107,6 +167,7 @@ expect open class File : Serializable, Comparable<File> {
     open fun isFile(): Boolean
     open fun length(): Long
     open fun delete(): Boolean
+    open fun deleteOnExit()
     open fun mkdir(): Boolean
     open fun mkdirs(): Boolean
     open fun list(): Array<String>?
@@ -121,6 +182,13 @@ expect open class File : Serializable, Comparable<File> {
     open fun setLastModified(time: Long): Boolean
     /** [Nullability Decision] Java File.renameTo(File) dest is non-null. */
     open fun renameTo(dest: File): Boolean
+    open fun setReadOnly(): Boolean
+    open fun setWritable(writable: Boolean, ownerOnly: Boolean): Boolean
+    open fun setWritable(writable: Boolean): Boolean
+    open fun setReadable(readable: Boolean, ownerOnly: Boolean): Boolean
+    open fun setReadable(readable: Boolean): Boolean
+    open fun setExecutable(executable: Boolean, ownerOnly: Boolean): Boolean
+    open fun setExecutable(executable: Boolean): Boolean
     open fun canRead(): Boolean
     open fun canWrite(): Boolean
     open fun canExecute(): Boolean
@@ -128,6 +196,11 @@ expect open class File : Serializable, Comparable<File> {
     open fun getCanonicalFile(): File
     open fun createNewFile(): Boolean
     open fun isHidden(): Boolean
+    open fun getTotalSpace(): Long
+    open fun getFreeSpace(): Long
+    open fun getUsableSpace(): Long
+    open fun toURI(): java.net.URI
+    open fun toPath(): java.nio.file.Path
     override fun compareTo(other: File): Int
 
     open val name: String
@@ -142,12 +215,18 @@ expect open class File : Serializable, Comparable<File> {
     open val isDirectory: Boolean
     open val isFile: Boolean
     open val isHidden: Boolean
+    open val totalSpace: Long
+    open val freeSpace: Long
+    open val usableSpace: Long
 
     companion object {
         val separatorChar: Char
         val separator: String
         val pathSeparatorChar: Char
         val pathSeparator: String
+
+        /** [Nullability Decision] Java File.listRoots() returns non-null Array<File>. */
+        fun listRoots(): Array<File>
 
         /** [Nullability Decision] prefix must be >= 3 chars; suffix is nullable (defaults to ".tmp"); directory is nullable (defaults to java.io.tmpdir). */
         fun createTempFile(prefix: String, suffix: String?, directory: File?): File
@@ -235,8 +314,9 @@ expect open class FileOutputStream : OutputStream {
     override fun close()
 }
 
-expect abstract class Reader : Closeable {
+expect abstract class Reader : java.lang.Readable, Closeable {
     protected constructor()
+    override fun read(target: java.nio.CharBuffer): Int
     open fun read(): Int
     open fun read(cbuf: CharArray): Int
     abstract fun read(cbuf: CharArray, off: Int, len: Int): Int
@@ -288,6 +368,7 @@ expect open class BufferedReader : Reader {
     override fun read(): Int
     override fun read(cbuf: CharArray, off: Int, len: Int): Int
     open fun readLine(): String?
+    open fun lines(): java.util.stream.Stream<String>
     override fun close()
 }
 
@@ -466,40 +547,188 @@ expect open class LineNumberReader : BufferedReader {
     open val lineNumber: Int
 }
 
-expect open class RandomAccessFile : Closeable {
+expect open class RandomAccessFile : DataOutput, DataInput, Closeable {
     constructor(file: File, mode: String)
     constructor(name: String, mode: String)
     open fun read(): Int
     open fun read(b: ByteArray, off: Int, len: Int): Int
     open fun read(b: ByteArray): Int
-    open fun write(b: Int)
-    open fun write(b: ByteArray)
-    open fun write(b: ByteArray, off: Int, len: Int)
+    override fun readFully(b: ByteArray)
+    override fun readFully(b: ByteArray, off: Int, len: Int)
+    override fun skipBytes(n: Int): Int
+    override fun write(b: Int)
+    override fun write(b: ByteArray)
+    override fun write(b: ByteArray, off: Int, len: Int)
     open fun getFilePointer(): Long
     open fun seek(pos: Long)
     open fun length(): Long
     open fun setLength(newLength: Long)
     override fun close()
+    override fun readBoolean(): Boolean
+    override fun readByte(): Byte
+    override fun readUnsignedByte(): Int
+    override fun readShort(): Short
+    override fun readUnsignedShort(): Int
+    override fun readChar(): Char
+    override fun readInt(): Int
+    override fun readLong(): Long
+    override fun readFloat(): Float
+    override fun readDouble(): Double
+    override fun readLine(): String?
+    override fun readUTF(): String
+    override fun writeBoolean(v: Boolean)
+    override fun writeByte(v: Int)
+    override fun writeShort(v: Int)
+    override fun writeChar(v: Int)
+    override fun writeInt(v: Int)
+    override fun writeLong(v: Long)
+    override fun writeFloat(v: Float)
+    override fun writeDouble(v: Double)
+    override fun writeBytes(s: String)
+    override fun writeChars(s: String)
+    override fun writeUTF(s: String)
+    open fun getChannel(): java.nio.channels.FileChannel
+    open val channel: java.nio.channels.FileChannel
+    fun getFD(): FileDescriptor
+    val fd: FileDescriptor
     open val filePointer: Long
 }
 
-expect open class ObjectInputStream : InputStream {
-    constructor(inStream: InputStream)
-    protected constructor()
-    open fun readObject(): Any?
-    override fun read(): Int
-    override fun read(b: ByteArray, off: Int, len: Int): Int
+expect interface ObjectStreamConstants {
+    companion object {
+        val STREAM_MAGIC: Short
+        val STREAM_VERSION: Short
+        val TC_BASE: Byte
+        val TC_NULL: Byte
+        val TC_REFERENCE: Byte
+        val TC_CLASSDESC: Byte
+        val TC_OBJECT: Byte
+        val TC_STRING: Byte
+        val TC_ARRAY: Byte
+        val TC_CLASS: Byte
+        val TC_BLOCKDATA: Byte
+        val TC_ENDBLOCKDATA: Byte
+        val TC_RESET: Byte
+        val TC_BLOCKDATALONG: Byte
+        val TC_EXCEPTION: Byte
+        val TC_LONGSTRING: Byte
+        val TC_PROXYCLASSDESC: Byte
+        val TC_ENUM: Byte
+        val TC_MAX: Byte
+        val baseWireHandle: Int
+        val SC_WRITE_METHOD: Byte
+        val SC_BLOCK_DATA: Byte
+        val SC_SERIALIZABLE: Byte
+        val SC_EXTERNALIZABLE: Byte
+        val SC_ENUM: Byte
+        val PROTOCOL_VERSION_1: Int
+        val PROTOCOL_VERSION_2: Int
+    }
+}
+
+expect interface ObjectInput : DataInput, AutoCloseable {
+    fun readObject(): Any?
+    fun read(): Int
+    fun read(b: ByteArray): Int
+    fun read(b: ByteArray, off: Int, len: Int): Int
+    fun skip(n: Long): Long
+    fun available(): Int
     override fun close()
 }
 
-expect open class ObjectOutputStream : OutputStream {
+expect interface ObjectOutput : DataOutput, AutoCloseable {
+    fun writeObject(obj: Any?)
+    override fun write(b: Int)
+    override fun write(b: ByteArray)
+    override fun write(b: ByteArray, off: Int, len: Int)
+    fun flush()
+    override fun close()
+}
+
+expect interface Externalizable : Serializable {
+    fun writeExternal(out: ObjectOutput)
+    fun readExternal(inStream: ObjectInput)
+}
+
+expect open class ObjectInputStream : InputStream, ObjectInput, ObjectStreamConstants {
+    constructor(inStream: InputStream)
+    protected constructor()
+    override fun readObject(): Any?
+    override fun read(): Int
+    override fun read(b: ByteArray, off: Int, len: Int): Int
+    override fun available(): Int
+    override fun close()
+    override fun readBoolean(): Boolean
+    override fun readByte(): Byte
+    override fun readUnsignedByte(): Int
+    override fun readChar(): Char
+    override fun readShort(): Short
+    override fun readUnsignedShort(): Int
+    override fun readInt(): Int
+    override fun readLong(): Long
+    override fun readFloat(): Float
+    override fun readDouble(): Double
+    override fun readFully(b: ByteArray)
+    override fun readFully(b: ByteArray, off: Int, len: Int)
+    override fun skipBytes(n: Int): Int
+    override fun readLine(): String?
+    override fun readUTF(): String
+}
+
+expect open class ObjectOutputStream : OutputStream, ObjectOutput, ObjectStreamConstants {
     constructor(out: OutputStream)
     protected constructor()
-    open fun writeObject(obj: Any?)
+    override fun writeObject(obj: Any?)
     override fun write(b: Int)
+    override fun write(b: ByteArray)
     override fun write(b: ByteArray, off: Int, len: Int)
     override fun flush()
+    open fun reset()
     override fun close()
+    override fun writeBoolean(v: Boolean)
+    override fun writeByte(v: Int)
+    override fun writeShort(v: Int)
+    override fun writeChar(v: Int)
+    override fun writeInt(v: Int)
+    override fun writeLong(v: Long)
+    override fun writeFloat(v: Float)
+    override fun writeDouble(v: Double)
+    override fun writeBytes(s: String)
+    override fun writeChars(s: String)
+    override fun writeUTF(s: String)
+}
+
+expect open class StreamTokenizer {
+    var ttype: Int
+    var sval: String?
+    var nval: Double
+
+    constructor(isStream: InputStream)
+    constructor(r: Reader)
+
+    open fun resetSyntax()
+    open fun wordChars(low: Int, hi: Int)
+    open fun whitespaceChars(low: Int, hi: Int)
+    open fun ordinaryChars(low: Int, hi: Int)
+    open fun ordinaryChar(ch: Int)
+    open fun commentChar(ch: Int)
+    open fun quoteChar(ch: Int)
+    open fun parseNumbers()
+    open fun eolIsSignificant(flag: Boolean)
+    open fun slashStarComments(flag: Boolean)
+    open fun slashSlashComments(flag: Boolean)
+    open fun lowerCaseMode(fl: Boolean)
+    open fun nextToken(): Int
+    open fun pushBack()
+    open fun lineno(): Int
+    override fun toString(): String
+
+    companion object {
+        val TT_EOF: Int
+        val TT_EOL: Int
+        val TT_NUMBER: Int
+        val TT_WORD: Int
+    }
 }
 
 expect interface DataInput {
@@ -516,6 +745,7 @@ expect interface DataInput {
     fun readLong(): Long
     fun readFloat(): Float
     fun readDouble(): Double
+    fun readLine(): String?
     fun readUTF(): String
 }
 
@@ -552,6 +782,7 @@ expect open class DataInputStream(inStream: InputStream) : FilterInputStream, Da
     override fun readLong(): Long
     override fun readFloat(): Float
     override fun readDouble(): Double
+    override fun readLine(): String?
     override fun readUTF(): String
 }
 
