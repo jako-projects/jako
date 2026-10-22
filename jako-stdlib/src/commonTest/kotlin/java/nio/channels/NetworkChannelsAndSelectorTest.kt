@@ -218,4 +218,96 @@ class NetworkChannelsAndSelectorTest {
             assertEquals(0, selector.select(1000L))
         }
     }
+
+    @Test
+    fun testCrossThreadSelectorWakeupAndMultiplexing() {
+        Selector.open().use { selector ->
+            ServerSocketChannel.open().use { server ->
+                server.bind(InetSocketAddress("127.0.0.1", 0))
+                server.configureBlocking(false)
+                val port = (server.getLocalAddress() as InetSocketAddress).getPort()
+                server.register(selector, SelectionKey.OP_ACCEPT)
+
+                // 1. Cross-thread wakeup while blocked in select(5000L)
+                val waker = java.lang.Thread(java.lang.Runnable {
+                    java.lang.Thread.sleep(60)
+                    selector.wakeup()
+                })
+                val t0 = java.lang.System.currentTimeMillis()
+                waker.start()
+                val n = selector.select(5000L)
+                val elapsed = java.lang.System.currentTimeMillis() - t0
+                waker.join()
+                assertEquals(0, n)
+                assertTrue(elapsed < 2500L, "Selector.wakeup() should wake up blocking select() promptly (took ${elapsed}ms)")
+
+                // 2. Cross-thread connect & write waking up OS poll/select
+                val clientThread = java.lang.Thread(java.lang.Runnable {
+                    java.lang.Thread.sleep(50)
+                    SocketChannel.open(InetSocketAddress("127.0.0.1", port)).use { client ->
+                        java.lang.Thread.sleep(40)
+                        client.write(ByteBuffer.wrap("AsyncMux".encodeToByteArray()))
+                        java.lang.Thread.sleep(50)
+                    }
+                })
+                clientThread.start()
+
+                val acceptCount = selector.select(5000L)
+                assertTrue(acceptCount >= 1)
+                selector.selectedKeys().clear()
+
+                server.accept()!!.use { accepted ->
+                    accepted.configureBlocking(false)
+                    // Non-blocking read before client writes should return 0 immediately
+                    val buf = ByteBuffer.allocate(16)
+                    val readKey = accepted.register(selector, SelectionKey.OP_READ)
+
+                    val readCount = selector.select(5000L)
+                    assertTrue(readCount >= 1)
+                    assertTrue(readKey.isReadable())
+                    selector.selectedKeys().clear()
+
+                    val bytesRead = accepted.read(buf)
+                    assertEquals(8, bytesRead)
+                    buf.flip()
+                    val arr = ByteArray(8).also { buf.get(it) }
+                    assertEquals("AsyncMux", arr.decodeToString())
+                }
+                clientThread.join()
+            }
+        }
+    }
+
+    @Test
+    fun testDatagramChannelSelectorAndNonBlocking() {
+        Selector.open().use { selector ->
+            DatagramChannel.open().use { receiver ->
+                receiver.bind(InetSocketAddress("127.0.0.1", 0))
+                receiver.configureBlocking(false)
+                val port = (receiver.getLocalAddress() as InetSocketAddress).getPort()
+
+                // Non-blocking receive when empty must return null immediately
+                val dst = ByteBuffer.allocate(32)
+                assertNull(receiver.receive(dst))
+
+                val key = receiver.register(selector, SelectionKey.OP_READ)
+                assertEquals(0, selector.selectNow())
+
+                DatagramChannel.open().use { sender ->
+                    sender.send(ByteBuffer.wrap("UDP-Mux".encodeToByteArray()), InetSocketAddress("127.0.0.1", port))
+                    val ready = selector.select(2000L)
+                    assertTrue(ready >= 1)
+                    assertTrue(key.isReadable())
+                    selector.selectedKeys().clear()
+
+                    val senderAddr = receiver.receive(dst)
+                    assertNotNull(senderAddr)
+                    dst.flip()
+                    val bytes = ByteArray(dst.remaining()).also { dst.get(it) }
+                    assertEquals("UDP-Mux", bytes.decodeToString())
+                }
+            }
+        }
+    }
 }
+

@@ -1,0 +1,10 @@
+@file:Suppress("NO_ACTUAL_FOR_EXPECT")
+
+package javax.crypto
+
+import java.security.GeneralSecurityException
+
+expect open class BadPaddingException : GeneralSecurityException {
+    constructor()
+    constructor(msg: String?)
+}

@@ -1,0 +1,3 @@
+package java.util
+
+actual typealias ConcurrentModificationException = kotlin.ConcurrentModificationException

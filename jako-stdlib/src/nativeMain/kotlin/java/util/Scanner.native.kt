@@ -188,8 +188,3 @@ actual open class Scanner : Iterator<String>, Closeable {
         }
     }
 }
-
-actual open class InputMismatchException : NoSuchElementException {
-    actual constructor() : super()
-    actual constructor(s: String?) : super(s)
-}

@@ -2,12 +2,36 @@ package net.bennyhuo.jako.stdlib.test
 
 import java.util.Calendar
 import java.util.Date
+import java.util.GregorianCalendar
 import java.util.TimeZone
 
+import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class CalendarTest {
+
+    @Test
+    fun testDefaultCalendarInitializedToCurrentTime() {
+        val before = System.currentTimeMillis()
+        val cal = Calendar.getInstance()
+        val greg = GregorianCalendar()
+        val after = System.currentTimeMillis()
+
+        assertTrue(cal.timeInMillis in (before - 1000L)..(after + 1000L))
+        assertTrue(greg.timeInMillis in (before - 1000L)..(after + 1000L))
+        assertTrue(abs(cal.timeInMillis - greg.timeInMillis) < 2000L)
+
+        val dateOnly = GregorianCalendar(2026, Calendar.OCTOBER, 22)
+        assertEquals(2026, dateOnly.get(Calendar.YEAR))
+        assertEquals(Calendar.OCTOBER, dateOnly.get(Calendar.MONTH))
+        assertEquals(22, dateOnly.get(Calendar.DAY_OF_MONTH))
+        assertEquals(0, dateOnly.get(Calendar.HOUR_OF_DAY))
+        assertEquals(0, dateOnly.get(Calendar.MINUTE))
+        assertEquals(0, dateOnly.get(Calendar.SECOND))
+        assertEquals(0, dateOnly.get(Calendar.MILLISECOND))
+    }
 
     @Test
     fun testCalendarFields() {

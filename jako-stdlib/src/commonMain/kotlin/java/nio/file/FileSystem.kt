@@ -4,10 +4,6 @@ package java.nio.file
 
 import java.io.Closeable
 
-expect fun interface PathMatcher {
-    fun matches(path: Path): Boolean
-}
-
 expect abstract class FileSystem : Closeable {
     abstract fun getPath(first: String, vararg more: String): Path
     abstract fun getPathMatcher(syntaxAndPattern: String): PathMatcher
@@ -17,10 +13,4 @@ expect abstract class FileSystem : Closeable {
 
     val separator: String
     val isOpen: Boolean
-}
-
-expect class FileSystems {
-    companion object {
-        fun getDefault(): FileSystem
-    }
 }

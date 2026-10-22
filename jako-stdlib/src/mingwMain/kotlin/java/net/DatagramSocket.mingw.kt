@@ -8,7 +8,7 @@ import kotlinx.cinterop.*
 import platform.posix.*
 
 actual open class DatagramSocket : Closeable {
-    private var sock: ULong = INVALID_SOCKET.convert()
+    internal var sock: ULong = INVALID_SOCKET.convert()
     private var bound: Boolean = false
     private var connected: Boolean = false
     private var closed: Boolean = false

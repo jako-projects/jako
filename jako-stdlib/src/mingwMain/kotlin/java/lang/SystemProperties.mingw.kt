@@ -3,6 +3,7 @@
 package java.lang
 
 import kotlinx.cinterop.alloc
+import kotlinx.cinterop.allocArray
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
 import kotlinx.cinterop.toKString
@@ -29,6 +30,26 @@ internal actual fun nativeTmpDir(): String =
     platform.posix.getenv("TEMP")?.toKString()
         ?: platform.posix.getenv("TMP")?.toKString()
         ?: "C:\\Windows\\Temp"
+
+internal actual fun nativeUserName(): String =
+    platform.posix.getenv("USERNAME")?.toKString()?.takeIf { it.isNotEmpty() }
+        ?: platform.posix.getenv("USER")?.toKString()?.takeIf { it.isNotEmpty() }
+        ?: "user"
+
+internal actual fun nativeUserHome(): String {
+    val userProfile = platform.posix.getenv("USERPROFILE")?.toKString()?.takeIf { it.isNotEmpty() }
+    if (userProfile != null) return userProfile
+    val homeDrive = platform.posix.getenv("HOMEDRIVE")?.toKString()
+    val homePath = platform.posix.getenv("HOMEPATH")?.toKString()
+    if (!homeDrive.isNullOrEmpty() && !homePath.isNullOrEmpty()) return "$homeDrive$homePath"
+    return "C:\\"
+}
+
+internal actual fun nativeUserDir(): String = memScoped {
+    val buf = allocArray<platform.windows.WCHARVar>(4096)
+    val len = platform.windows.GetCurrentDirectoryW(4096u, buf).toInt()
+    if (len > 0) buf.toKString() else "."
+}
 
 internal actual fun nativeAvailableProcessors(): Int {
     val env = platform.posix.getenv("NUMBER_OF_PROCESSORS")?.toKString()?.toIntOrNull()

@@ -74,8 +74,8 @@ internal class PosixReentrantLock(
         holdCount--
         if (holdCount == 0) {
             ownerThread = 0uL
+            pthread_mutex_unlock(mutexPtr)
         }
-        pthread_mutex_unlock(mutexPtr)
     }
 
     override fun newCondition(): Condition = PosixCondition(this)

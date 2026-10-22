@@ -7,7 +7,7 @@ import platform.posix.*
 
 actual open class ServerSocket : java.io.Closeable {
 
-    private var sock: ULong = INVALID_SOCKET.convert()
+    internal var sock: ULong = INVALID_SOCKET.convert()
     private var bound: Boolean = false
     private var closed: Boolean = false
     private var localAddress: InetSocketAddress? = null

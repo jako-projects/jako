@@ -2,8 +2,6 @@
 
 package java.util
 
-import java.lang.Runnable
-
 expect open class Timer {
     constructor()
     constructor(isDaemon: Boolean)
@@ -12,11 +10,4 @@ expect open class Timer {
     fun schedule(task: TimerTask, delay: Long)
     fun schedule(task: TimerTask, delay: Long, period: Long)
     fun cancel()
-}
-
-expect abstract class TimerTask : Runnable {
-    constructor()
-    abstract override fun run()
-    open fun cancel(): Boolean
-    open fun scheduledExecutionTime(): Long
 }

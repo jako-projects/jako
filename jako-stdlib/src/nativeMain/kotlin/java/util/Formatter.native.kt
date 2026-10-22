@@ -67,134 +67,11 @@ actual class Formatter : Closeable, Flushable {
     }
 }
 
-actual fun interface Formattable {
-    actual fun formatTo(formatter: Formatter, flags: Int, width: Int, precision: Int)
-}
-
-actual class FormattableFlags private constructor() {
-    actual companion object {
-        actual val LEFT_JUSTIFY: Int = 1
-        actual val UPPERCASE: Int = 2
-        actual val ALTERNATE: Int = 4
-    }
-}
-
-actual open class FormatterClosedException actual constructor() : IllegalStateException()
-
-actual open class IllegalFormatException internal constructor() : IllegalArgumentException()
-
-actual open class MissingFormatArgumentException actual constructor(
-    private val s: String
-) : IllegalFormatException() {
-    actual open fun getFormatSpecifier(): String = s
-    actual open val formatSpecifier: String
-        get() = s
-    actual override val message: String?
-        get() = "Format specifier '$s'"
-}
-
-actual open class UnknownFormatConversionException actual constructor(
-    private val s: String
-) : IllegalFormatException() {
-    actual open fun getConversion(): String = s
-    actual open val conversion: String
-        get() = s
-    actual override val message: String?
-        get() = "Conversion = '$s'"
-}
-
-actual open class DuplicateFormatFlagsException actual constructor(
-    private val f: String
-) : IllegalFormatException() {
-    actual open fun getFlags(): String = f
-    actual open val flags: String
-        get() = f
-    actual override val message: String?
-        get() = "Flags = '$f'"
-}
-
-actual open class FormatFlagsConversionMismatchException actual constructor(
-    private val f: String,
-    private val c: Char
-) : IllegalFormatException() {
-    actual open fun getFlags(): String = f
-    actual open val flags: String
-        get() = f
-    actual open fun getConversion(): Char = c
-    actual open val conversion: Char
-        get() = c
-    actual override val message: String?
-        get() = "Conversion = $c, Flags = $f"
-}
-
-actual open class IllegalFormatCodePointException actual constructor(
-    private val c: Int
-) : IllegalFormatException() {
-    actual open fun getCodePoint(): Int = c
-    actual open val codePoint: Int
-        get() = c
-    actual override val message: String?
-        get() = "Code point = 0x${c.toString(16)}"
-}
-
-actual open class IllegalFormatConversionException actual constructor(
-    private val c: Char,
-    private val arg: Class<*>
-) : IllegalFormatException() {
-    actual open fun getConversion(): Char = c
-    actual open val conversion: Char
-        get() = c
-    actual open fun getArgumentClass(): Class<*> = arg
-    actual open val argumentClass: Class<*>
-        get() = arg
-    actual override val message: String?
-        get() = "$c != ${arg.name}"
-}
-
-actual open class IllegalFormatFlagsException actual constructor(
-    private val f: String
-) : IllegalFormatException() {
-    actual open fun getFlags(): String = f
-    actual open val flags: String
-        get() = f
-    actual override val message: String?
-        get() = "Flags = '$f'"
-}
-
-actual open class IllegalFormatPrecisionException actual constructor(
-    private val p: Int
-) : IllegalFormatException() {
-    actual open fun getPrecision(): Int = p
-    actual open val precision: Int
-        get() = p
-    actual override val message: String?
-        get() = p.toString()
-}
-
-actual open class IllegalFormatWidthException actual constructor(
-    private val w: Int
-) : IllegalFormatException() {
-    actual open fun getWidth(): Int = w
-    actual open val width: Int
-        get() = w
-    actual override val message: String?
-        get() = w.toString()
-}
-
-actual open class MissingFormatWidthException actual constructor(
-    private val s: String
-) : IllegalFormatException() {
-    actual open fun getFormatSpecifier(): String = s
-    actual open val formatSpecifier: String
-        get() = s
-    actual override val message: String?
-        get() = s
-}
-
-private fun applyFormat(locale: Locale, format: String, args: Array<out Any?>): String {
+internal fun applyFormat(locale: Locale, format: String, args: Array<out Any?>): String {
     val out = StringBuilder()
     var i = 0
     var nextArg = 0
+    var lastArgIndex = -1
     while (i < format.length) {
         val ch = format[i]
         if (ch != '%') {
@@ -215,6 +92,19 @@ private fun applyFormat(locale: Locale, format: String, args: Array<out Any?>): 
                 out.append(System.getProperty("line.separator", "\n"))
                 i++
                 continue
+            }
+        }
+        var explicitArgIndex = -1
+        var useLastArg = false
+        if (format[i] == '<') {
+            useLastArg = true
+            i++
+        } else {
+            var scanIdx = i
+            while (scanIdx < format.length && format[scanIdx].isDigit()) scanIdx++
+            if (scanIdx > i && scanIdx < format.length && format[scanIdx] == '$') {
+                explicitArgIndex = format.substring(i, scanIdx).toInt() - 1
+                i = scanIdx + 1
             }
         }
         var left = false
@@ -245,8 +135,23 @@ private fun applyFormat(locale: Locale, format: String, args: Array<out Any?>): 
         val conv = format[i]
         i++
         val specStr = format.substring(specStart, i)
-        if (nextArg >= args.size) throw MissingFormatArgumentException(specStr)
-        val arg = args[nextArg++]
+        val argIndex = when {
+            explicitArgIndex >= 0 -> {
+                lastArgIndex = explicitArgIndex
+                explicitArgIndex
+            }
+            useLastArg -> {
+                if (lastArgIndex < 0) throw MissingFormatArgumentException(specStr)
+                lastArgIndex
+            }
+            else -> {
+                val idx = nextArg++
+                lastArgIndex = idx
+                idx
+            }
+        }
+        if (argIndex < 0 || argIndex >= args.size) throw MissingFormatArgumentException(specStr)
+        val arg = args[argIndex]
         if ((conv == 's' || conv == 'S') && arg is Formattable) {
             var flags = 0
             if (left) flags = flags or FormattableFlags.LEFT_JUSTIFY
@@ -289,17 +194,17 @@ private fun applyFormat(locale: Locale, format: String, args: Array<out Any?>): 
     return out.toString()
 }
 
-private fun formatString(arg: Any?, precision: Int, upper: Boolean): String {
+internal fun formatString(arg: Any?, precision: Int, upper: Boolean): String {
     var s = arg?.toString() ?: "null"
     if (precision >= 0 && precision < s.length) s = s.substring(0, precision)
     return if (upper) s.uppercase() else s
 }
 
 @Suppress("UNCHECKED_CAST")
-private fun argClass(arg: Any?): Class<Any> =
+internal fun argClass(arg: Any?): Class<Any> =
     if (arg != null) Class<Any>(arg::class as kotlin.reflect.KClass<Any>) else Class<Any>(Any::class)
 
-private fun formatInteger(arg: Any?): String {
+internal fun formatInteger(arg: Any?): String {
     val n = when (arg) {
         is Long -> arg
         is Int -> arg.toLong()
@@ -311,7 +216,7 @@ private fun formatInteger(arg: Any?): String {
     return n.toString()
 }
 
-private fun formatHex(arg: Any?, upper: Boolean): String {
+internal fun formatHex(arg: Any?, upper: Boolean): String {
     val hex = when (arg) {
         is Int -> arg.toUInt().toString(16)
         is Long -> arg.toULong().toString(16)
@@ -323,7 +228,7 @@ private fun formatHex(arg: Any?, upper: Boolean): String {
     return if (upper) hex.uppercase() else hex
 }
 
-private fun formatFixed(arg: Any?, precision: Int): String {
+internal fun formatFixed(arg: Any?, precision: Int): String {
     val value = when (arg) {
         is Double -> arg
         is Float -> arg.toDouble()

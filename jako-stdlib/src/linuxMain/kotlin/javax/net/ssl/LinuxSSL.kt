@@ -9,14 +9,21 @@ import java.net.Socket
 import java.net.SocketException
 import java.security.cert.Certificate
 import java.security.cert.CertificateFactory
+import java.security.cert.X509Certificate
 import kotlinx.cinterop.*
 import platform.posix.*
 
-internal actual fun createPlatformSSLSocket(s: Socket, host: String, port: Int, autoClose: Boolean): SSLSocket {
+internal actual fun createPlatformSSLSocket(
+    s: Socket,
+    host: String,
+    port: Int,
+    autoClose: Boolean,
+    trustManager: X509TrustManager?
+): SSLSocket {
     return if (OpenSSLBindings.isAvailable) {
-        LinuxOpenSSLSocket(s, host, port, autoClose)
+        LinuxOpenSSLSocket(s, host, port, autoClose, trustManager)
     } else {
-        NativeSSLSocket(host, port)
+        Tls12ClientSocket(s, host, port, autoClose, trustManager)
     }
 }
 
@@ -32,6 +39,7 @@ internal object OpenSSLBindings {
     var TLS_client_method: CPointer<CFunction<() -> CPointer<out CPointed>?>>? = null
     var SSL_CTX_new: CPointer<CFunction<(CPointer<out CPointed>?) -> CPointer<out CPointed>?>>? = null
     var SSL_CTX_free: CPointer<CFunction<(CPointer<out CPointed>?) -> Unit>>? = null
+    var SSL_CTX_set_default_verify_paths: CPointer<CFunction<(CPointer<out CPointed>?) -> Int>>? = null
     var SSL_new: CPointer<CFunction<(CPointer<out CPointed>?) -> CPointer<out CPointed>?>>? = null
     var SSL_free: CPointer<CFunction<(CPointer<out CPointed>?) -> Unit>>? = null
     var SSL_set_fd: CPointer<CFunction<(CPointer<out CPointed>?, Int) -> Int>>? = null
@@ -41,6 +49,10 @@ internal object OpenSSLBindings {
     var SSL_write: CPointer<CFunction<(CPointer<out CPointed>?, CPointer<out CPointed>?, Int) -> Int>>? = null
     var SSL_shutdown: CPointer<CFunction<(CPointer<out CPointed>?) -> Int>>? = null
     var SSL_get_peer_certificate: CPointer<CFunction<(CPointer<out CPointed>?) -> CPointer<out CPointed>?>>? = null
+    var SSL_get_verify_result: CPointer<CFunction<(CPointer<out CPointed>?) -> Long>>? = null
+    var SSL_get_version: CPointer<CFunction<(CPointer<out CPointed>?) -> CPointer<ByteVar>?>>? = null
+    var SSL_get_current_cipher: CPointer<CFunction<(CPointer<out CPointed>?) -> CPointer<out CPointed>?>>? = null
+    var SSL_CIPHER_get_name: CPointer<CFunction<(CPointer<out CPointed>?) -> CPointer<ByteVar>?>>? = null
     var i2d_X509: CPointer<CFunction<(CPointer<out CPointed>?, CPointer<out CPointed>?) -> Int>>? = null
     var X509_free: CPointer<CFunction<(CPointer<out CPointed>?) -> Unit>>? = null
 
@@ -60,6 +72,7 @@ internal object OpenSSLBindings {
                 ?: dlsym(lib, "SSLv23_client_method")?.reinterpret()
             SSL_CTX_new = dlsym(lib, "SSL_CTX_new")?.reinterpret()
             SSL_CTX_free = dlsym(lib, "SSL_CTX_free")?.reinterpret()
+            SSL_CTX_set_default_verify_paths = dlsym(lib, "SSL_CTX_set_default_verify_paths")?.reinterpret()
             SSL_new = dlsym(lib, "SSL_new")?.reinterpret()
             SSL_free = dlsym(lib, "SSL_free")?.reinterpret()
             SSL_set_fd = dlsym(lib, "SSL_set_fd")?.reinterpret()
@@ -71,6 +84,10 @@ internal object OpenSSLBindings {
 
             SSL_get_peer_certificate = dlsym(lib, "SSL_get1_peer_certificate")?.reinterpret()
                 ?: dlsym(lib, "SSL_get_peer_certificate")?.reinterpret()
+            SSL_get_verify_result = dlsym(lib, "SSL_get_verify_result")?.reinterpret()
+            SSL_get_version = dlsym(lib, "SSL_get_version")?.reinterpret()
+            SSL_get_current_cipher = dlsym(lib, "SSL_get_current_cipher")?.reinterpret()
+            SSL_CIPHER_get_name = dlsym(lib, "SSL_CIPHER_get_name")?.reinterpret()
 
             i2d_X509 = dlsym(cLib, "i2d_X509")?.reinterpret()
             X509_free = dlsym(cLib, "X509_free")?.reinterpret()
@@ -83,23 +100,20 @@ internal object OpenSSLBindings {
 }
 
 internal class LinuxOpenSSLSocket(
-    private val underlyingSocket: Socket,
-    private val host: String,
-    private val peerPort: Int,
-    private val autoClose: Boolean
-) : SSLSocket() {
+    underlyingSocket: Socket,
+    host: String,
+    peerPort: Int,
+    autoClose: Boolean,
+    trustManager: X509TrustManager? = null
+) : DelegatingSSLSocket(underlyingSocket, host, peerPort, autoClose, trustManager) {
 
     private var sslCtxPtr: CPointer<out CPointed>? = null
     private var sslPtr: CPointer<out CPointed>? = null
     private var isHandshakeDone = false
     private var isClosedSocket = false
     private var peerCerts: Array<Certificate> = emptyArray()
-
-    private var clientMode = true
-    private var needAuth = false
-    private var wantAuth = false
-    private var protocols = arrayOf("TLSv1.2", "TLSv1.3")
-    private var cipherSuites = arrayOf("TLS_AES_128_GCM_SHA256", "TLS_AES_256_GCM_SHA384")
+    private var negotiatedProtocol: String = "TLSv1.2"
+    private var negotiatedCipherSuite: String = "TLS_AES_128_GCM_SHA256"
 
     private val sslInputStream: InputStream by lazy {
         LinuxSSLInputStream(this)
@@ -109,57 +123,96 @@ internal class LinuxOpenSSLSocket(
         LinuxSSLOutputStream(this)
     }
 
-    init {
-        if (!underlyingSocket.isConnected()) {
-            underlyingSocket.connect(java.net.InetSocketAddress(host, port))
-        }
-    }
-
     override fun startHandshake() {
         if (isHandshakeDone) return
         if (isClosedSocket) throw SocketException("Socket is closed")
+        ensureUnderlyingConnected()
 
         val method = OpenSSLBindings.TLS_client_method?.invoke() ?: throw SSLException("Failed to get TLS client method")
         val ctx = OpenSSLBindings.SSL_CTX_new?.invoke(method) ?: throw SSLException("Failed to create SSL_CTX")
         sslCtxPtr = ctx
 
+        if (trustManager == null || trustManager is SystemX509TrustManager) {
+            OpenSSLBindings.SSL_CTX_set_default_verify_paths?.invoke(ctx)
+        }
+
         val ssl = OpenSSLBindings.SSL_new?.invoke(ctx) ?: run {
             OpenSSLBindings.SSL_CTX_free?.invoke(ctx)
+            sslCtxPtr = null
             throw SSLException("Failed to create SSL object")
         }
         sslPtr = ssl
 
-        val fd = (underlyingSocket as? java.net.Socket)?.fd ?: -1
-        if (fd < 0) throw SSLException("Invalid socket file descriptor")
+        val fd = underlyingSocket.fd
+        if (fd < 0) {
+            close()
+            throw SSLException("Invalid socket file descriptor")
+        }
 
         OpenSSLBindings.SSL_set_fd?.invoke(ssl, fd)
 
-        memScoped {
-            val hostCStr = host.cstr.ptr
-            OpenSSLBindings.SSL_ctrl?.invoke(ssl, SSL_CTRL_SET_TLSEXT_HOSTNAME, TLSEXT_NAMETYPE_host_name.toLong(), hostCStr)
+        if (peerHostName.isNotEmpty()) {
+            memScoped {
+                val hostCStr = peerHostName.cstr.ptr
+                OpenSSLBindings.SSL_ctrl?.invoke(ssl, SSL_CTRL_SET_TLSEXT_HOSTNAME, TLSEXT_NAMETYPE_host_name.toLong(), hostCStr)
+            }
         }
 
         val ret = OpenSSLBindings.SSL_connect?.invoke(ssl) ?: -1
         if (ret <= 0) {
             close()
-            throw SSLException("OpenSSL TLS handshake failed: code $ret")
+            throw SSLHandshakeException("OpenSSL TLS handshake failed: code $ret")
         }
 
         val certPtr = OpenSSLBindings.SSL_get_peer_certificate?.invoke(ssl)
         if (certPtr != null) {
-            memScoped {
-                val outBuf = alloc<CPointerVar<ByteVar>>()
-                outBuf.value = null
-                val len = OpenSSLBindings.i2d_X509?.invoke(certPtr, outBuf.ptr.reinterpret()) ?: -1
-                val bufPtr = outBuf.value
-                if (len > 0 && bufPtr != null) {
-                    val bytes = ByteArray(len) { i -> bufPtr[i] }
-                    val certFactory = CertificateFactory.getInstance("X.509")
-                    val cert = certFactory.generateCertificate(ByteArrayInputStream(bytes))
-                    peerCerts = arrayOf(cert)
+            try {
+                val len = OpenSSLBindings.i2d_X509?.invoke(certPtr, null) ?: -1
+                if (len > 0) {
+                    memScoped {
+                        val derBuf = allocArray<ByteVar>(len)
+                        val outPtr = alloc<CPointerVar<ByteVar>>()
+                        outPtr.value = derBuf
+                        val written = OpenSSLBindings.i2d_X509?.invoke(certPtr, outPtr.ptr.reinterpret()) ?: -1
+                        if (written > 0) {
+                            val bytes = ByteArray(written) { i -> derBuf[i] }
+                            val certFactory = CertificateFactory.getInstance("X.509")
+                            val cert = certFactory.generateCertificate(ByteArrayInputStream(bytes))
+                            peerCerts = arrayOf(cert)
+                        }
+                    }
+                }
+            } finally {
+                OpenSSLBindings.X509_free?.invoke(certPtr)
+            }
+        }
+
+        val tm = trustManager
+        if (tm != null && tm !is SystemX509TrustManager) {
+            val x509Chain = peerCerts.filterIsInstance<X509Certificate>().toTypedArray()
+            try {
+                tm.checkServerTrusted(x509Chain, "RSA")
+            } catch (e: Exception) {
+                close()
+                throw SSLHandshakeException(e.message ?: "Certificate verification failed").apply {
+                    initCause(e)
                 }
             }
-            OpenSSLBindings.X509_free?.invoke(certPtr)
+        } else {
+            val verifyRes = OpenSSLBindings.SSL_get_verify_result?.invoke(ssl) ?: 0L
+            if (peerCerts.isEmpty() || verifyRes != 0L) {
+                close()
+                throw SSLHandshakeException("OpenSSL server certificate verification failed: result=$verifyRes")
+            }
+        }
+
+        OpenSSLBindings.SSL_get_version?.invoke(ssl)?.let { verPtr ->
+            negotiatedProtocol = verPtr.toKString()
+        }
+        OpenSSLBindings.SSL_get_current_cipher?.invoke(ssl)?.let { cipherPtr ->
+            OpenSSLBindings.SSL_CIPHER_get_name?.invoke(cipherPtr)?.let { namePtr ->
+                negotiatedCipherSuite = namePtr.toKString()
+            }
         }
 
         isHandshakeDone = true
@@ -194,33 +247,47 @@ internal class LinuxOpenSSLSocket(
             for (i in 0 until len) {
                 buf[i] = b[off + i]
             }
-            val written = OpenSSLBindings.SSL_write?.invoke(ssl, buf, len) ?: -1
-            if (written <= 0) {
-                throw SocketException("OpenSSL write failed: $written")
+            var totalWritten = 0
+            while (totalWritten < len) {
+                val written = OpenSSLBindings.SSL_write?.invoke(ssl, buf + totalWritten, len - totalWritten) ?: -1
+                if (written <= 0) {
+                    throw SSLException("OpenSSL write failed: $written")
+                }
+                totalWritten += written
             }
         }
     }
 
     override fun getInputStream(): InputStream = sslInputStream
     override fun getOutputStream(): OutputStream = sslOutputStream
-    override fun getSession(): SSLSession = LinuxSSLSession(host, peerPort, peerCerts)
 
-    override fun setUseClientMode(mode: Boolean) { clientMode = mode }
-    override fun getUseClientMode(): Boolean = clientMode
-    override fun setNeedClientAuth(need: Boolean) { needAuth = need }
-    override fun setWantClientAuth(want: Boolean) { wantAuth = want }
-    override fun getEnabledProtocols(): Array<String> = protocols.copyOf()
-    override fun setEnabledProtocols(protocols: Array<String>?) { if (protocols != null) this.protocols = protocols.copyOf() }
-    override fun getSupportedCipherSuites(): Array<String> = cipherSuites.copyOf()
-    override fun getEnabledCipherSuites(): Array<String> = cipherSuites.copyOf()
-    override fun setEnabledCipherSuites(suites: Array<String>?) { if (suites != null) this.cipherSuites = suites.copyOf() }
+    override fun getSession(): SSLSession {
+        if (!isHandshakeDone && !isClosedSocket) {
+            try {
+                startHandshake()
+            } catch (_: Exception) {
+            }
+        }
+        return NativeSSLSession(
+            host = peerHostName,
+            port = getPort(),
+            peerCerts = peerCerts,
+            negotiatedProtocol = negotiatedProtocol,
+            negotiatedCipherSuite = negotiatedCipherSuite,
+            sessionValid = isHandshakeDone && !isClosedSocket
+        )
+    }
+
+    override fun isClosed(): Boolean = isClosedSocket || underlyingSocket.isClosed()
 
     override fun close() {
         if (!isClosedSocket) {
             isClosedSocket = true
             val ssl = sslPtr
             if (ssl != null) {
-                OpenSSLBindings.SSL_shutdown?.invoke(ssl)
+                if (isHandshakeDone) {
+                    OpenSSLBindings.SSL_shutdown?.invoke(ssl)
+                }
                 OpenSSLBindings.SSL_free?.invoke(ssl)
                 sslPtr = null
             }
@@ -244,6 +311,8 @@ private class LinuxSSLInputStream(private val sslSocket: LinuxOpenSSLSocket) : I
     }
 
     override fun read(b: ByteArray, off: Int, len: Int): Int {
+        if (off < 0 || len < 0 || off + len > b.size) throw IndexOutOfBoundsException()
+        if (len == 0) return 0
         return sslSocket.performRead(b, off, len)
     }
 
@@ -259,26 +328,12 @@ private class LinuxSSLOutputStream(private val sslSocket: LinuxOpenSSLSocket) : 
     }
 
     override fun write(b: ByteArray, off: Int, len: Int) {
+        if (off < 0 || len < 0 || off + len > b.size) throw IndexOutOfBoundsException()
+        if (len == 0) return
         sslSocket.performWrite(b, off, len)
     }
 
     override fun close() {
         sslSocket.close()
     }
-}
-
-private class LinuxSSLSession(
-    private val host: String,
-    private val port: Int,
-    private val certs: Array<Certificate>
-) : SSLSession {
-    override fun getPeerHost(): String? = host
-    override fun getPeerPort(): Int = port
-    override fun getPeerCertificates(): Array<Certificate> {
-        if (certs.isEmpty()) throw SSLPeerUnverifiedException("peer not authenticated")
-        return certs.copyOf()
-    }
-    override fun getCipherSuite(): String = "TLS_AES_128_GCM_SHA256"
-    override fun getProtocol(): String = "TLSv1.3"
-    override fun isValid(): Boolean = true
 }

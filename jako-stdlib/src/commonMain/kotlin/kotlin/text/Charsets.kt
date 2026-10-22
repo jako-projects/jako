@@ -14,9 +14,3 @@ expect object Charsets {
     val UTF_32BE: Charset
     val UTF_32LE: Charset
 }
-
-expect fun String.toByteArray(charset: Charset = Charsets.UTF_8): ByteArray
-
-public fun String.lowercase(locale: java.util.Locale): String = this.lowercase()
-public fun String.uppercase(locale: java.util.Locale): String = this.uppercase()
-

@@ -46,9 +46,9 @@ actual object System {
         "line.separator" -> nativeLineSeparator()
         "file.separator" -> nativeFileSeparator()
         "path.separator" -> nativePathSeparator()
-        "user.name" -> "user"
-        "user.home" -> "/tmp"
-        "user.dir" -> "."
+        "user.name" -> nativeUserName()
+        "user.home" -> nativeUserHome()
+        "user.dir" -> nativeUserDir()
         "java.io.tmpdir" -> nativeTmpDir()
         else -> null
     }
@@ -95,6 +95,9 @@ internal expect fun nativeFileSeparator(): String
 internal expect fun nativePathSeparator(): String
 internal expect fun nativeCurrentTimeMillis(): Long
 internal expect fun nativeTmpDir(): String
+internal expect fun nativeUserName(): String
+internal expect fun nativeUserHome(): String
+internal expect fun nativeUserDir(): String
 
 private class StdOutputStream(
     private val file: CPointer<FILE>?

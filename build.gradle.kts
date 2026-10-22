@@ -7,3 +7,22 @@ subprojects {
     group = providers.gradleProperty("GROUP").get()
     version = providers.gradleProperty("VERSION_NAME").get()
 }
+
+tasks.register("checkApiCompatibility") {
+    group = "verification"
+    description = "Verifies target JDK API parity (--release <N>, default 8), API_CHECKLIST.md & UNSUPPORTED_APIS.md sync, and backward compatibility against api/*.api."
+    dependsOn(":jako-stdlib:jvmTest")
+}
+
+tasks.register<Exec>("dumpApiBaseline") {
+    group = "verification"
+    description = "Regenerates api/jako-stdlib.api and api/jako-android.api canonical public API baseline snapshots."
+    workingDir = rootDir
+    commandLine(
+        "./gradlew",
+        ":jako-stdlib:jvmTest",
+        "--tests", "jako.test.parity.JdkSignatureParityTest.testBackwardCompatibilityAgainstBaseline",
+        "-Pjako.updateApiBaseline=true",
+        "--rerun-tasks"
+    )
+}

@@ -7,7 +7,7 @@ import platform.posix.*
 
 actual open class ServerSocket : java.io.Closeable {
 
-    private var fd: Int = -1
+    internal var fd: Int = -1
     private var bound: Boolean = false
     private var closed: Boolean = false
     private var localAddress: InetSocketAddress? = null

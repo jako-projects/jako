@@ -26,8 +26,9 @@ This Skill documents the rules, workflow, nullability decision guidelines, behav
    - Maintaining all public declarations in `commonMain` ensures seamless cross-target compilation when adding Node.js and other targets in the future.
 5. **Mandatory Documentation & Decision Rationale**:
    - Document **`[Nullability Decision]`** in code comments whenever mapping Java platform types (`T!`) to explicit Kotlin types (`T` vs `T?`).
-6. **Behavior Parity Guarantee with Java**:
-   - Native test results MUST match JDK 8 test results 100%. Running unit tests in `commonTest` automatically tests JDK 8 on `jvmTest` (real JDK classes) and Native implementations on `nativeTest`. If tests pass on both, behavior parity is guaranteed!
+6. **Mandatory Unit Tests & Behavior Parity Guarantee with Java (新增功能与修复必须配套单测)**:
+   - **CRITICAL RULE**: Every new feature, newly ported class/method, or bug fix **MUST be accompanied by corresponding unit tests** in `commonTest` (or module `test`). Never implement or modify functionality without adding/updating unit tests.
+   - Native test results MUST match JDK 8 / Android test results 100%. Running unit tests in `commonTest` automatically tests JVM (`jvmTest`) and Native implementations (`nativeTest`). Both targets must be executed and pass before a task is considered complete.
 7. **Kotlin Consumer Perspective & Property Parity (Kotlin 消费方 API 属性对齐)**:
    - Always declare Kotlin properties (e.g., `val absolutePath: String`, `val path: String`) in `commonMain` alongside Java getter methods (`fun getAbsolutePath(): String`).
    - **Rationale**: `jako` is consumed exclusively by Kotlin code. While Kotlin compiler automatically synthesizes properties for Java bytecode on JVM (`file.absolutePath` -> `File.getAbsolutePath()`), it does **NOT** synthesize properties for Kotlin-declared classes on Native/JS.
@@ -37,6 +38,16 @@ This Skill documents the rules, workflow, nullability decision guidelines, behav
    - **DO NOT** declare them only in `nativeMain` (which makes them invisible to consumer `commonMain` code).
    - **DO NOT** use `expect`/`actual` boilerplate (since they only invoke ported Java 8 public APIs, they are 100% platform-agnostic pure Kotlin).
    - Standard package names like `kotlin.io` and `kotlin` leverage Kotlin's default auto-imports, matching standard JVM behavior out of the box.
+9. **Strict Upstream File Organization Parity (代码文件组织严格对齐上游声明文件)**:
+   - **CRITICAL RULE**: Every ported public type or extension function MUST be placed in a source file whose directory and filename strictly align with the upstream JVM (`jdk` / `kotlin-stdlib`) or Android (`AOSP`) declaration file (`SourceFile` attribute in bytecode). **Never bundle unrelated types into a single file** (e.g., never create catch-all files like `IO.kt`, `Net.kt`, `Graphics.kt`, or `OsShims.kt`).
+   - **Java & Android Classes (1 Top-Level Public Type Per File)**:
+     - `commonMain`: `<package>/<ClassName>.kt` (e.g., `Socket.java` -> `commonMain/kotlin/java/net/Socket.kt`; `Handler.java` -> `commonMain/kotlin/android/os/Handler.kt`).
+     - `nativeMain` / `posixMain` / `mingwMain` / `appleMain` / `linuxMain`: `<package>/<ClassName>.<target>.kt` (e.g., `nativeMain/kotlin/java/net/Socket.native.kt`, `posixMain/kotlin/java/net/Socket.posix.kt`, `mingwMain/kotlin/java/net/Socket.mingw.kt`).
+     - `jvmMain` (desktop JVM Android shims in `jako-android`): `<package>/<ClassName>.kt` (e.g., `jvmMain/kotlin/android/os/Handler.kt`).
+     - Nested/inner types (e.g., `Uri.Builder`, `SharedPreferences.Editor`) must remain inside their enclosing class's file.
+   - **Kotlin Stdlib Extensions (`kotlin.*` packages)**:
+     - Must match the exact source file name from `kotlin-stdlib` (`JvmMultifileClass` / `SourceFile` metadata), such as `kotlin/io/FileReadWrite.kt`, `kotlin/io/FilePathComponents.kt`, `kotlin/io/FileTreeWalk.kt`, `kotlin/io/Utils.kt`, `kotlin/io/IOStreams.kt`, `kotlin/io/ReadWrite.kt`, `kotlin/text/StringsJVM.kt`, `kotlin/text/RegexExtensionsJVM.kt`, `kotlin/concurrent/Locks.kt`, `kotlin/jvm/optionals/Optionals.kt`, `kotlin/BigIntegers.kt`, `kotlin/BigDecimals.kt`.
+   - **Automated Guard**: `JdkSignatureParityTest` and `AndroidSignatureParityTest` automatically verify `SourceFile` parity across `commonMain`, `nativeMain`, `posixMain`, `mingwMain`, and `jvmMain`.
 
 ---
 
@@ -44,10 +55,14 @@ This Skill documents the rules, workflow, nullability decision guidelines, behav
 
 To guarantee that Native ported APIs match Java 8 declarations and behavior:
 
-1. **Automated Signature & Supertype Parity Check (`JdkSignatureParityTest`)**:
-   - Located in `jako-stdlib/src/jvmTest/kotlin/jako/test/parity/JdkSignatureParityTest.kt` and executed automatically during `./gradlew check` (`:jako-stdlib:jvmTest`).
+1. **Automated Target JDK Signature, Blacklist & Backward-Compatibility Check (`JdkSignatureParityTest`)**:
+   - Located in `jako-stdlib/src/jvmTest/kotlin/jako/test/parity/JdkSignatureParityTest.kt` and executed automatically during `./gradlew check`, `./gradlew checkApiCompatibility`, and Git `pre-commit` hook.
+   - Uses `javax.tools.JavaCompiler` with `--release <N>` (default `8`, configurable via `-Pjako.jdkRelease=<N>`) to inspect the exact target JDK symbol table regardless of host JVM version.
    - Verifies that every `expect` declaration in `commonMain` has a matching `actual` declaration in `nativeMain`/`posixMain` with identical supertypes (compensating for `-Xno-check-actual`).
-   - Loads real JDK classes via reflection to verify `commonMain` supertypes (`AutoCloseable`, `Serializable`, `Comparable`, `Cloneable`, `Appendable`, collection interfaces, etc.) and method names against JDK 8.
+   - Verifies that source file names in `commonMain`, `nativeMain`, `posixMain`, and `mingwMain` strictly match the upstream JDK / `kotlin-stdlib` `SourceFile` attributes (1 class per file).
+   - Verifies `commonMain` supertypes, method names/arities, and synthetic properties (`val`/`var`) against the target JDK (`--release <N>`).
+   - Verifies 100% accounting of all public classes in tracked JDK packages across `commonMain` (`API_CHECKLIST.md`), Kotlin built-ins, and `UNSUPPORTED_APIS.md`.
+   - Verifies backward compatibility against committed API baselines (`api/jako-stdlib.api` and `api/jako-android.api`). Run `./gradlew dumpApiBaseline` when adding new public APIs.
 
 2. **Single Common Test Suite, Dual Target Execution**:
    - Write all behavioral assertions and edge-case tests in `commonTest`.
@@ -81,9 +96,9 @@ flowchart TD
 - Register all methods in `API_CHECKLIST.md` with status `[ ]`.
 
 ### Step 2a: Declare Public APIs & Extensions in `commonMain`
-- Declare `expect class` / `expect object` and extension functions in `commonMain`:
+- Declare `expect class` / `expect object` and extension functions in `commonMain` following the **1-class-per-file upstream filename rule**:
   ```kotlin
-  // File: commonMain/kotlin/java/io/IO.kt
+  // File: commonMain/kotlin/java/io/File.kt (matches upstream java/io/File.java)
   package java.io
 
   expect open class File(pathname: String) {
@@ -92,7 +107,7 @@ flowchart TD
   }
   ```
   ```kotlin
-  // File: commonMain/kotlin/kotlin/io/FileExtensions.kt
+  // File: commonMain/kotlin/kotlin/io/FileReadWrite.kt (matches upstream kotlin-stdlib SourceFile)
   package kotlin.io
 
   import java.io.File
@@ -103,9 +118,9 @@ flowchart TD
   ```
 
 ### Step 2b: Target Implementation in `nativeMain` (Step 1)
-- Implement `actual` class or target implementation directly in `nativeMain`:
+- Implement `actual` class or target implementation directly in `nativeMain` using `<ClassName>.native.kt`:
   ```kotlin
-  // File: nativeMain/kotlin/java/io/File.kt
+  // File: nativeMain/kotlin/java/io/File.native.kt
   package java.io
 
   actual open class File actual constructor(pathname: String) {
