@@ -1,5 +1,6 @@
 package com.bennyhuo.jako.sample
 
+import java.lang.Thread
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
@@ -8,13 +9,34 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.read
 import kotlin.concurrent.write
+import kotlin.jvm.Synchronized
 
 object ConcurrencyDemo {
+
+    private class SynchronizedLedger {
+        private var total: Int = 0
+        private var lockVerified: Boolean = true
+
+        @Synchronized
+        fun record(amount: Int) {
+            if (!Thread.holdsLock(this)) {
+                lockVerified = false
+            }
+            total += amount
+        }
+
+        @Synchronized
+        fun snapshot(): Pair<Int, Boolean> {
+            return total to (lockVerified && Thread.holdsLock(this))
+        }
+    }
 
     data class ConcurrencyReport(
         val totalProcessed: Int,
         val bucketCount: Int,
-        val snapshotSum: Int
+        val snapshotSum: Int,
+        val synchronizedLedgerSum: Int,
+        val monitorLockVerified: Boolean
     )
 
     fun run(workerCount: Int = 4, tasksPerWorker: Int = 10): ConcurrencyReport {
@@ -23,6 +45,7 @@ object ConcurrencyDemo {
         val counter = AtomicInteger(0)
         val map = ConcurrentHashMap<String, Int>()
         val rwLock = ReentrantReadWriteLock()
+        val ledger = SynchronizedLedger()
         var sharedAccumulator = 0
 
         try {
@@ -36,6 +59,7 @@ object ConcurrencyDemo {
                                 map[key] = (map[key] ?: 0) + 1
                                 sharedAccumulator += seq
                             }
+                            ledger.record(seq)
                         } finally {
                             latch.countDown()
                         }
@@ -48,11 +72,14 @@ object ConcurrencyDemo {
             val snapshotSum = rwLock.read {
                 sharedAccumulator
             }
+            val (ledgerSum, lockVerified) = ledger.snapshot()
 
             return ConcurrencyReport(
                 totalProcessed = counter.get(),
                 bucketCount = map.size,
-                snapshotSum = snapshotSum
+                snapshotSum = snapshotSum,
+                synchronizedLedgerSum = ledgerSum,
+                monitorLockVerified = lockVerified
             )
         } finally {
             pool.shutdown()

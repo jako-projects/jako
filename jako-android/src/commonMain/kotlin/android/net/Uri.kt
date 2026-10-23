@@ -89,6 +89,7 @@ expect abstract class Uri : Parcelable, Comparable<Uri> {
 
     companion object {
         val EMPTY: Uri
+        val CREATOR: Parcelable.Creator<Uri>
 
         fun parse(uriString: String): Uri
         fun fromFile(file: File): Uri

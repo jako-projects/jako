@@ -68,12 +68,28 @@ class AndroidSignatureParityTest {
 
         val errors = mutableListOf<String>()
 
+        val androidCl = createAndroidAllClassLoader()
         for ((fqName, commonDecl) in commonDecls.entries.sortedBy { it.key }) {
+            val isTopLevel = !commonDecl.binaryName.contains('$')
+            val expectedSourceFile = if (isTopLevel) {
+                resolveReferenceSourceFile(androidCl, fqName)
+            } else {
+                null
+            }
+            if (expectedSourceFile != null && commonDecl.sourceFile != expectedSourceFile) {
+                errors.add("File organization mismatch for commonMain $fqName: expected $expectedSourceFile (from Android SDK SourceFile), found ${commonDecl.sourceFile}")
+            }
             if (fqName in nativeTypealiases) continue
             val nativeDecl = nativeDecls[fqName]
             if (nativeDecl == null) {
                 errors.add("Missing actual declaration in nativeMain/posixMain for expect ${commonDecl.kind} $fqName (${commonDecl.sourceFile})")
                 continue
+            }
+            if (expectedSourceFile != null) {
+                val baseName = expectedSourceFile.removeSuffix(".kt")
+                if (nativeDecl.sourceFile != "$baseName.native.kt" && nativeDecl.sourceFile != "$baseName.posix.kt") {
+                    errors.add("File organization mismatch for nativeMain $fqName: expected $baseName.native.kt, found ${nativeDecl.sourceFile}")
+                }
             }
             if (commonDecl.supertypes != nativeDecl.supertypes) {
                 errors.add(
@@ -86,6 +102,29 @@ class AndroidSignatureParityTest {
 
         if (errors.isNotEmpty()) {
             fail("Found ${errors.size} commonMain vs nativeMain parity error(s):\n" + errors.joinToString("\n"))
+        }
+
+        val jvmDir = File(moduleDir, "src/jvmMain/kotlin")
+        if (jvmDir.isDirectory) {
+            val jvmTopClassRegex = Regex(
+                """^(?!internal\s+|private\s+)(?:public\s+|open\s+|abstract\s+|final\s+|sealed\s+)*(?:class|interface|object)\s+(\w+)""",
+                RegexOption.MULTILINE
+            )
+            jvmDir.walkTopDown().filter { it.extension == "kt" }.forEach { file ->
+                val content = file.readText()
+                val pkg = Regex("""^package\s+([\w.]+)""", RegexOption.MULTILINE).find(content)?.groupValues?.get(1) ?: ""
+                jvmTopClassRegex.findAll(content).forEach { m ->
+                    val name = m.groupValues[1]
+                    val fqName = "$pkg.$name"
+                    val expectedJvmFile = resolveReferenceSourceFile(androidCl, fqName) ?: "$name.kt"
+                    if (file.name != expectedJvmFile) {
+                        errors.add("File organization mismatch for jvmMain $fqName: expected $expectedJvmFile, found ${file.name}")
+                    }
+                }
+            }
+            if (errors.isNotEmpty()) {
+                fail("Found ${errors.size} jvmMain file organization error(s):\n" + errors.joinToString("\n"))
+            }
         }
     }
 
@@ -125,7 +164,7 @@ class AndroidSignatureParityTest {
         val errors = mutableListOf<String>()
 
         for ((fqName, commonDecl) in commonDecls.entries.sortedBy { it.key }) {
-            if (!fqName.startsWith("android.") && !fqName.startsWith("org.json.")) continue
+            if (!fqName.startsWith("android.") && !fqName.startsWith("org.json.") && !fqName.startsWith("org.xmlpull.v1.")) continue
 
             val androidClass = try {
                 Class.forName(commonDecl.binaryName, false, androidClassLoader)
@@ -200,7 +239,7 @@ class AndroidSignatureParityTest {
         val errors = mutableListOf<String>()
 
         for ((fqName, commonDecl) in commonDecls.entries.sortedBy { it.key }) {
-            if (!fqName.startsWith("android.") && !fqName.startsWith("org.json.")) continue
+            if (!fqName.startsWith("android.") && !fqName.startsWith("org.json.") && !fqName.startsWith("org.xmlpull.v1.")) continue
             val androidClass = try {
                 Class.forName(commonDecl.binaryName, false, androidClassLoader)
             } catch (_: ClassNotFoundException) {
@@ -476,5 +515,82 @@ class AndroidSignatureParityTest {
         val last = params.substring(start).trim()
         if (last.isNotEmpty()) result.add(last)
         return result
+    }
+
+    private fun resolveReferenceSourceFile(cl: ClassLoader, fqName: String): String? {
+        val resourcePath = fqName.replace('.', '/') + ".class"
+        val bytes = cl.getResourceAsStream(resourcePath)?.use { it.readBytes() }
+            ?: return "${fqName.substringAfterLast('.')}.kt"
+        val sf = extractClassSourceFile(bytes)
+        return when {
+            sf == null -> "${fqName.substringAfterLast('.')}.kt"
+            sf.endsWith(".java") -> sf.removeSuffix(".java") + ".kt"
+            else -> sf
+        }
+    }
+
+    private fun extractClassSourceFile(data: ByteArray): String? {
+        val buf = java.nio.ByteBuffer.wrap(data)
+        if (buf.remaining() < 10 || buf.int != 0xCAFEBABE.toInt()) return null
+        buf.short
+        buf.short
+        val cpCount = buf.short.toInt() and 0xFFFF
+        val cpStrings = arrayOfNulls<String>(cpCount)
+        var i = 1
+        while (i < cpCount) {
+            val tag = buf.get().toInt() and 0xFF
+            when (tag) {
+                1 -> {
+                    val len = buf.short.toInt() and 0xFFFF
+                    val bytes = ByteArray(len)
+                    buf.get(bytes)
+                    cpStrings[i] = String(bytes, Charsets.UTF_8)
+                }
+                3, 4 -> buf.position(buf.position() + 4)
+                5, 6 -> {
+                    buf.position(buf.position() + 8)
+                    i++
+                }
+                7, 8, 16, 19, 20 -> buf.position(buf.position() + 2)
+                9, 10, 11, 12, 17, 18 -> buf.position(buf.position() + 4)
+                15 -> buf.position(buf.position() + 3)
+            }
+            i++
+        }
+        buf.position(buf.position() + 6)
+        val ifCount = buf.short.toInt() and 0xFFFF
+        buf.position(buf.position() + 2 * ifCount)
+        val fCount = buf.short.toInt() and 0xFFFF
+        repeat(fCount) {
+            buf.position(buf.position() + 6)
+            val aCount = buf.short.toInt() and 0xFFFF
+            repeat(aCount) {
+                buf.short
+                val aLen = buf.int
+                buf.position(buf.position() + aLen)
+            }
+        }
+        val mCount = buf.short.toInt() and 0xFFFF
+        repeat(mCount) {
+            buf.position(buf.position() + 6)
+            val aCount = buf.short.toInt() and 0xFFFF
+            repeat(aCount) {
+                buf.short
+                val aLen = buf.int
+                buf.position(buf.position() + aLen)
+            }
+        }
+        val aCount = buf.short.toInt() and 0xFFFF
+        repeat(aCount) {
+            val aNameIdx = buf.short.toInt() and 0xFFFF
+            val aLen = buf.int
+            if (cpStrings.getOrNull(aNameIdx) == "SourceFile" && aLen == 2) {
+                val sfIdx = buf.short.toInt() and 0xFFFF
+                return cpStrings.getOrNull(sfIdx)
+            } else {
+                buf.position(buf.position() + aLen)
+            }
+        }
+        return null
     }
 }
