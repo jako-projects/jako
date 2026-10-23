@@ -1,0 +1,294 @@
+package jako.android.test.xml
+
+import android.content.Context
+import android.content.SharedPreferences
+import android.preference.PreferenceManager
+import android.util.Patterns
+import android.util.Xml
+import android.webkit.MimeTypeMap
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.StringReader
+import java.io.StringWriter
+import org.xmlpull.v1.XmlPullParser
+import org.xmlpull.v1.XmlPullParserException
+import org.xmlpull.v1.XmlPullParserFactory
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+
+class XmlPatternsMimeAndPrefsTest {
+
+    @Test
+    fun testXmlPullParserBasicAndNamespaces() {
+        val xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <!-- Root comment -->
+            <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.example.app">
+                <application android:label="My &amp; App" android:debuggable="true">
+                    <activity android:name=".MainActivity" />
+                    <meta-data android:name="desc"><![CDATA[Raw <tag> & text]]></meta-data>
+                </application>
+            </manifest>
+        """.trimIndent()
+
+        val parser = Xml.newPullParser()
+        parser.setInput(StringReader(xml))
+
+        assertEquals(XmlPullParser.START_DOCUMENT, parser.getEventType())
+        assertEquals(XmlPullParser.START_TAG, parser.nextTag())
+        assertEquals("manifest", parser.getName())
+        assertEquals("com.example.app", parser.getAttributeValue(null, "package"))
+        assertEquals("http://schemas.android.com/apk/res/android", parser.getNamespace("android"))
+
+        assertEquals(XmlPullParser.START_TAG, parser.nextTag())
+        assertEquals("application", parser.getName())
+        val androidNs = "http://schemas.android.com/apk/res/android"
+        assertEquals("My & App", parser.getAttributeValue(androidNs, "label"))
+        assertEquals("true", parser.getAttributeValue(androidNs, "debuggable"))
+
+        assertEquals(XmlPullParser.START_TAG, parser.nextTag())
+        assertEquals("activity", parser.getName())
+        assertTrue(parser.isEmptyElementTag())
+        assertEquals(".MainActivity", parser.getAttributeValue(androidNs, "name"))
+        assertEquals(XmlPullParser.END_TAG, parser.nextTag())
+        assertEquals("activity", parser.getName())
+
+        assertEquals(XmlPullParser.START_TAG, parser.nextTag())
+        assertEquals("meta-data", parser.getName())
+        assertEquals("desc", parser.getAttributeValue(androidNs, "name"))
+        assertEquals("Raw <tag> & text", parser.nextText())
+        assertEquals(XmlPullParser.END_TAG, parser.getEventType())
+        assertEquals("meta-data", parser.getName())
+
+        assertEquals(XmlPullParser.END_TAG, parser.nextTag())
+        assertEquals("application", parser.getName())
+
+        assertEquals(XmlPullParser.END_TAG, parser.nextTag())
+        assertEquals("manifest", parser.getName())
+
+        assertEquals(XmlPullParser.END_DOCUMENT, parser.next())
+    }
+
+    @Test
+    fun testXmlSerializerAndRoundTrip() {
+        val sw = StringWriter()
+        val serializer = Xml.newSerializer()
+        serializer.setOutput(sw)
+        serializer.startDocument("UTF-8", true)
+        serializer.setPrefix("ns", "urn:example:ns")
+        serializer.startTag("urn:example:ns", "root")
+        serializer.attribute(null, "version", "1.0")
+
+        serializer.startTag(null, "item")
+        serializer.attribute(null, "key", "a&b\"c")
+        serializer.text("Hello <World> & Friends")
+        serializer.endTag(null, "item")
+
+        serializer.endTag("urn:example:ns", "root")
+        serializer.endDocument()
+
+        val outputXml = sw.toString()
+        assertTrue(outputXml.contains("Hello &lt;World&gt; &amp; Friends"))
+
+        val factory = XmlPullParserFactory.newInstance()
+        factory.isNamespaceAware = true
+        val parser = factory.newPullParser()
+        parser.setInput(ByteArrayInputStream(outputXml.encodeToByteArray()), "UTF-8")
+
+        assertEquals(XmlPullParser.START_TAG, parser.nextTag())
+        parser.require(XmlPullParser.START_TAG, "urn:example:ns", "root")
+        assertEquals("1.0", parser.getAttributeValue(null, "version"))
+
+        assertEquals(XmlPullParser.START_TAG, parser.nextTag())
+        assertEquals("item", parser.getName())
+        assertEquals("a&b\"c", parser.getAttributeValue(null, "key"))
+        assertEquals("Hello <World> & Friends", parser.nextText())
+
+        assertEquals(XmlPullParser.END_TAG, parser.nextTag())
+        assertEquals("root", parser.getName())
+        assertEquals(XmlPullParser.END_DOCUMENT, parser.next())
+    }
+
+    @Test
+    fun testXmlMalformedAndEncodings() {
+        assertEquals(Xml.Encoding.UTF_8, Xml.findEncodingByName("UTF-8"))
+        assertEquals(Xml.Encoding.US_ASCII, Xml.findEncodingByName("US-ASCII"))
+        assertEquals(Xml.Encoding.ISO_8859_1, Xml.findEncodingByName("ISO-8859-1"))
+
+        val parser = Xml.newPullParser()
+        parser.setInput(StringReader("<root><child></root>"))
+        assertEquals(XmlPullParser.START_TAG, parser.nextTag())
+        assertEquals(XmlPullParser.START_TAG, parser.nextTag())
+        assertFailsWith<XmlPullParserException> {
+            parser.nextTag()
+        }
+    }
+
+    @Test
+    fun testPatterns() {
+        assertTrue(Patterns.IP_ADDRESS.matcher("192.168.1.1").matches())
+        assertTrue(Patterns.IP_ADDRESS.matcher("255.255.255.0").matches())
+        assertFalse(Patterns.IP_ADDRESS.matcher("256.1.1.1").matches())
+        assertFalse(Patterns.IP_ADDRESS.matcher("not.an.ip").matches())
+
+        assertTrue(Patterns.DOMAIN_NAME.matcher("kotlinlang.org").matches())
+        assertTrue(Patterns.DOMAIN_NAME.matcher("sub.example.co.uk").matches())
+        assertFalse(Patterns.DOMAIN_NAME.matcher("-invalid.com").matches())
+
+        assertTrue(Patterns.EMAIL_ADDRESS.matcher("dev.user+tag@example.com").matches())
+        assertFalse(Patterns.EMAIL_ADDRESS.matcher("missing-at.example.com").matches())
+
+        assertTrue(Patterns.WEB_URL.matcher("https://kotlinlang.org/docs/multiplatform.html? target=native").find())
+
+        val phoneMatcher = Patterns.PHONE.matcher("+1 (800) 555-0199")
+        assertTrue(phoneMatcher.matches())
+        assertEquals("+18005550199", Patterns.digitsAndPlusOnly(phoneMatcher))
+    }
+
+    @Test
+    fun testMimeTypeMap() {
+        assertEquals("png", MimeTypeMap.getFileExtensionFromUrl("https://example.com/assets/logo.png?v=1#top"))
+        assertEquals("html", MimeTypeMap.getFileExtensionFromUrl("http://example.com/index.html"))
+        assertEquals("", MimeTypeMap.getFileExtensionFromUrl("http://example.com/path/noext"))
+
+        val mimeMap = MimeTypeMap.getSingleton()
+        assertNotNull(mimeMap)
+        assertTrue(mimeMap.hasExtension("json"))
+        assertEquals("application/json", mimeMap.getMimeTypeFromExtension("json"))
+        assertEquals("image/png", mimeMap.getMimeTypeFromExtension("PNG"))
+        assertTrue(mimeMap.hasMimeType("image/png"))
+        assertEquals("png", mimeMap.getExtensionFromMimeType("image/png"))
+        assertNull(mimeMap.getMimeTypeFromExtension("nonexistent_ext_xyz"))
+    }
+
+    @Test
+    fun testContextDefaultPersistentDirectoriesAndStreams() {
+        val testPkg = "com.jako.test.persistent_${System.nanoTime()}"
+        val defaultContext = object : Context() {
+            override fun getPackageName(): String = testPkg
+        }
+        val dataDir = defaultContext.getDataDir()
+        val cacheDir = defaultContext.getCacheDir()
+        val filesDir = defaultContext.getFilesDir()
+
+        try {
+            val tmpDir = File(System.getProperty("java.io.tmpdir") ?: "/tmp").canonicalPath
+            assertFalse(
+                dataDir.canonicalPath.startsWith(tmpDir),
+                "Context.getDataDir() (${dataDir.canonicalPath}) must use OS persistent storage, not tmpdir ($tmpDir)"
+            )
+            assertFalse(
+                cacheDir.canonicalPath.startsWith(tmpDir),
+                "Context.getCacheDir() (${cacheDir.canonicalPath}) must use OS persistent cache dir, not tmpdir ($tmpDir)"
+            )
+            assertTrue(dataDir.exists() && dataDir.isDirectory)
+            assertTrue(filesDir.exists() && filesDir.isDirectory)
+            assertTrue(cacheDir.exists() && cacheDir.isDirectory)
+
+            val wrapper = android.content.ContextWrapper(defaultContext)
+            assertEquals(defaultContext.getPackageName(), wrapper.getPackageName())
+            assertEquals(dataDir.absolutePath, wrapper.getDataDir().absolutePath)
+
+            // Test openFileOutput (MODE_PRIVATE and MODE_APPEND), openFileInput, fileList, deleteFile
+            wrapper.openFileOutput("config.txt", Context.MODE_PRIVATE).use { fos ->
+                fos.write("line1\n".encodeToByteArray())
+            }
+            wrapper.openFileOutput("config.txt", Context.MODE_APPEND).use { fos ->
+                fos.write("line2".encodeToByteArray())
+            }
+            assertTrue(wrapper.fileList().contains("config.txt"))
+
+            val content = wrapper.openFileInput("config.txt").use { fis ->
+                val buf = ByteArray(64)
+                val n = fis.read(buf)
+                buf.decodeToString(0, n)
+            }
+            assertEquals("line1\nline2", content)
+            assertTrue(wrapper.deleteFile("config.txt"))
+            assertFalse(wrapper.fileList().contains("config.txt"))
+
+            // Path separator validation
+            assertFailsWith<IllegalArgumentException> {
+                wrapper.openFileOutput("../escape.txt", Context.MODE_PRIVATE)
+            }
+        } finally {
+            dataDir.deleteRecursively()
+            cacheDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun testSharedPreferencesPersistenceAndListeners() {
+        val tempRoot = File(System.getProperty("java.io.tmpdir") ?: "/tmp", "jako_prefs_test_${System.nanoTime()}")
+        val customContext = object : Context() {
+            override fun getDataDir(): File = tempRoot
+            override fun getPackageName(): String = "com.example.test"
+        }
+
+        try {
+            val prefsName = "user_settings"
+            val prefs = customContext.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+            val changedKeys = ArrayList<String?>()
+            val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+                changedKeys.add(key)
+            }
+            prefs.registerOnSharedPreferenceChangeListener(listener)
+
+            assertTrue(
+                prefs.edit()
+                    .putString("username", "alice & <bob>")
+                    .putInt("login_count", 7)
+                    .putLong("last_login", 1700000000000L)
+                    .putFloat("ratio", 1.5f)
+                    .putBoolean("dark_mode", true)
+                    .putStringSet("roles", setOf("admin", "editor"))
+                    .commit()
+            )
+
+            assertEquals("alice & <bob>", prefs.getString("username", null))
+            assertEquals(7, prefs.getInt("login_count", 0))
+            assertEquals(1700000000000L, prefs.getLong("last_login", 0L))
+            assertEquals(1.5f, prefs.getFloat("ratio", 0f))
+            assertTrue(prefs.getBoolean("dark_mode", false))
+            assertEquals(setOf("admin", "editor"), prefs.getStringSet("roles", null))
+            assertTrue(prefs.contains("username"))
+            assertTrue(changedKeys.containsAll(listOf("username", "login_count", "dark_mode", "roles")))
+
+            // Verify XML file was persisted on disk
+            val xmlFile = File(File(tempRoot, "shared_prefs"), "$prefsName.xml")
+            assertTrue(xmlFile.exists(), "SharedPreferences XML file must exist on disk")
+
+            // Verify remove and null putString
+            prefs.edit()
+                .remove("login_count")
+                .putString("username", null)
+                .apply()
+
+            assertFalse(prefs.contains("login_count"))
+            assertFalse(prefs.contains("username"))
+            assertEquals("fallback", prefs.getString("username", "fallback"))
+
+            // Verify PreferenceManager.getDefaultSharedPreferences
+            val defaultPrefs = PreferenceManager.getDefaultSharedPreferences(customContext)
+            defaultPrefs.edit().putBoolean("first_run", false).commit()
+            assertFalse(defaultPrefs.getBoolean("first_run", true))
+
+            prefs.unregisterOnSharedPreferenceChangeListener(listener)
+            val countBeforeClear = changedKeys.size
+            prefs.edit().clear().commit()
+            assertEquals(countBeforeClear, changedKeys.size, "Unregistered listener must not be notified")
+            assertTrue(prefs.getAll().isEmpty())
+
+            assertTrue(customContext.deleteSharedPreferences(prefsName))
+            assertFalse(xmlFile.exists())
+        } finally {
+            tempRoot.deleteRecursively()
+        }
+    }
+}

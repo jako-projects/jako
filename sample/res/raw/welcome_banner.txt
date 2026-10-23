@@ -1,0 +1,2 @@
+Welcome to Jako Multiplatform!
+Assets and Android XML resources are loaded seamlessly on PC & Native.

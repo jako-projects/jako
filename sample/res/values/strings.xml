@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_title">Jako Cross-Platform Sample</string>
+    <string name="status_banner">Running %1$s v%2$s on %3$d DPI</string>
+    <integer name="max_worker_threads">8</integer>
+    <bool name="enable_disk_cache">true</bool>
+    <color name="primary_brand">#FF1E88E5</color>
+    <dimen name="content_padding">16dp</dimen>
+    <string-array name="supported_layers">
+        <item>jako-stdlib</item>
+        <item>jako-android</item>
+    </string-array>
+</resources>

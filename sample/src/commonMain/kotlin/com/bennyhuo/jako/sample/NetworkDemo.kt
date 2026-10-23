@@ -21,9 +21,10 @@ object NetworkDemo {
                 try {
                     server.accept().use { client ->
                         val reader = BufferedReader(InputStreamReader(client.getInputStream(), StandardCharsets.UTF_8))
-                        val writer = PrintWriter(OutputStreamWriter(client.getOutputStream(), StandardCharsets.UTF_8), true)
+                        val writer = PrintWriter(OutputStreamWriter(client.getOutputStream(), StandardCharsets.UTF_8))
                         val line = reader.readLine()
                         writer.println("ECHO:$line")
+                        writer.flush()
                     }
                 } catch (t: Throwable) {
                     serverError = t
@@ -31,9 +32,10 @@ object NetworkDemo {
             }
 
             val response = Socket("127.0.0.1", port).use { socket ->
-                val writer = PrintWriter(OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8), true)
+                val writer = PrintWriter(OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8))
                 val reader = BufferedReader(InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8))
                 writer.println(message)
+                writer.flush()
                 reader.readLine()
             }
 

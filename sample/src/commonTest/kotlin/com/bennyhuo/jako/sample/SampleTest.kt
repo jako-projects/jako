@@ -21,6 +21,8 @@ class SampleTest {
         assertEquals(40, report.totalProcessed)
         assertEquals(4, report.bucketCount)
         assertEquals((1..40).sum(), report.snapshotSum)
+        assertEquals((1..40).sum(), report.synchronizedLedgerSum)
+        assertTrue(report.monitorLockVerified)
     }
 
     @Test
@@ -44,5 +46,13 @@ class SampleTest {
         assertEquals("10:Uri, 20:JSONObject, 30:SparseArray", report.activeFeatures)
         assertEquals(1600 * 1000, report.viewportArea)
         assertEquals(4, report.parsedTokenCount)
+        assertEquals("Jako Cross-Platform Sample", report.appTitle)
+        assertEquals("Running Jako Cross-Platform Sample v1.2.0 on 320 DPI", report.formattedStatusBanner)
+        assertEquals("jako-multiplatform", report.assetEngine)
+        assertEquals("Welcome to Jako Multiplatform!", report.rawBannerFirstLine)
+        assertEquals(32, report.contentPaddingPx)
+        assertEquals("multiplatform-desktop:JakoRuntimeReady", report.savedPreferenceChannel)
+        assertTrue(report.availableDiskBytes > 0L)
+        assertEquals("jako-kmp#2026 tags=[K2, FIR, IR] dpi=320 ignoredCache=false", report.parcelizedSummary)
     }
 }

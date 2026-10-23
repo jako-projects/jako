@@ -1,4 +1,5 @@
 pluginManagement {
+    includeBuild("../")
     repositories {
         google()
         mavenCentral()
@@ -16,3 +17,4 @@ dependencyResolutionManagement {
 rootProject.name = "jako-sample"
 
 includeBuild("../")
+

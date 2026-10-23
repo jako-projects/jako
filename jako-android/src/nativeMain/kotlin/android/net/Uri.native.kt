@@ -315,6 +315,14 @@ actual abstract class Uri : Parcelable, Comparable<Uri> {
 
     actual companion object {
         actual val EMPTY: Uri = StringUri("")
+        actual val CREATOR: Parcelable.Creator<Uri> = object : Parcelable.Creator<Uri> {
+            override fun createFromParcel(source: Parcel): Uri {
+                val str = source.readString() ?: ""
+                return if (str.isEmpty()) EMPTY else StringUri(str)
+            }
+
+            override fun newArray(size: Int): Array<Uri?> = arrayOfNulls(size)
+        }
 
         private const val DEFAULT_ALLOWED = "_-!.~'()*"
         private const val HEX_DIGITS = "0123456789ABCDEF"

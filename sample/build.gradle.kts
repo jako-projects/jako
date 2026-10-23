@@ -1,13 +1,21 @@
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
+import org.jetbrains.kotlin.gradle.InternalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
     kotlin("multiplatform") version "2.4.21"
+    id("com.bennyhuo.jako")
 }
 
 group = "com.bennyhuo.jako.sample"
 version = "1.0.0"
+
+jako {
+    packageName.set("com.bennyhuo.jako.sample")
+    resDir.set(file("res"))
+}
 
 kotlin {
     jvm {
@@ -59,3 +67,16 @@ kotlin {
         }
     }
 }
+
+@OptIn(InternalKotlinGradlePluginApi::class)
+tasks.withType<KotlinCompile>().configureEach {
+    multiplatformStructure.fragments.set(emptyList())
+    multiplatformStructure.refinesEdges.set(emptyList())
+}
+
+tasks.withType<JavaCompile>().configureEach {
+    sourceCompatibility = "1.8"
+    targetCompatibility = "1.8"
+}
+
+

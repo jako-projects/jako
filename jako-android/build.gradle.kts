@@ -62,6 +62,10 @@ kotlin {
             api(project(":jako-stdlib"))
         }
 
+        jvmMain.dependencies {
+            compileOnly("org.robolectric:android-all:10-robolectric-5803371")
+        }
+
         commonTest.dependencies {
             implementation(kotlin("test"))
         }
@@ -73,14 +77,26 @@ kotlin {
     }
 }
 
+@OptIn(org.jetbrains.kotlin.gradle.InternalKotlinGradlePluginApi::class)
 tasks.withType<KotlinCompile>().configureEach {
     compilerOptions {
         freeCompilerArgs.add("-Xno-check-actual")
     }
+    multiplatformStructure.fragments.set(emptyList())
+    multiplatformStructure.refinesEdges.set(emptyList())
+}
+
+tasks.withType<JavaCompile>().configureEach {
+    sourceCompatibility = "1.8"
+    targetCompatibility = "1.8"
 }
 
 tasks.named<KotlinCompile>("compileKotlinJvm") {
-    setSource(emptyList<File>())
+    setSource(
+        fileTree("src/commonMain/kotlin/com/bennyhuo/jako"),
+        fileTree("src/commonMain/kotlin/kotlinx/parcelize"),
+        fileTree("src/jvmMain/kotlin")
+    )
 }
 
 tasks.withType<KotlinNativeCompile>().configureEach {
@@ -102,3 +118,10 @@ tasks.matching { it.name.endsWith("KotlinMetadata") && !it.name.startsWith("comp
 tasks.named("check") {
     dependsOn("compileCommonMainKotlinMetadata")
 }
+
+configurations.matching {
+    it.name.startsWith("kotlinCompilerPluginClasspath") || it.name.endsWith("CompilerPluginClasspath")
+}.configureEach {
+    dependencies.add(project.dependencies.create(project(":jako-compiler-plugin")))
+}
+

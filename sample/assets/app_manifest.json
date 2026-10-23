@@ -1,0 +1,5 @@
+{
+  "appId": "com.bennyhuo.jako.sample",
+  "engine": "jako-multiplatform",
+  "modules": ["jako-stdlib", "jako-android"]
+}
