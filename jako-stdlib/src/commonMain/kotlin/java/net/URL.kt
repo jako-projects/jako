@@ -22,6 +22,7 @@ expect open class URL : Serializable {
 
     fun getFile(): String
     fun getQuery(): String?
+    open fun openConnection(): URLConnection
     fun openStream(): InputStream
     fun toURI(): URI
 

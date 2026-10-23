@@ -43,10 +43,53 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation("com.bennyhuo.jako:jako-stdlib:1.0.0")
-            // Optional: Android Framework APIs (android.util, android.os, android.net, android.text, android.graphics, org.json)
+            // Optional: Android Framework APIs (android.app, android.content, android.util, android.os, android.net, android.text, android.graphics, org.json, org.xmlpull.v1)
             implementation("com.bennyhuo.jako:jako-android:1.0.0")
         }
     }
+}
+```
+
+### Initializing `jako-android` on PC / Native (Optional)
+
+For Android APIs that depend on application environment or directory layout (`Context`, `Application`, `AssetManager`, `Resources`, `PackageManager`, `Environment`), `jako-android` works out-of-the-box using OS-standard persistent directories (`~/Library/Application Support` on macOS/iOS, XDG Base Directory on Linux, `%LOCALAPPDATA%` on Windows) and automatic multi-level `assets/` & `res/` discovery.
+
+You can also explicitly configure metadata, directories, and resources at startup via `JakoApplication.init`:
+
+```kotlin
+import com.bennyhuo.jako.JakoApplication
+import com.bennyhuo.jako.init
+import java.io.File
+
+JakoApplication.init {
+    packageName = "com.example.mykmpapp"
+    versionName = "1.2.0"
+    versionCode = 120
+    assetsDir = File("./app-assets")
+    resourcesDir = File("./app-res")
+    putMetaData("channel", "desktop")
+    registerStringResource(0x7f010001, "app_name", "My KMP App")
+}
+
+val context = JakoApplication.applicationContext
+```
+
+### Gradle Plugin: `@Synchronized` KCP & Compile-Time `R.xx.yy` Generation
+
+Apply the `com.bennyhuo.jako` Gradle plugin in `build.gradle.kts` to:
+1. **Automatically wire the Jako Kotlin Compiler Plugin (`jako-compiler-plugin`)**, enabling `@Synchronized` across `commonMain` and Kotlin/Native with full monitor lock semantics (`Thread.holdsLock`, `Object.wait`/`notify`, and interoperability with `synchronized(lock) { ... }`).
+2. **Generate a strongly-typed `R` class** (`R.string.*`, `R.dimen.*`, `R.raw.*`, `R.integer.*`, `R.bool.*`, `R.color.*`, `R.array.*`) for `commonMain` when `res/values/*.xml` or `res/raw/*` files are present, using deterministic resource IDs matching `Resources` at runtime:
+
+```kotlin
+plugins {
+    kotlin("multiplatform")
+    id("com.bennyhuo.jako") version "1.0.0"
+}
+
+// Optional if only using @Synchronized without a res/ directory;
+// required when generating R.xx.yy from res/
+jako {
+    packageName.set("com.example.mykmpapp")
 }
 ```
 
@@ -90,9 +133,11 @@ kotlin {
 | Layer | Component | Status |
 |:---|:---|:---|
 | **jako-stdlib** | Core `java.*` / `javax.*` APIs for Native | ✅ 577 classes & interfaces implemented; see [`API_CHECKLIST.md`](API_CHECKLIST.md) |
-| **jako-android** | Core `android.*` & `org.json` APIs for Native | ✅ `android.util`, `android.text`, `android.net`, `android.os`, `android.graphics`, `org.json`; see [`ANDROID_API_CHECKLIST.md`](ANDROID_API_CHECKLIST.md) |
+| **jako-android** | Core `android.*`, `org.json` & `org.xmlpull.v1` APIs for Native | ✅ `android.app`, `android.content` (`res`, `pm`), `android.util`, `android.text`, `android.net`, `android.os`, `android.graphics`, `android.webkit`, `android.preference`, `org.json`, `org.xmlpull.v1` & `JakoApplication.init`; see [`ANDROID_API_CHECKLIST.md`](ANDROID_API_CHECKLIST.md) |
+| **jako-compiler-plugin** | K2 FIR + IR Kotlin Compiler Plugin | ✅ Enables `@Synchronized` in `commonMain` & Native with reentrant monitor locks |
+| **jako-gradle-plugin** | Unified Gradle plugin (`com.bennyhuo.jako`) | ✅ Wires `jako-compiler-plugin` (`@Synchronized`) and generates compile-time `R.kt` from `res/` |
 | **Kotlin Extensions** | Official `kotlin.*` extensions for Java APIs | ✅ Concrete implementations in `commonMain` under official `kotlin.*` packages |
-| **sample** | Standalone KMP Sample Project | ✅ Demonstrates `jako-stdlib` & `jako-android` usage across JVM & Native via `includeBuild("../")` |
+| **sample** | Standalone KMP Sample Project | ✅ Demonstrates `jako-stdlib`, `jako-android` & `jako-gradle-plugin` across JVM & Native via `includeBuild("../")` |
 
 ---
 

@@ -43,8 +43,9 @@ internal class SocketInputStream(
                     throw SocketException("select failed: errno $errno")
                 }
             }
-            val buf = allocArray<ByteVar>(len)
-            val bytesRead = recv(fd, buf, len.convert(), 0).toInt()
+            val bytesRead = b.usePinned { pinned ->
+                recv(fd, pinned.addressOf(off), len.convert(), 0).toInt()
+            }
             if (bytesRead < 0) {
                 val err = errno
                 if (err == EAGAIN || err == EWOULDBLOCK) {
@@ -54,9 +55,6 @@ internal class SocketInputStream(
             }
             if (bytesRead == 0) {
                 return -1 // EOF
-            }
-            for (i in 0 until bytesRead) {
-                b[off + i] = buf[i]
             }
             bytesRead
         }
@@ -101,13 +99,9 @@ internal class SocketOutputStream(
         if (fd < 0 || socket.isClosed()) throw SocketException("Socket is closed")
 
         var totalSent = 0
-        memScoped {
-            val buf = allocArray<ByteVar>(len)
-            for (i in 0 until len) {
-                buf[i] = b[off + i]
-            }
+        b.usePinned { pinned ->
             while (totalSent < len) {
-                val sent = send(fd, buf + totalSent, (len - totalSent).convert(), 0).toInt()
+                val sent = send(fd, pinned.addressOf(off + totalSent), (len - totalSent).convert(), 0).toInt()
                 if (sent < 0) {
                     val err = errno
                     if (err == EAGAIN || err == EWOULDBLOCK) {

@@ -16,60 +16,7 @@ import java.nio.file.attribute.FileAttribute
 import java.nio.file.attribute.FileTime
 import java.nio.file.attribute.nativeReadBasicAttributes
 
-actual interface DirectoryStream<T> : java.io.Closeable, Iterable<T> {
-    actual fun interface Filter<T> {
-        actual fun accept(entry: T): Boolean
-    }
-    actual override fun iterator(): MutableIterator<T>
-}
-
-actual open class FileSystemException actual constructor(
-    actual val file: String?,
-    other: String?,
-    actual val reason: String?
-) : IOException(buildMessage(file, other, reason)) {
-    actual constructor(file: String?) : this(file, null, null)
-    actual val otherFile: String? = other
-
-    companion object {
-        private fun buildMessage(file: String?, other: String?, reason: String?): String {
-            val sb = StringBuilder()
-            if (file != null) sb.append(file)
-            if (other != null) sb.append(" -> ").append(other)
-            if (reason != null) {
-                if (sb.isNotEmpty()) sb.append(": ")
-                sb.append(reason)
-            }
-            return sb.toString()
-        }
-    }
-}
-
-actual open class NoSuchFileException actual constructor(
-    file: String?,
-    other: String?,
-    reason: String?
-) : FileSystemException(file, other, reason) {
-    actual constructor(file: String?) : this(file, null, null)
-}
-
-actual open class FileAlreadyExistsException actual constructor(
-    file: String?,
-    other: String?,
-    reason: String?
-) : FileSystemException(file, other, reason) {
-    actual constructor(file: String?) : this(file, null, null)
-}
-
-actual open class NotDirectoryException actual constructor(
-    file: String?
-) : FileSystemException(file)
-
-actual open class DirectoryNotEmptyException actual constructor(
-    dir: String?
-) : FileSystemException(dir)
-
-private class NativeDirectoryStream(
+internal class NativeDirectoryStream(
     private val entries: MutableList<Path>
 ) : DirectoryStream<Path> {
     private var closed = false
@@ -130,10 +77,23 @@ actual class Files {
             return file.length()
         }
 
+        private fun applyFileAttributes(path: Path, attrs: Array<out FileAttribute<*>>) {
+            for (attr in attrs) {
+                if (attr.name() == "posix:permissions") {
+                    @Suppress("UNCHECKED_CAST")
+                    val perms = attr.value() as? Set<java.nio.file.attribute.PosixFilePermission>
+                    if (perms != null) {
+                        setPosixFilePermissions(path, perms)
+                    }
+                }
+            }
+        }
+
         actual fun createFile(path: Path, vararg attrs: FileAttribute<*>): Path {
             val file = path.toFile()
             if (file.exists()) throw FileAlreadyExistsException(path.toString())
             if (!file.createNewFile()) throw FileAlreadyExistsException(path.toString())
+            applyFileAttributes(path, attrs)
             return path
         }
 
@@ -141,12 +101,14 @@ actual class Files {
             val file = path.toFile()
             if (file.exists()) throw FileAlreadyExistsException(path.toString())
             if (!file.mkdir()) throw IOException("Failed to create directory $path")
+            applyFileAttributes(path, attrs)
             return path
         }
 
         actual fun createDirectories(path: Path, vararg attrs: FileAttribute<*>): Path {
             val file = path.toFile()
             file.mkdirs()
+            applyFileAttributes(path, attrs)
             return path
         }
 
@@ -464,10 +426,34 @@ actual class Files {
         actual fun isSymbolicLink(path: Path): Boolean {
             return if (exists(path)) nativeReadBasicAttributes(path).isSymbolicLink() else false
         }
+
+        actual fun getPosixFilePermissions(
+            path: Path,
+            vararg options: LinkOption
+        ): MutableSet<java.nio.file.attribute.PosixFilePermission> {
+            val file = path.toFile()
+            if (!file.exists()) throw NoSuchFileException(path.toString())
+            val mode = java.io.nativeGetPosixMode(file.getPath())
+            if (mode < 0) throw IOException("Failed to read POSIX permissions: $path")
+            return java.nio.file.attribute.PosixFilePermissions.modeToPermissions(mode)
+        }
+
+        actual fun setPosixFilePermissions(
+            path: Path,
+            perms: Set<java.nio.file.attribute.PosixFilePermission>
+        ): Path {
+            val file = path.toFile()
+            if (!file.exists()) throw NoSuchFileException(path.toString())
+            val mode = java.nio.file.attribute.PosixFilePermissions.permissionsToMode(perms)
+            if (!java.io.nativeSetPosixMode(file.getPath(), mode)) {
+                throw IOException("Failed to set POSIX permissions: $path")
+            }
+            return path
+        }
     }
 }
 
-private val ALL_BASIC_ATTRIBUTES = listOf(
+internal val ALL_BASIC_ATTRIBUTES = listOf(
     "lastModifiedTime",
     "lastAccessTime",
     "creationTime",
@@ -479,7 +465,7 @@ private val ALL_BASIC_ATTRIBUTES = listOf(
     "fileKey"
 )
 
-private fun parseBasicAttributeNames(attributes: String): List<String> {
+internal fun parseBasicAttributeNames(attributes: String): List<String> {
     val colon = attributes.indexOf(':')
     val view = if (colon >= 0) attributes.substring(0, colon) else "basic"
     if (view.isNotEmpty() && view != "basic") {

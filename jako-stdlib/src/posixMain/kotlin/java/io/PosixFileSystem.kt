@@ -5,6 +5,9 @@ import platform.posix.*
 
 internal expect fun posixStatMtimeMillis(path: String): Long
 
+internal actual fun nativeGetPosixMode(path: String): Int = NativeFileSystem.getPosixMode(path)
+internal actual fun nativeSetPosixMode(path: String, mode: Int): Boolean = NativeFileSystem.setPosixMode(path, mode)
+
 internal object NativeFileSystem {
     @OptIn(ExperimentalForeignApi::class)
     fun getCwd(): String = memScoped {
@@ -60,7 +63,29 @@ internal object NativeFileSystem {
             val cwd = getCwd()
             if (cwd.isEmpty()) path else if (cwd.endsWith("/")) "$cwd$path" else "$cwd/$path"
         }
-        return collapseDotSegments(absolute)
+        val collapsed = collapseDotSegments(absolute)
+        val resolvedCollapsed = realpath(collapsed, null)
+        if (resolvedCollapsed != null) {
+            val result = resolvedCollapsed.toKString()
+            free(resolvedCollapsed)
+            return result
+        }
+        var prefix = collapsed
+        val tailSegments = mutableListOf<String>()
+        while (prefix.length > 1) {
+            val slashIdx = prefix.lastIndexOf('/')
+            if (slashIdx < 0) break
+            tailSegments.add(prefix.substring(slashIdx + 1))
+            prefix = if (slashIdx == 0) "/" else prefix.substring(0, slashIdx)
+            val resolvedPrefix = realpath(prefix, null)
+            if (resolvedPrefix != null) {
+                val base = resolvedPrefix.toKString()
+                free(resolvedPrefix)
+                val suffix = tailSegments.asReversed().joinToString("/")
+                return if (base == "/") "/$suffix" else "$base/$suffix"
+            }
+        }
+        return collapsed
     }
 
     fun isHiddenName(name: String): Boolean = name.startsWith(".")
@@ -81,6 +106,21 @@ internal object NativeFileSystem {
     fun usableSpace(path: String): Long {
         if (access(path, F_OK) != 0) return 0L
         return 50L * 1024L * 1024L * 1024L
+    }
+
+    @OptIn(ExperimentalForeignApi::class)
+    fun getPosixMode(path: String): Int = memScoped {
+        val statBuf = alloc<stat>()
+        if (stat(path, statBuf.ptr) != 0) return -1
+        statBuf.st_mode.convert<Int>() and 0x1FF
+    }
+
+    @OptIn(ExperimentalForeignApi::class)
+    fun setPosixMode(path: String, mode: Int): Boolean = memScoped {
+        val statBuf = alloc<stat>()
+        if (stat(path, statBuf.ptr) != 0) return false
+        val newMode = (statBuf.st_mode.convert<Int>() and 0x1FF.inv()) or (mode and 0x1FF)
+        chmod(path, newMode.convert()) == 0
     }
 
     internal fun collapseDotSegments(absolute: String): String {

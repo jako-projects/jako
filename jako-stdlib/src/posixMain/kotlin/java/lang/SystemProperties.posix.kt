@@ -9,6 +9,7 @@ import kotlinx.cinterop.allocArray
 import kotlinx.cinterop.convert
 import kotlinx.cinterop.get
 import kotlinx.cinterop.memScoped
+import kotlinx.cinterop.pointed
 import kotlinx.cinterop.ptr
 import kotlinx.cinterop.toKString
 import kotlinx.cinterop.usePinned
@@ -30,6 +31,25 @@ internal actual fun nativeTmpDir(): String =
         ?: platform.posix.getenv("TEMP")?.toKString()
         ?: platform.posix.getenv("TMP")?.toKString()
         ?: "/tmp"
+
+internal actual fun nativeUserName(): String =
+    platform.posix.getenv("USER")?.toKString()?.takeIf { it.isNotEmpty() }
+        ?: platform.posix.getenv("LOGNAME")?.toKString()?.takeIf { it.isNotEmpty() }
+        ?: platform.posix.getpwuid(platform.posix.getuid())?.pointed?.pw_name?.toKString()?.takeIf { it.isNotEmpty() }
+        ?: "user"
+
+internal actual fun nativeUserHome(): String =
+    platform.posix.getenv("HOME")?.toKString()?.takeIf { it.isNotEmpty() }
+        ?: platform.posix.getpwuid(platform.posix.getuid())?.pointed?.pw_dir?.toKString()?.takeIf { it.isNotEmpty() }
+        ?: "/"
+
+@OptIn(kotlinx.cinterop.UnsafeNumber::class)
+internal actual fun nativeUserDir(): String = memScoped {
+    val buf = allocArray<kotlinx.cinterop.ByteVar>(4096)
+    platform.posix.getcwd(buf, 4096.convert())?.toKString()?.takeIf { it.isNotEmpty() }
+        ?: platform.posix.getenv("PWD")?.toKString()?.takeIf { it.isNotEmpty() }
+        ?: "."
+}
 
 @OptIn(kotlinx.cinterop.UnsafeNumber::class)
 internal actual fun nativeAvailableProcessors(): Int {

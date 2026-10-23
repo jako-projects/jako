@@ -18,6 +18,8 @@ kotlin {
         }
         testRuns["test"].executionTask.configure {
             useJUnitPlatform()
+            systemProperty("jako.jdkRelease", providers.gradleProperty("jako.jdkRelease").orElse("8").get())
+            systemProperty("jako.updateApiBaseline", providers.gradleProperty("jako.updateApiBaseline").orElse("false").get())
         }
     }
 
@@ -114,3 +116,8 @@ tasks.matching { it.name.endsWith("KotlinMetadata") && !it.name.startsWith("comp
 tasks.named("check") {
     dependsOn("compileCommonMainKotlinMetadata")
 }
+
+configurations.matching { it.name.endsWith("CompilerPluginClasspath") }.configureEach {
+    dependencies.add(project.dependencies.create(project(":jako-compiler-plugin")))
+}
+

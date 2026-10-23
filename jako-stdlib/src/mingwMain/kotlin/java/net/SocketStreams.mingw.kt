@@ -27,24 +27,20 @@ internal class SocketInputStream(
         val sock = sockGetter()
         if (socket.isClosed()) throw SocketException("Socket is closed")
 
-        return memScoped {
-            val buf = allocArray<ByteVar>(len)
-            val bytesRead = recv(sock.convert(), buf, len.convert(), 0).toInt()
-            if (bytesRead < 0) {
-                val err = WSAGetLastError()
-                if (err == WSAEWOULDBLOCK || err == WSAETIMEDOUT) {
-                    throw SocketTimeoutException("Read timed out")
-                }
-                throw SocketException("recv failed: WSA error $err")
-            }
-            if (bytesRead == 0) {
-                return -1 // EOF
-            }
-            for (i in 0 until bytesRead) {
-                b[off + i] = buf[i]
-            }
-            bytesRead
+        val bytesRead = b.usePinned { pinned ->
+            recv(sock.convert(), pinned.addressOf(off), len, 0)
         }
+        if (bytesRead < 0) {
+            val err = WSAGetLastError()
+            if (err == WSAEWOULDBLOCK || err == WSAETIMEDOUT) {
+                throw SocketTimeoutException("Read timed out")
+            }
+            throw SocketException("recv failed: WSA error $err")
+        }
+        if (bytesRead == 0) {
+            return -1 // EOF
+        }
+        return bytesRead
     }
 
     override fun available(): Int {
@@ -85,13 +81,9 @@ internal class SocketOutputStream(
         if (socket.isClosed()) throw SocketException("Socket is closed")
 
         var totalSent = 0
-        memScoped {
-            val buf = allocArray<ByteVar>(len)
-            for (i in 0 until len) {
-                buf[i] = b[off + i]
-            }
+        b.usePinned { pinned ->
             while (totalSent < len) {
-                val sent = send(sock.convert(), buf + totalSent, (len - totalSent).convert(), 0).toInt()
+                val sent = send(sock.convert(), pinned.addressOf(off + totalSent), len - totalSent, 0)
                 if (sent < 0) {
                     val err = WSAGetLastError()
                     if (err == WSAEWOULDBLOCK) {

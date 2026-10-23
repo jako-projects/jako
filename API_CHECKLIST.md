@@ -62,7 +62,7 @@ This document tracks the Java 8 Standard Library API porting progress for `jako-
 - [x] `InterruptedIOException`
 - [x] `UnsupportedEncodingException`
 - [x] `UTFDataFormatException`
-- [x] `CharConversionException`
+- [x] `CharConversionException`, `SyncFailedException`
 - [x] `ObjectStreamException`, `InvalidClassException`, `NotSerializableException`, `InvalidObjectException`, `StreamCorruptedException`, `NotActiveException`, `WriteAbortedException`
 
 ### `java.io.InputStream` & `java.io.OutputStream`
@@ -185,7 +185,8 @@ This document tracks the Java 8 Standard Library API porting progress for `jako-
 - [x] `Void` (`Void.TYPE`)
 - [x] `java.lang.reflect.Array` (`newInstance`, `getLength`, `get*`, `set*` with widening primitive conversions)
 
-### `java.lang.Character`
+### `java.lang.Character` & `Integer`
+- [x] `Integer` (`toHexString`, `toOctalString`, `toBinaryString`, `parseInt`, `valueOf`, `highestOneBit`, `lowestOneBit`, `numberOfLeadingZeros`, `numberOfTrailingZeros`, `bitCount`, `rotateLeft`, `rotateRight`, `reverse`, `reverseBytes`, `signum`, `compare`, `sum`, `max`, `min`)
 - [x] `Character.isISOControl()`
 - [x] `Character.isDigit()`
 - [x] `Character.isLetter()`
@@ -331,7 +332,7 @@ This document tracks the Java 8 Standard Library API porting progress for `jako-
 - [x] `PrimitiveIterator<T, T_CONS>`, `PrimitiveIterator.OfInt`, `PrimitiveIterator.OfLong`, `PrimitiveIterator.OfDouble`
 - [x] `Spliterator<T>`, `Spliterator.OfPrimitive`, `Spliterator.OfInt`, `Spliterator.OfLong`, `Spliterator.OfDouble`, `Spliterators`
 - [x] `IntSummaryStatistics`, `LongSummaryStatistics`, `DoubleSummaryStatistics`
-- [x] `EmptyStackException`, `ConcurrentModificationException`, `TooManyListenersException`, `MissingResourceException`, `InvalidPropertiesFormatException`, `IllformedLocaleException`
+- [x] `EmptyStackException`, `NoSuchElementException`, `ConcurrentModificationException`, `TooManyListenersException`, `MissingResourceException`, `InvalidPropertiesFormatException`, `IllformedLocaleException`
 
 ### `java.util.stream`
 - [x] `BaseStream<T, S>`, `Stream<T>`, `Stream.Builder<T>` (`filter`, `map`, `mapToInt`/`Long`/`Double`, `flatMap`, `distinct`, `sorted`, `peek`, `limit`, `skip`, `forEach`, `toArray`, `reduce`, `collect`, `min`, `max`, `count`, `anyMatch`, `allMatch`, `noneMatch`, `findFirst`, `findAny`, `concat`, `iterate`, `generate`)
@@ -366,7 +367,7 @@ This document tracks the Java 8 Standard Library API porting progress for `jako-
 - [x] `CyclicBarrier(parties, action)` (`await`, `reset`, `isBroken`, `getNumberWaiting`)
 - [x] `Phaser` (`register`, `bulkRegister`, `arrive`, `arriveAndDeregister`, `arriveAndAwaitAdvance`, `awaitAdvance`, `forceTermination`)
 - [x] `Exchanger<V>` (`exchange(x)`, `exchange(x, timeout, unit)`)
-- [x] `Callable<V>` (`call`)
+- [x] `Callable<V>` (`call`) & `ThreadFactory` (`newThread`)
 - [x] `Future<V>` (`cancel`, `isCancelled`, `isDone`, `get`)
 - [x] `RunnableFuture<V>` & `FutureTask<V>`
 - [x] `CompletableFuture<T>` & `CompletionStage<T>` (`completedFuture`, `supplyAsync`, `runAsync`, `thenApply`, `thenAccept`, `thenRun`, `thenCombine`, `thenCompose`, `exceptionally`, `handle`, `whenComplete`, `allOf`, `anyOf`, `join`, `getNow`)
@@ -376,9 +377,9 @@ This document tracks the Java 8 Standard Library API porting progress for `jako-
 - [x] `CompletionService<V>` & `ExecutorCompletionService<V>` (`submit`, `take`, `poll`)
 - [x] `Delayed` & `ScheduledFuture<V>` (`schedule`, `scheduleAtFixedRate`, `scheduleWithFixedDelay`)
 - [x] `ThreadLocalRandom` (`current()`, bounded & range `nextInt`, `nextLong`, `nextDouble`)
-- [x] `BlockingQueue<E>`, `TransferQueue<E>`, `LinkedTransferQueue<E>`, `LinkedBlockingQueue<E>`, `LinkedBlockingDeque<E>`, `ArrayBlockingQueue<E>`, `PriorityBlockingQueue<E>`, `DelayQueue<E>`, `SynchronousQueue<E>`
+- [x] `BlockingQueue<E>`, `BlockingDeque<E>`, `TransferQueue<E>`, `LinkedTransferQueue<E>`, `LinkedBlockingQueue<E>`, `LinkedBlockingDeque<E>`, `ArrayBlockingQueue<E>`, `PriorityBlockingQueue<E>`, `DelayQueue<E>`, `SynchronousQueue<E>`
 - [x] `ConcurrentHashMap<K, V>`, `ConcurrentSkipListMap<K, V>`, `ConcurrentSkipListSet<E>`, `CopyOnWriteArrayList<E>`, `CopyOnWriteArraySet<E>`, `ConcurrentLinkedQueue<E>`, `ConcurrentLinkedDeque<E>`
-- [x] `ExecutionException`, `TimeoutException`, `CancellationException`, `RejectedExecutionException`, `BrokenBarrierException`
+- [x] `ExecutionException`, `TimeoutException`, `CancellationException`, `CompletionException`, `RejectedExecutionException`, `BrokenBarrierException`
 
 ### `java.util.function`
 - [x] `Function<T, R>`, `BiFunction<T, U, R>`, `UnaryOperator<T>`, `BinaryOperator<T>`
@@ -391,7 +392,7 @@ This document tracks the Java 8 Standard Library API porting progress for `jako-
 - [x] `IntToLongFunction`, `IntToDoubleFunction`, `LongToIntFunction`, `LongToDoubleFunction`, `DoubleToIntFunction`, `DoubleToLongFunction`
 
 ### `java.util.concurrent.locks`
-- [x] `Lock` (`lock`, `unlock`, `tryLock`, `newCondition`)
+- [x] `Lock` (`lock`, `unlock`, `tryLock`, `newCondition`) & `ReadWriteLock` (`readLock`, `writeLock`)
 - [x] `Condition` (`await`, `signal`, `signalAll`)
 - [x] `ReentrantLock` & `ReentrantReadWriteLock` (`ReadLock`, `WriteLock`)
 - [x] `LockSupport` (`park`, `parkNanos`, `parkUntil`, `unpark`, `getBlocker`)
@@ -402,16 +403,16 @@ This document tracks the Java 8 Standard Library API porting progress for `jako-
 - [x] `CRC32` (`update`, `getValue`, `reset`)
 - [x] `Adler32` (`update`, `getValue`, `reset`)
 - [x] `CheckedInputStream` / `CheckedOutputStream` (`checksum`)
-- [x] `ZipException`
+- [x] `ZipException`, `DataFormatException`
 - [x] `ZipEntry` (`name`, `size`, `compressedSize`, `time`, `crc`, `method`, `comment`, `isDirectory`)
 - [x] `Deflater` / `Inflater`（`platform.zlib`：`setInput`、`deflate`/`inflate`、`finish`/`reset`/`end`）
-- [x] `DeflaterInputStream` / `InflaterOutputStream`
+- [x] `DeflaterInputStream` / `DeflaterOutputStream` / `InflaterInputStream` / `InflaterOutputStream`
 - [x] `GZIPInputStream` / `GZIPOutputStream`（真实 GZIP 头/CRC/ISIZE；不拼接多 member）
 - [x] `ZipInputStream` / `ZipOutputStream`（STORED 与 DEFLATED）
 - [x] `ZipFile` (`getEntry`, `getInputStream`, `entries`, `size`, `close`；无 ZIP64/加密)
 
 ### `java.util.jar`
-- [x] `JarFile` / `JarEntry` / `Manifest` / `Attributes`
+- [x] `JarFile` / `JarEntry` / `Manifest` / `Attributes` (`Attributes.Name`) / `JarInputStream` / `JarOutputStream` / `JarException`
 
 ---
 
@@ -430,10 +431,8 @@ This document tracks the Java 8 Standard Library API porting progress for `jako-
 - [x] `URLDecoder.decode(s: String, enc: String): String`
 
 ### `java.net` Socket & Networking
-- [x] `InetAddress.getByName(host: String): InetAddress`
-- [x] `InetAddress.getAllByName(host: String): Array<InetAddress>`
-- [x] `InetAddress.getHostAddress(): String`
-- [x] `InetSocketAddress(host: String, port: Int)`
+- [x] `InetAddress`, `Inet4Address`, `Inet6Address` (`getByName`, `getAllByName`, `getHostAddress`)
+- [x] `SocketAddress` & `InetSocketAddress(host: String, port: Int)`
 - [x] `NetworkInterface` & `InterfaceAddress` (`getByName`, `getByIndex`, `getByInetAddress`, `getNetworkInterfaces`, `isUp`, `isLoopback`, `hardwareAddress`, `mtu`, `inetAddresses`, `interfaceAddresses`)
 - [x] `SocketOption<T>`, `StandardSocketOptions`, `SocketOptions`
 - [x] `Socket()` / `Socket.connect()` / `Socket.close()`
@@ -444,7 +443,7 @@ This document tracks the Java 8 Standard Library API porting progress for `jako-
 - [x] `SocketFactory.getDefault()`
 - [x] `ServerSocketFactory.getDefault()`
 - [x] `ProxySelector.getDefault()` / `setDefault()`
-- [x] `Authenticator.setDefault()` / `requestPasswordAuthentication()`
+- [x] `Authenticator` & `PasswordAuthentication` (`setDefault()`, `requestPasswordAuthentication()`)
 
 ### `java.net` Exceptions
 - [x] `SocketException`
@@ -485,16 +484,16 @@ This document tracks the Java 8 Standard Library API porting progress for `jako-
 - [x] `KeyPairGenerator` (`RSA`, `EC` `secp256r1` / P-256)
 - [x] `KeyFactory` (`RSA`, `EC`: X.509 `SubjectPublicKeyInfo` & PKCS#8 `PrivateKeyInfo` DER codec, `RSAPublicKeySpec`, `RSAPrivateKeySpec`)
 - [x] `Signature` (`MD5withRSA`, `SHA1withRSA`, `SHA256withRSA`, `SHA384withRSA`, `SHA512withRSA`, `NONEwithECDSA`, `SHA256withECDSA`)
-- [x] `GeneralSecurityException`, `NoSuchAlgorithmException`, `DigestException`, `KeyException`, `InvalidKeyException`, `InvalidAlgorithmParameterException`, `SignatureException`, `InvalidParameterException`, `InvalidKeySpecException`
+- [x] `GeneralSecurityException`, `NoSuchAlgorithmException`, `DigestException`, `KeyException`, `InvalidKeyException`, `InvalidAlgorithmParameterException`, `SignatureException`, `InvalidParameterException`, `InvalidKeySpecException`, `InvalidParameterSpecException`, `KeyStoreException`, `KeyManagementException`
 
 ### `java.security` Interfaces, Specs & KeyStore
-- [x] `KeyStore.getInstance(type)` / `getDefaultType()` / `load(stream, password)`
+- [x] `KeyStore.getInstance(type)` / `getDefaultType()` / `load(stream, password)` / `setCertificateEntry` / `getCertificate` / `aliases` / `containsAlias` / `size`
 - [x] `Principal` (`getName`, `name`)
 - [x] `Key`, `PublicKey`, `PrivateKey`, `KeyPair` (`getAlgorithm`, `getFormat`, `getEncoded`, `encoded`)
 - [x] `java.security.interfaces.RSAKey`, `RSAPublicKey`, `RSAPrivateKey`
 - [x] `java.security.spec.KeySpec`, `EncodedKeySpec`, `X509EncodedKeySpec`, `PKCS8EncodedKeySpec`, `RSAPublicKeySpec`, `RSAPrivateKeySpec`, `ECGenParameterSpec`, `AlgorithmParameterSpec`
-- [x] `java.security.cert.Certificate` & `java.security.cert.X509Certificate`
-- [x] `java.security.cert.CertificateException` / `CertificateParsingException`
+- [x] `java.security.cert.Certificate`, `X509Certificate`, `CertificateFactory`
+- [x] `java.security.cert.CertificateException`, `CertificateEncodingException`, `CertificateParsingException`, `CertificateExpiredException`, `CertificateNotYetValidException`
 
 ### `javax.crypto` & `javax.crypto.spec`
 - [x] `SecretKey` & `SecretKeySpec` (`algorithm`, `format`, `encoded`, `equals`, `hashCode`)
@@ -511,12 +510,13 @@ This document tracks the Java 8 Standard Library API porting progress for `jako-
 
 - [x] `SSLContext.getInstance(protocol): SSLContext`
 - [x] `SSLSocketFactory` / `SSLSocketFactory.getDefault()`
-- [x] `SSLSocket` (abstract + `NativeSSLSocket` implementation)
-- [x] `X509TrustManager` interface
+- [x] `SSLSocket` (abstract + native socket implementation)
+- [x] `HttpsURLConnection` (`getCipherSuite`, `getServerCertificates`, `getLocalCertificates`, `getPeerPrincipal`, `setSSLSocketFactory`, `setHostnameVerifier`)
+- [x] `KeyManager` & `X509TrustManager` interfaces
 - [x] `HostnameVerifier` interface
 - [x] `SSLSession` interface + `ExtendedSSLSession`
 - [x] `SNIHostName`
-- [x] `SSLPeerUnverifiedException`
+- [x] `SSLException`, `SSLHandshakeException`, `SSLPeerUnverifiedException`, `SSLProtocolException`
 - [x] `TrustManagerFactory.getInstance()` / `getDefaultAlgorithm()` / `init(ks)` / `trustManagers`
 - [x] `javax.net.SocketFactory` (via `java.net.SocketFactory`)
 
@@ -527,7 +527,7 @@ This document tracks the Java 8 Standard Library API porting progress for `jako-
 
 ## 8. `java.text` Package
 
-- [x] `Format` (`format`, `parseObject`)
+- [x] `Format` (`format`, `parseObject`) & `ParseException`
 - [x] `FieldPosition` (`field`, `beginIndex`, `endIndex`)
 - [x] `ParsePosition` (`index`, `errorIndex`)
 - [x] `DateFormat` (`parse`, `format`, `timeZone`, `isLenient`)
@@ -586,15 +586,16 @@ This document tracks the Java 8 Standard Library API porting progress for `jako-
 - [x] `CharBuffer` / `IntBuffer` / `LongBuffer` / `ShortBuffer` / `FloatBuffer` / `DoubleBuffer` (`allocate`/`wrap`，相对+绝对 get/put，`asReadOnlyBuffer`/`duplicate`/`slice`)
 - [x] `ByteBuffer.asCharBuffer` / `asIntBuffer` / `asLongBuffer` / `asShortBuffer` / `asFloatBuffer` / `asDoubleBuffer`
 - [x] `ByteBuffer` 相对/绝对 `get/put` Char/Short/Int/Long/Float/Double
+- [x] `BufferOverflowException` / `BufferUnderflowException` / `ReadOnlyBufferException`
 
 ### `java.nio.charset`
 - [x] `Charset` (`forName`, `defaultCharset`, `name`, `displayName`, `isRegistered`, `compareTo`, `newEncoder`/`newDecoder`, `encode`/`decode`)
 - [x] `StandardCharsets` (`US_ASCII`, `ISO_8859_1`, `UTF_8`, `UTF_16BE`, `UTF_16LE`, `UTF_16`)
 - [x] `CharsetEncoder` / `CharsetDecoder` / `CoderResult` / `CodingErrorAction`
-- [x] `CharacterCodingException` / `MalformedInputException` / `UnmappableCharacterException` / `UnsupportedCharsetException`
+- [x] `CharacterCodingException` / `MalformedInputException` / `UnmappableCharacterException` / `UnsupportedCharsetException` / `IllegalCharsetNameException`
 
 ### `java.nio.channels`
-- [x] `Channel` / `InterruptibleChannel` / `ReadableByteChannel` / `WritableByteChannel` / `ByteChannel` / `SeekableByteChannel` / `ScatteringByteChannel` / `GatheringByteChannel` / `NetworkChannel`
+- [x] `Channel` / `InterruptibleChannel` / `ReadableByteChannel` / `WritableByteChannel` / `ByteChannel` / `SeekableByteChannel` / `ScatteringByteChannel` / `GatheringByteChannel` / `NetworkChannel` / `Channels`
 - [x] `SelectableChannel`, `SelectionKey` (`OP_READ`, `OP_WRITE`, `OP_CONNECT`, `OP_ACCEPT`, `attachment`, `interestOps`, `readyOps`), `Selector` (`open`, `select`, `selectNow`, `wakeup`, `keys`, `selectedKeys`)
 - [x] `SocketChannel`, `ServerSocketChannel`, `DatagramChannel` (`open`, `bind`, `connect`, `finishConnect`, `accept`, `send`, `receive`, `read`, `write`, `configureBlocking`, `register`, `setOption`, `getOption`, `supportedOptions`)
 - [x] `FileChannel` (`open(Path, options)`, sequential & positional `read`/`write`, scatter/gather `read(dsts)`/`write(srcs)`, `position`, `size`, `truncate`, `force`, `transferTo`, `transferFrom`, `lock`, `tryLock`, `close`)
@@ -614,9 +615,10 @@ This document tracks the Java 8 Standard Library API porting progress for `jako-
 - [x] `FileSystemException` / `NoSuchFileException` / `FileAlreadyExistsException` / `NotDirectoryException` / `DirectoryNotEmptyException`
 - [x] `FileSystem` / `FileSystems.getDefault()` (`getPath`, `getPathMatcher`, `getSeparator`, `isOpen`；默认 FS 的 `close()` 抛 `UnsupportedOperationException`)
 - [x] `Path.getFileSystem()`
-- [x] `FileVisitor` / `SimpleFileVisitor` / `FileVisitResult` / `Files.walkFileTree`
+- [x] `FileVisitor` / `SimpleFileVisitor` / `FileVisitResult` / `FileVisitOption` / `Files.walkFileTree`
 - [x] `FileTime` (`fromMillis`, `toMillis`, `compareTo`) & `FileAttribute<T>`
 - [x] `BasicFileAttributes` / `Files.readAttributes`（size、isDirectory、isRegularFile、isSymbolicLink、lastModifiedTime；mtime 来自 `File.lastModified()`）
+- [x] `PosixFilePermission` & `PosixFilePermissions` (`fromString`, `toString`, `asFileAttribute`, `Files.getPosixFilePermissions`, `Files.setPosixFilePermissions`)
 - [x] `kotlin.io.path.*` Kotlin extensions (`/` operator, `readText`, `writeText`, `readBytes`, `writeBytes`, `exists`, `notExists`, `isDirectory`, `isRegularFile`, `extension`, `nameWithoutExtension`)
 
 ---

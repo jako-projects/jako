@@ -35,8 +35,3 @@ expect open class Scanner : Iterator<String>, Closeable {
     open fun delimiter(): Pattern
     override fun close()
 }
-
-expect open class InputMismatchException : NoSuchElementException {
-    constructor()
-    constructor(s: String?)
-}

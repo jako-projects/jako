@@ -3,6 +3,9 @@ package java.io
 import kotlinx.cinterop.*
 import platform.posix.*
 
+internal actual fun nativeGetPosixMode(path: String): Int = NativeFileSystem.getPosixMode(path)
+internal actual fun nativeSetPosixMode(path: String, mode: Int): Boolean = NativeFileSystem.setPosixMode(path, mode)
+
 internal object NativeFileSystem {
     @OptIn(ExperimentalForeignApi::class)
     fun getCwd(): String = memScoped {
@@ -76,6 +79,18 @@ internal object NativeFileSystem {
     fun usableSpace(path: String): Long {
         if (access(path, 0) != 0) return 0L
         return 50L * 1024L * 1024L * 1024L
+    }
+
+    @OptIn(ExperimentalForeignApi::class)
+    fun getPosixMode(path: String): Int = memScoped {
+        val statBuf = alloc<stat>()
+        if (stat(path, statBuf.ptr) != 0) return -1
+        statBuf.st_mode.convert<Int>() and 0x1FF
+    }
+
+    @OptIn(ExperimentalForeignApi::class)
+    fun setPosixMode(path: String, mode: Int): Boolean {
+        return chmod(path, (mode and 0x1FF)) == 0
     }
 
     private fun isAbsoluteWin(path: String): Boolean {

@@ -63,4 +63,12 @@ class FormatterTest {
         assertEquals("00000000 00042", formatter.toString())
         formatter.close()
     }
+
+    @Test
+    fun testStringFormatExtensions() {
+        assertEquals("Hello Alice, age 30", "Hello %s, age %d".format("Alice", 30))
+        assertEquals("Hello Bob, score 99", "Hello %s, score %d".format(java.util.Locale.US, "Bob", 99))
+        assertEquals("Hello Alice, age 30", String.format("Hello %s, age %d", "Alice", 30))
+        assertEquals("Hello Bob, score 99", String.format(java.util.Locale.US, "Hello %s, score %d", "Bob", 99))
+    }
 }

@@ -7,18 +7,6 @@ import java.util.function.Consumer
 import java.util.function.Function
 import java.util.function.Supplier
 
-actual interface CompletionStage<T> {
-    actual fun <U> thenApply(fn: Function<in T, out U>): CompletionStage<U>
-    actual fun thenAccept(action: Consumer<in T>): CompletionStage<Unit>
-    actual fun thenRun(action: Runnable): CompletionStage<Unit>
-    actual fun <U, V> thenCombine(other: CompletionStage<out U>, fn: BiFunction<in T, in U, out V>): CompletionStage<V>
-    actual fun <U> thenCompose(fn: Function<in T, out CompletionStage<U>>): CompletionStage<U>
-    actual fun exceptionally(fn: Function<Throwable, out T>): CompletionStage<T>
-    actual fun <U> handle(fn: BiFunction<in T?, Throwable?, out U>): CompletionStage<U>
-    actual fun whenComplete(action: BiConsumer<in T?, in Throwable?>): CompletionStage<T>
-    actual fun toCompletableFuture(): CompletableFuture<T>
-}
-
 actual open class CompletableFuture<T> actual constructor() : Future<T>, CompletionStage<T> {
     private val latch = CountDownLatch(1)
     private var result: Any? = null
@@ -363,11 +351,3 @@ actual open class CompletableFuture<T> actual constructor() : Future<T>, Complet
         }
     }
 }
-
-actual open class CompletionException : RuntimeException {
-    protected actual constructor() : super()
-    protected actual constructor(message: String?) : super(message)
-    actual constructor(message: String?, cause: Throwable?) : super(message, cause)
-    actual constructor(cause: Throwable?) : super(cause)
-}
-

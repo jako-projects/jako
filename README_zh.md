@@ -43,10 +43,53 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation("com.bennyhuo.jako:jako-stdlib:1.0.0")
-            // 可选：Android Framework 核心 API 支持 (android.util, android.os, android.net, android.text, android.graphics, org.json)
+            // 可选：Android Framework 核心 API 支持 (android.app, android.content, android.util, android.os, android.net, android.text, android.graphics, org.json, org.xmlpull.v1)
             implementation("com.bennyhuo.jako:jako-android:1.0.0")
         }
     }
+}
+```
+
+### 在 PC / Native 端初始化 `jako-android`（可选）
+
+对于依赖运行环境或目录结构的 Android API（如 `Context`、`Application`、`AssetManager`、`Resources`、`PackageManager`、`Environment`），`jako-android` 默认遵循各操作系统标准持久化目录规范（macOS/iOS 使用 `~/Library/Application Support`，Linux 使用 XDG 规范目录，Windows 使用 `%LOCALAPPDATA%`）以及多级 `assets/` 与 `res/` 目录自动探测机制，开箱即用。
+
+同时，开发者也可以在程序启动时通过 `JakoApplication.init` 显式配置应用信息、资源目录与预注册资源：
+
+```kotlin
+import com.bennyhuo.jako.JakoApplication
+import com.bennyhuo.jako.init
+import java.io.File
+
+JakoApplication.init {
+    packageName = "com.example.mykmpapp"
+    versionName = "1.2.0"
+    versionCode = 120
+    assetsDir = File("./app-assets")
+    resourcesDir = File("./app-res")
+    putMetaData("channel", "desktop")
+    registerStringResource(0x7f010001, "app_name", "My KMP App")
+}
+
+val context = JakoApplication.applicationContext
+```
+
+### Gradle 插件：`@Synchronized` 编译器插件与 `R.xx.yy` 资源索引生成
+
+在 `build.gradle.kts` 中应用 `com.bennyhuo.jako` Gradle 插件，即可一站式启用：
+1. **自动挂载 Jako Kotlin 编译器插件（`jako-compiler-plugin`）**：支持在 `commonMain` 与 Kotlin/Native 中直接使用 `@Synchronized` 注解，底层与 `synchronized(lock) { ... }`、`Thread.holdsLock`、`Object.wait`/`notify` 共享同一可重入对象监视器锁。
+2. **编译期生成强类型 `R` 类**：当工程包含 `res/values/*.xml` 与 `res/raw/*` 资源目录时，自动为 `commonMain` 生成 `R.string.*`、`R.dimen.*`、`R.raw.*`、`R.integer.*`、`R.bool.*`、`R.color.*`、`R.array.*`，其确定性资源 ID 与运行时 `Resources` 完全对齐：
+
+```kotlin
+plugins {
+    kotlin("multiplatform")
+    id("com.bennyhuo.jako") version "1.0.0"
+}
+
+// 若仅使用 @Synchronized 且无 res/ 目录则无需配置；
+// 若存在 res/ 目录需生成 R.xx.yy，请指定 packageName：
+jako {
+    packageName.set("com.example.mykmpapp")
 }
 ```
 
@@ -90,9 +133,11 @@ kotlin {
 | 层级 | 组件 | 状态 |
 |:---|:---|:---|
 | **jako-stdlib** | 核心 `java.*` / `javax.*` API Native 实现 | ✅ 已完成 577 个类与接口，详情见 [`API_CHECKLIST.md`](API_CHECKLIST.md) |
-| **jako-android** | 核心 `android.*` 与 `org.json` API Native 实现 | ✅ 覆盖 `android.util`、`android.text`、`android.net`、`android.os`、`android.graphics`、`org.json`，详情见 [`ANDROID_API_CHECKLIST.md`](ANDROID_API_CHECKLIST.md) |
+| **jako-android** | 核心 `android.*`、`org.json` 与 `org.xmlpull.v1` API Native 实现 | ✅ 覆盖 `android.app`、`android.content`（含 `res`、`pm`）、`android.util`、`android.text`、`android.net`、`android.os`、`android.graphics`、`android.webkit`、`android.preference`、`org.json`、`org.xmlpull.v1` 及 `JakoApplication.init`，详情见 [`ANDROID_API_CHECKLIST.md`](ANDROID_API_CHECKLIST.md) |
+| **jako-compiler-plugin** | K2 FIR + IR Kotlin 编译器插件 | ✅ 支持在 `commonMain` 与 Native 中使用 `@Synchronized` 可重入对象监视器锁 |
+| **jako-gradle-plugin** | 统一 Gradle 插件（`com.bennyhuo.jako`） | ✅ 自动挂载 `jako-compiler-plugin`（`@Synchronized`）并扫描 `res/` 生成编译期 `R.kt` |
 | **Kotlin 扩展** | Java API 的官方 `kotlin.*` 扩展支持 | ✅ 直接在 `commonMain` 的官方 `kotlin.*` 包下提供具体实现 |
-| **sample** | 独立 Gradle KMP 示例工程 | ✅ 通过 `includeBuild("../")` 依赖 `jako-stdlib` 与 `jako-android`，展示跨平台实际使用场景 |
+| **sample** | 独立 Gradle KMP 示例工程 | ✅ 通过 `includeBuild("../")` 依赖 `jako-stdlib`、`jako-android` 与 `jako-gradle-plugin`，展示跨平台实际使用场景 |
 
 ---
 
