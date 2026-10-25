@@ -42,9 +42,7 @@ actual open class ServerSocket : java.io.Closeable {
             val socketFd = socket(AF_INET, SOCK_STREAM, 0)
             if (socketFd == INVALID_SOCKET.convert<ULong>()) throw SocketException("Failed to create server socket: WSA error ${WSAGetLastError()}")
 
-            val reuse = alloc<IntVar>()
-            reuse.value = 1
-            setsockopt(socketFd, SOL_SOCKET, SO_REUSEADDR, reuse.ptr.reinterpret<ByteVar>().toKString(), sizeOf<IntVar>().convert())
+            WinsockInitializer.setsockoptInt(socketFd.convert(), SOL_SOCKET, SO_REUSEADDR, 1)
 
 
             this@ServerSocket.sock = socketFd.convert()
@@ -100,9 +98,20 @@ actual open class ServerSocket : java.io.Closeable {
         if (!bound) throw SocketException("ServerSocket is not bound")
 
         return memScoped {
-            val timeoutVal = alloc<IntVar>()
-            timeoutVal.value = soTimeoutMs
-            setsockopt(sock.convert(), SOL_SOCKET, SO_RCVTIMEO, timeoutVal.ptr.reinterpret<ByteVar>().toKString(), sizeOf<IntVar>().convert())
+            if (soTimeoutMs > 0) {
+                val readFdSet = alloc<fd_set>()
+                readFdSet.fd_count = 1u
+                readFdSet.fd_array[0] = sock.convert()
+                val tv = alloc<timeval>()
+                tv.tv_sec = (soTimeoutMs / 1000).convert()
+                tv.tv_usec = ((soTimeoutMs % 1000) * 1000).convert()
+                val selRet = platform.windows.select(0, readFdSet.ptr.reinterpret(), null, null, tv.ptr.reinterpret())
+                if (selRet == 0) {
+                    throw SocketTimeoutException("Accept timed out")
+                } else if (selRet < 0) {
+                    throw SocketException("Select failed during accept: WSA error ${WSAGetLastError()}")
+                }
+            }
             val sa = alloc<sockaddr_in>()
             val len = alloc<IntVar>()
             len.value = sizeOf<sockaddr_in>().convert()
@@ -159,11 +168,7 @@ actual open class ServerSocket : java.io.Closeable {
 
     actual open fun setReuseAddress(on: Boolean) {
         if (sock != INVALID_SOCKET.convert<ULong>()) {
-            memScoped {
-                val v = alloc<IntVar>()
-                v.value = if (on) 1 else 0
-                setsockopt(sock.convert(), SOL_SOCKET, SO_REUSEADDR, v.ptr.reinterpret<ByteVar>().toKString(), sizeOf<IntVar>().convert())
-            }
+            WinsockInitializer.setsockoptInt(sock, SOL_SOCKET, SO_REUSEADDR, if (on) 1 else 0)
         }
     }
 
@@ -184,11 +189,7 @@ actual open class ServerSocket : java.io.Closeable {
 
     actual open fun setReceiveBufferSize(size: Int) {
         if (sock != INVALID_SOCKET.convert<ULong>()) {
-            memScoped {
-                val v = alloc<IntVar>()
-                v.value = size
-                setsockopt(sock.convert(), SOL_SOCKET, SO_RCVBUF, v.ptr.reinterpret<ByteVar>().toKString(), sizeOf<IntVar>().convert())
-            }
+            WinsockInitializer.setsockoptInt(sock, SOL_SOCKET, SO_RCVBUF, size)
         }
     }
 

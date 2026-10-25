@@ -20,6 +20,16 @@ internal actual fun nativeLineSeparator(): String = "\n"
 internal actual fun nativeFileSeparator(): String = "/"
 internal actual fun nativePathSeparator(): String = ":"
 
+internal actual fun nativeOsName(): String = memScoped {
+    val name = alloc<platform.posix.utsname>()
+    if (platform.posix.uname(name.ptr) == 0) {
+        val sys = name.sysname.toKString()
+        if (sys == "Darwin") "Mac OS X" else sys.ifEmpty { "Unix" }
+    } else {
+        "Unix"
+    }
+}
+
 internal actual fun nativeCurrentTimeMillis(): Long = memScoped {
     val tv = alloc<timeval>()
     gettimeofday(tv.ptr, null)
@@ -62,7 +72,11 @@ internal actual fun nativeCreatePipe(): IntArray? {
     val rc = fds.usePinned { pinned ->
         platform.posix.pipe(pinned.addressOf(0))
     }
-    return if (rc == 0) fds else null
+    if (rc == 0) {
+        platform.posix.fcntl(fds[1], platform.posix.F_SETFD, platform.posix.FD_CLOEXEC)
+        return fds
+    }
+    return null
 }
 
 @OptIn(kotlinx.cinterop.UnsafeNumber::class)

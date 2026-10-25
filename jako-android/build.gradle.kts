@@ -105,8 +105,28 @@ tasks.withType<KotlinNativeCompile>().configureEach {
     }
 }
 
-// Disable simulator test execution task on local/CI environments where iOS simulator runtime is not installed
+// Disable simulator and non-host native test compilation/linking/execution on local/CI environments
+val hostOs = System.getProperty("os.name")?.lowercase() ?: ""
+val hostArch = System.getProperty("os.arch")?.lowercase() ?: ""
+val isArm64Host = hostArch.contains("aarch64") || hostArch.contains("arm64")
+val hostNativeTarget = when {
+    hostOs.contains("mac") || hostOs.contains("darwin") -> if (isArm64Host) "MacosArm64" else "MacosX64"
+    hostOs.contains("linux") -> if (isArm64Host) "LinuxArm64" else "LinuxX64"
+    hostOs.contains("win") -> "MingwX64"
+    else -> ""
+}
+val hostNativeTestTask = hostNativeTarget.replaceFirstChar { it.lowercase() } + "Test"
 tasks.withType<KotlinNativeSimulatorTest>().configureEach {
+    enabled = false
+}
+tasks.matching {
+    when {
+        it.name.startsWith("linkDebugTest") -> !it.name.endsWith(hostNativeTarget)
+        it.name.startsWith("compileTestKotlin") -> !it.name.endsWith("Jvm") && !it.name.endsWith(hostNativeTarget)
+        it.name.endsWith("Test") && it.name != "jvmTest" && it.name != hostNativeTestTask -> true
+        else -> false
+    }
+}.configureEach {
     enabled = false
 }
 

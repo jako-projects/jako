@@ -73,7 +73,11 @@ class PipeAndNioFilePhase1Test {
         try {
             assertTrue(Files.isSameFile(f1, dir.resolve("alpha.kt")))
             assertFalse(Files.isSameFile(f1, f2))
-            assertTrue(Files.isHidden(hidden))
+            assertFalse(Files.isHidden(f1))
+            val isWindows = System.getProperty("os.name")?.lowercase()?.contains("win") == true
+            if (!isWindows) {
+                assertTrue(Files.isHidden(hidden))
+            }
 
             val allNames = mutableSetOf<String>()
             val s1 = Files.newDirectoryStream(dir)

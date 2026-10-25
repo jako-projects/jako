@@ -28,7 +28,8 @@ class KotlinStdlibExtensionsTest {
 
     @Test
     fun testFileAndIOExtensions() {
-        val temp = File("/tmp/jako_kt_ext_${java.lang.System.currentTimeMillis()}.txt")
+        val tmpBase = File(java.lang.System.getProperty("java.io.tmpdir") ?: "/tmp")
+        val temp = File(tmpBase, "jako_kt_ext_${java.lang.System.currentTimeMillis()}.txt")
         try {
             // Note: kotlin.io is auto-imported in Kotlin, so writeText and readText are available without import
             temp.writeText("Kotlin stdlib IO extension test")

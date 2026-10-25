@@ -46,6 +46,7 @@ actual object System {
         "line.separator" -> nativeLineSeparator()
         "file.separator" -> nativeFileSeparator()
         "path.separator" -> nativePathSeparator()
+        "os.name" -> nativeOsName()
         "user.name" -> nativeUserName()
         "user.home" -> nativeUserHome()
         "user.dir" -> nativeUserDir()
@@ -93,6 +94,7 @@ actual object System {
 internal expect fun nativeLineSeparator(): String
 internal expect fun nativeFileSeparator(): String
 internal expect fun nativePathSeparator(): String
+internal expect fun nativeOsName(): String
 internal expect fun nativeCurrentTimeMillis(): Long
 internal expect fun nativeTmpDir(): String
 internal expect fun nativeUserName(): String

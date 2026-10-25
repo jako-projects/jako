@@ -195,11 +195,7 @@ actual open class Socket : java.io.Closeable {
     actual open fun setSoTimeout(timeout: Int) {
         ensureSockCreated()
         if (sock != INVALID_SOCKET.convert<ULong>()) {
-            memScoped {
-                val v = alloc<IntVar>()
-                v.value = timeout
-                setsockopt(sock.convert(), SOL_SOCKET, SO_RCVTIMEO, v.ptr.reinterpret<ByteVar>().toKString(), sizeOf<IntVar>().convert())
-            }
+            WinsockInitializer.setsockoptInt(sock, SOL_SOCKET, SO_RCVTIMEO, timeout)
         }
         soTimeoutMs = timeout
     }
@@ -223,7 +219,7 @@ actual open class Socket : java.io.Closeable {
                 buf[1] = 0
                 buf[2] = (linger and 0xFF).toByte()
                 buf[3] = ((linger shr 8) and 0xFF).toByte()
-                setsockopt(sock.convert(), SOL_SOCKET, SO_LINGER, buf.toKString(), 4)
+                WinsockInitializer.setsockoptBytes(sock, SOL_SOCKET, SO_LINGER, buf, 4)
             }
         }
     }
@@ -278,11 +274,7 @@ actual open class Socket : java.io.Closeable {
     private fun setSockOptInt(level: Int, optname: Int, value: Int) {
         ensureSockCreated()
         if (sock != INVALID_SOCKET.convert<ULong>()) {
-            memScoped {
-                val v = alloc<IntVar>()
-                v.value = value
-                setsockopt(sock.convert(), level, optname, v.ptr.reinterpret<ByteVar>().toKString(), sizeOf<IntVar>().convert())
-            }
+            WinsockInitializer.setsockoptInt(sock, level, optname, value)
         }
     }
 

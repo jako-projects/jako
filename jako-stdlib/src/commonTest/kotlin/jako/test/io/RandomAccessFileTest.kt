@@ -5,9 +5,12 @@ import kotlin.test.*
 
 class RandomAccessFileTest {
 
+    private val tmpBase: File
+        get() = File(java.lang.System.getProperty("java.io.tmpdir") ?: "/tmp")
+
     @Test
     fun testRandomAccessFileReadWriteSeek() {
-        val tempFile = File("/tmp/raf_test_${System.currentTimeMillis()}.bin")
+        val tempFile = File(tmpBase, "raf_test_${java.lang.System.currentTimeMillis()}.bin")
         if (tempFile.exists()) tempFile.delete()
 
         try {
@@ -34,7 +37,7 @@ class RandomAccessFileTest {
 
     @Test
     fun testRandomAccessFileDataInputOutput() {
-        val tempFile = File("/tmp/raf_data_test_${System.currentTimeMillis()}.bin")
+        val tempFile = File(tmpBase, "raf_data_test_${java.lang.System.currentTimeMillis()}.bin")
         if (tempFile.exists()) tempFile.delete()
 
         try {

@@ -103,14 +103,35 @@ internal class SocketOutputStream(
 
 @OptIn(ExperimentalForeignApi::class)
 internal object WinsockInitializer {
+    private val rawSetsockopt: CPointer<CFunction<(ULong, Int, Int, CPointer<ByteVar>?, Int) -> Int>>?
+
     init {
         memScoped {
             val wsaData = alloc<WSADATA>()
             WSAStartup(0x0202u, wsaData.ptr)
         }
+        val mod = platform.windows.GetModuleHandleA("ws2_32.dll")
+            ?: platform.windows.LoadLibraryA("ws2_32.dll")
+        rawSetsockopt = mod?.let {
+            platform.windows.GetProcAddress(it, "setsockopt")?.reinterpret()
+        }
     }
 
     fun ensureInitialized() {
         // Triggers init block
+    }
+
+    fun setsockoptBytes(sock: ULong, level: Int, optname: Int, optval: CPointer<ByteVar>?, optlen: Int): Int {
+        val fn = rawSetsockopt
+        if (fn != null) {
+            return fn.invoke(sock, level, optname, optval, optlen)
+        }
+        return -1
+    }
+
+    fun setsockoptInt(sock: ULong, level: Int, optname: Int, value: Int): Int = memScoped {
+        val v = alloc<IntVar>()
+        v.value = value
+        setsockoptBytes(sock, level, optname, v.ptr.reinterpret(), sizeOf<IntVar>().convert())
     }
 }

@@ -278,7 +278,8 @@ class ZipTest {
             zis.close()
         }
 
-        val tmp = File("/tmp/jako_zip_test_" + System.currentTimeMillis() + ".zip")
+        val tmpBase = File(System.getProperty("java.io.tmpdir") ?: "/tmp")
+        val tmp = File(tmpBase, "jako_zip_test_" + System.currentTimeMillis() + ".zip")
         try {
             tmp.writeBytes(zipBytes)
             val zf = ZipFile(tmp)

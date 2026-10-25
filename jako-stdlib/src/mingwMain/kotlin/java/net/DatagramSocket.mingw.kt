@@ -169,9 +169,7 @@ actual open class DatagramSocket : Closeable {
         checkOpen()
         if (!bound) bind(InetSocketAddress(0))
         memScoped {
-            val timeoutVal = alloc<IntVar>()
-            timeoutVal.value = soTimeoutMs
-            setsockopt(sock.convert(), SOL_SOCKET, SO_RCVTIMEO, timeoutVal.ptr.reinterpret<ByteVar>().toKString(), sizeOf<IntVar>().convert())
+            WinsockInitializer.setsockoptInt(sock, SOL_SOCKET, SO_RCVTIMEO, soTimeoutMs)
             val sin = alloc<sockaddr_in>()
             val addrLen = alloc<IntVar>()
             addrLen.value = sizeOf<sockaddr_in>().convert()
@@ -305,11 +303,7 @@ actual open class DatagramSocket : Closeable {
     actual open val isClosed: Boolean get() = closed
 
     private fun setSockOptInt(level: Int, optname: Int, value: Int) {
-        memScoped {
-            val v = alloc<IntVar>()
-            v.value = value
-            setsockopt(sock.convert(), level, optname, v.ptr.reinterpret<ByteVar>().toKString(), sizeOf<IntVar>().convert())
-        }
+        WinsockInitializer.setsockoptInt(sock, level, optname, value)
     }
 
     private fun getSockOptInt(level: Int, optname: Int): Int {

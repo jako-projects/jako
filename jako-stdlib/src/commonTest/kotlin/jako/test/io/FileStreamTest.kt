@@ -6,9 +6,12 @@ import kotlin.test.*
 
 class FileStreamTest {
 
+    private val tmpBase: File
+        get() = File(java.lang.System.getProperty("java.io.tmpdir") ?: "/tmp")
+
     @Test
     fun testFileStreamsAndFilters() {
-        val tempDir = File("/tmp/jako_test_dir_${RandomId()}")
+        val tempDir = File(tmpBase, "jako_test_dir_${RandomId()}")
         tempDir.mkdirs()
 
         val testFile = File(tempDir, "sample.txt")
@@ -39,7 +42,7 @@ class FileStreamTest {
 
     @Test
     fun testFileReaderAndWriter() {
-        val tempDir = File("/tmp/jako_test_rw_dir_${RandomId()}")
+        val tempDir = File(tmpBase, "jako_test_rw_dir_${RandomId()}")
         tempDir.mkdirs()
         val tempFile = File(tempDir, "sample.txt")
         val writer = FileWriter(tempFile)

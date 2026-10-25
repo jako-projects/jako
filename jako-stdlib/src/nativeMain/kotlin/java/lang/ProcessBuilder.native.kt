@@ -177,12 +177,10 @@ internal fun startPosixProcess(
     if (workDir != null) {
         sb.append("cd ").append(posixShellQuote(workDir.absolutePath)).append(" || exit 127; ")
     }
-    sb.append("echo \$\$ > ").append(posixShellQuote(pidFile.absolutePath)).append("; ")
-    if (readFd >= 0 && writeFd >= 0) {
-        sb.append("exec 0<&").append(readFd)
-            .append(" ").append(readFd).append("<&-")
-            .append(" ").append(writeFd).append("<&-; ")
+    if (readFd >= 0) {
+        sb.append("exec 0<&").append(readFd).append("; ")
     }
+    sb.append("echo \$\$ > ").append(posixShellQuote(pidFile.absolutePath)).append("; ")
     sb.append("exec ").append(posixShellQuote(resolvedExec))
     for (i in 1 until cmdList.size) {
         sb.append(" ").append(posixShellQuote(cmdList[i]))
@@ -194,8 +192,7 @@ internal fun startPosixProcess(
         sb.append(" 2> ").append(posixShellQuote(stderrFile.absolutePath))
     }
 
-    val fullShellCmd = "/bin/sh -c " + posixShellQuote(sb.toString())
-    return NativeProcessImpl(fullShellCmd, stdoutFile, stderrFile, pidFile, readFd, writeFd)
+    return NativeProcessImpl(sb.toString(), stdoutFile, stderrFile, pidFile, readFd, writeFd)
 }
 
 internal fun startWindowsProcess(
@@ -296,7 +293,7 @@ internal class NativeProcessImpl(
         // Wait briefly for child shell to record its PID and duplicate readFd
         if (!nativeIsWindows()) {
             var attempts = 0
-            while (!done && childPid <= 0 && attempts < 100) {
+            while (!done && childPid <= 0 && attempts < 2000) {
                 val p = readPidFile()
                 if (p > 0) {
                     childPid = p
@@ -389,9 +386,15 @@ internal class NativeProcessImpl(
         }
         if (!done) {
             var pid = childPid
-            if (pid <= 0) {
+            var attempts = 0
+            while (pid <= 0 && !done && !nativeIsWindows() && attempts < 500) {
                 pid = readPidFile()
-                if (pid > 0) childPid = pid
+                if (pid > 0) {
+                    childPid = pid
+                    break
+                }
+                Thread.sleep(1)
+                attempts++
             }
             if (pid > 0) {
                 nativeKillProcess(pid, forcibly)

@@ -23,9 +23,12 @@ class FileExtensionsTest {
         assertEquals("no_extension", file3.nameWithoutExtension)
     }
 
+    private val tmpBase: File
+        get() = File(java.lang.System.getProperty("java.io.tmpdir") ?: "/tmp")
+
     @Test
     fun testFileReadWriteTextAndBytes() {
-        val tempFile = File("/tmp/jako_file_ext_test_" + System.currentTimeMillis() + ".txt")
+        val tempFile = File(tmpBase, "jako_file_ext_test_" + java.lang.System.currentTimeMillis() + ".txt")
         try {
             tempFile.writeText("Hello File Text")
             assertEquals("Hello File Text", tempFile.readText())
@@ -54,8 +57,8 @@ class FileExtensionsTest {
 
     @Test
     fun testFileCopyToAndDeleteRecursively() {
-        val srcFile = File("/tmp/jako_src_" + System.currentTimeMillis() + ".txt")
-        val dstFile = File("/tmp/jako_dst_" + System.currentTimeMillis() + ".txt")
+        val srcFile = File(tmpBase, "jako_src_" + java.lang.System.currentTimeMillis() + ".txt")
+        val dstFile = File(tmpBase, "jako_dst_" + java.lang.System.currentTimeMillis() + ".txt")
         try {
             srcFile.writeText("Copy Content")
             srcFile.copyTo(dstFile, overwrite = true)
@@ -66,7 +69,7 @@ class FileExtensionsTest {
             dstFile.delete()
         }
 
-        val dir = File("/tmp/jako_dir_test_" + System.currentTimeMillis())
+        val dir = File(tmpBase, "jako_dir_test_" + java.lang.System.currentTimeMillis())
         val subDir = File(dir, "subdir")
         val childFile = File(subDir, "child.txt")
         subDir.mkdirs()
@@ -80,8 +83,8 @@ class FileExtensionsTest {
 
     @Test
     fun testFileWalkAndCopyRecursively() {
-        val srcDir = File("/tmp/jako_walk_src_" + System.currentTimeMillis())
-        val dstDir = File("/tmp/jako_walk_dst_" + System.currentTimeMillis())
+        val srcDir = File(tmpBase, "jako_walk_src_" + java.lang.System.currentTimeMillis())
+        val dstDir = File(tmpBase, "jako_walk_dst_" + java.lang.System.currentTimeMillis())
         try {
             val subA = File(srcDir, "a")
             val subB = File(subA, "b")

@@ -8,6 +8,7 @@ import java.io.OutputStream
 import java.lang.Thread
 import java.math.BigInteger
 import java.net.HttpURLConnection
+import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.net.URL
@@ -141,7 +142,7 @@ class SSLTest {
             val sslContext = SSLContext.getInstance("TLS")
             sslContext.init(null, tmf.getTrustManagers(), null)
 
-            val sslSocket = sslContext.getSocketFactory()
+            val sslSocket = wrapWithTlsRsaCipherSuite(sslContext.getSocketFactory())
                 .createSocket("127.0.0.1", server.port) as SSLSocket
             sslSocket.setSoTimeout(5000)
             sslSocket.startHandshake()
@@ -189,7 +190,7 @@ class SSLTest {
             val sslContext = SSLContext.getInstance("TLS")
             sslContext.init(null, arrayOf(rejectingTm), null)
 
-            val sslSocket = sslContext.getSocketFactory()
+            val sslSocket = wrapWithTlsRsaCipherSuite(sslContext.getSocketFactory())
                 .createSocket("127.0.0.1", server.port) as SSLSocket
             sslSocket.setSoTimeout(5000)
             assertFailsWith<SSLException> {
@@ -229,7 +230,7 @@ class SSLTest {
 
             val url = URL("https://127.0.0.1:${server.port}/status")
             val conn = url.openConnection() as HttpsURLConnection
-            conn.setSSLSocketFactory(sslContext.getSocketFactory())
+            conn.setSSLSocketFactory(wrapWithTlsRsaCipherSuite(sslContext.getSocketFactory()))
             conn.setHostnameVerifier(object : HostnameVerifier {
                 override fun verify(hostname: String, session: SSLSession): Boolean {
                     return hostname == "127.0.0.1" && session.getPeerCertificates().isNotEmpty()
@@ -247,6 +248,34 @@ class SSLTest {
             conn.disconnect()
         } finally {
             server.close()
+        }
+    }
+
+    private fun wrapWithTlsRsaCipherSuite(delegate: SSLSocketFactory): SSLSocketFactory {
+        return object : SSLSocketFactory() {
+            private fun configure(s: Socket): Socket {
+                if (s is SSLSocket) {
+                    val target = "TLS_RSA_WITH_AES_128_CBC_SHA256"
+                    val enabled = s.getEnabledCipherSuites()
+                    if (!enabled.contains(target) && s.getSupportedCipherSuites().contains(target)) {
+                        s.setEnabledCipherSuites(enabled + target)
+                    }
+                }
+                return s
+            }
+            override fun getDefaultCipherSuites(): Array<String> = delegate.getDefaultCipherSuites()
+            override fun getSupportedCipherSuites(): Array<String> = delegate.getSupportedCipherSuites()
+            override fun createSocket(): Socket = configure(delegate.createSocket())
+            override fun createSocket(s: Socket, host: String, port: Int, autoClose: Boolean): Socket =
+                configure(delegate.createSocket(s, host, port, autoClose))
+            override fun createSocket(host: String, port: Int): Socket =
+                configure(delegate.createSocket(host, port))
+            override fun createSocket(host: String, port: Int, localHost: InetAddress, localPort: Int): Socket =
+                configure(delegate.createSocket(host, port, localHost, localPort))
+            override fun createSocket(host: InetAddress, port: Int): Socket =
+                configure(delegate.createSocket(host, port))
+            override fun createSocket(address: InetAddress, port: Int, localAddress: InetAddress, localPort: Int): Socket =
+                configure(delegate.createSocket(address, port, localAddress, localPort))
         }
     }
 }
@@ -397,13 +426,18 @@ private class LoopbackTls12Server(
             // 2. Send ServerHello (TLS 1.2 0x0303 + TLS_RSA_WITH_AES_128_CBC_SHA256 0x003C)
             val serverRandom = ByteArray(32).also { random.nextBytes(it) }
             // Ensure last 8 bytes do not trigger TLS 1.3 downgrade sentinel
-            serverRandom[31] = 0x00
+            for (i in 24 until 32) serverRandom[i] = 0x00
             val shBody = ByteArrayOutputStream().apply {
                 write(0x03); write(0x03) // TLS 1.2
                 write(serverRandom)
                 write(0x00) // session_id len = 0
                 write(0x00); write(0x3C) // TLS_RSA_WITH_AES_128_CBC_SHA256
                 write(0x00) // compression = null
+                // RFC 5746 renegotiation_info extension (0xff01, length 1, empty renegotiated_connection 0x00)
+                write(0x00); write(0x05)
+                write(0xFF); write(0x01)
+                write(0x00); write(0x01)
+                write(0x00)
             }.toByteArray()
             val shMsg = wrapHandshake(2, shBody)
             transcript.write(shMsg)

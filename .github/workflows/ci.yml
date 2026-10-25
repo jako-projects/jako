@@ -10,6 +10,7 @@ jobs:
   test:
     name: Test on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -31,11 +32,22 @@ jobs:
       - name: Run jako Build & Tests
         shell: bash
         run: |
-          ./gradlew check
+          chmod +x ./gradlew
+          set -o pipefail
+          ./gradlew check --stacktrace 2>&1 | tee build-check.log || {
+            grep -rn -C 5 "<failure" */build/test-results/ 2>/dev/null | head -n 60 | tr '\r' ' ' | awk '{printf "%s%%0A", $0} END {print ""}' | sed 's/^/::error title=Failed Test XML::/' || true
+            tail -n 60 build-check.log | tr '\r' ' ' | awk '{printf "%s%%0A", $0} END {print ""}' | sed 's/^/::error title=Gradle check log tail::/'
+            exit 1
+          }
 
       - name: Run sample Build & Tests
         shell: bash
         working-directory: sample
         run: |
           chmod +x ./gradlew
-          ./gradlew check
+          set -o pipefail
+          ./gradlew check --stacktrace 2>&1 | tee sample-check.log || {
+            grep -rn -C 5 "<failure" build/test-results/ 2>/dev/null | head -n 60 | tr '\r' ' ' | awk '{printf "%s%%0A", $0} END {print ""}' | sed 's/^/::error title=Failed Sample Test XML::/' || true
+            tail -n 60 sample-check.log | tr '\r' ' ' | awk '{printf "%s%%0A", $0} END {print ""}' | sed 's/^/::error title=Sample check log tail::/'
+            exit 1
+          }

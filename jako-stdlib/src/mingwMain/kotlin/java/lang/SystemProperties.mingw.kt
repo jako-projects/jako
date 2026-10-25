@@ -14,6 +14,7 @@ import platform.windows.ULARGE_INTEGER
 internal actual fun nativeLineSeparator(): String = "\r\n"
 internal actual fun nativeFileSeparator(): String = "\\"
 internal actual fun nativePathSeparator(): String = ";"
+internal actual fun nativeOsName(): String = "Windows"
 
 internal actual fun nativeCurrentTimeMillis(): Long = memScoped {
     val ft = alloc<FILETIME>()

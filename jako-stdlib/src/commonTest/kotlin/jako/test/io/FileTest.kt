@@ -42,9 +42,12 @@ class FileTest {
         assertNull(file.listFiles())
     }
 
+    private val tmpBase: File
+        get() = File(System.getProperty("java.io.tmpdir") ?: "/tmp")
+
     @Test
     fun testDirectoryCreationAndDeletion() {
-        val dir = File("/tmp/jako_test_dir")
+        val dir = File(tmpBase, "jako_test_dir_${System.currentTimeMillis()}")
         if (dir.exists()) {
             dir.delete()
         }
@@ -63,7 +66,7 @@ class FileTest {
 
     @Test
     fun testCreateNewFileLastModifiedAndRename() {
-        val base = File("/tmp/jako_file_ops_${System.currentTimeMillis()}")
+        val base = File(tmpBase, "jako_file_ops_${System.currentTimeMillis()}")
         if (base.exists()) base.delete()
         assertTrue(base.createNewFile())
         assertFalse(base.createNewFile())
@@ -82,7 +85,7 @@ class FileTest {
         val afterSet = base.lastModified()
         assertTrue(kotlin.math.abs(afterSet - stamp) < 2_000L, "afterSet=$afterSet stamp=$stamp")
 
-        val renamed = File("/tmp/jako_file_ops_renamed_${System.currentTimeMillis()}.txt")
+        val renamed = File(tmpBase, "jako_file_ops_renamed_${System.currentTimeMillis()}.txt")
         if (renamed.exists()) renamed.delete()
         assertTrue(base.renameTo(renamed))
         assertFalse(base.exists())
@@ -99,7 +102,7 @@ class FileTest {
         assertTrue(File.separator.isNotEmpty())
         assertTrue(File.pathSeparator.isNotEmpty())
 
-        val dir = File("/tmp/jako_list_filter_${System.currentTimeMillis()}")
+        val dir = File(tmpBase, "jako_list_filter_${System.currentTimeMillis()}")
         if (dir.exists()) dir.delete()
         assertTrue(dir.mkdir())
         val keep = File(dir, "keep.txt")

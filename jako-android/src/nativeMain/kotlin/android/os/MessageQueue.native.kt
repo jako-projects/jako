@@ -32,43 +32,45 @@ actual final class MessageQueue internal constructor(private val quitAllowed: Bo
 
     internal fun next(): Message? {
         var pendingIdleHandlerCount = -1
-        var nextPollTimeoutMillis = 0L
 
         while (true) {
             var idleHandlersSnapshot: List<IdleHandler>? = null
             lock.withLock {
-                if (nextPollTimeoutMillis > 0) {
-                    condition.awaitNanos(nextPollTimeoutMillis * 1_000_000L)
-                } else if (nextPollTimeoutMillis < 0) {
-                    condition.await()
-                }
-
-                val now = SystemClock.uptimeMillis()
-                val msg = messages
-                if (msg != null) {
-                    if (now < msg._when) {
-                        nextPollTimeoutMillis = msg._when - now
+                while (true) {
+                    val now = SystemClock.uptimeMillis()
+                    val msg = messages
+                    val nextPollTimeoutMillis: Long
+                    if (msg != null) {
+                        if (now < msg._when) {
+                            nextPollTimeoutMillis = msg._when - now
+                        } else {
+                            messages = msg.next
+                            msg.next = null
+                            msg.inUse = true
+                            return msg
+                        }
                     } else {
-                        messages = msg.next
-                        msg.next = null
-                        msg.inUse = true
-                        return msg
+                        nextPollTimeoutMillis = -1L
                     }
-                } else {
-                    nextPollTimeoutMillis = -1L
-                }
 
-                if (quitting) {
-                    return null
-                }
+                    if (quitting) {
+                        return null
+                    }
 
-                if (pendingIdleHandlerCount < 0 && (messages == null || now < messages!!._when)) {
-                    pendingIdleHandlerCount = idleHandlers.size
+                    if (pendingIdleHandlerCount < 0 && (messages == null || now < messages!!._when)) {
+                        pendingIdleHandlerCount = idleHandlers.size
+                    }
+                    if (pendingIdleHandlerCount > 0) {
+                        idleHandlersSnapshot = ArrayList(idleHandlers)
+                        break
+                    }
+
+                    if (nextPollTimeoutMillis > 0L) {
+                        condition.awaitNanos(nextPollTimeoutMillis * 1_000_000L)
+                    } else if (nextPollTimeoutMillis < 0L) {
+                        condition.await()
+                    }
                 }
-                if (pendingIdleHandlerCount <= 0) {
-                    return@withLock
-                }
-                idleHandlersSnapshot = ArrayList(idleHandlers)
             }
 
             val handlers = idleHandlersSnapshot
@@ -86,7 +88,6 @@ actual final class MessageQueue internal constructor(private val quitAllowed: Bo
                     }
                 }
                 pendingIdleHandlerCount = 0
-                nextPollTimeoutMillis = 0L
             }
         }
     }

@@ -40,6 +40,7 @@ internal object OpenSSLBindings {
     var SSL_CTX_new: CPointer<CFunction<(CPointer<out CPointed>?) -> CPointer<out CPointed>?>>? = null
     var SSL_CTX_free: CPointer<CFunction<(CPointer<out CPointed>?) -> Unit>>? = null
     var SSL_CTX_set_default_verify_paths: CPointer<CFunction<(CPointer<out CPointed>?) -> Int>>? = null
+    var SSL_CTX_set_cipher_list: CPointer<CFunction<(CPointer<out CPointed>?, CPointer<ByteVar>?) -> Int>>? = null
     var SSL_new: CPointer<CFunction<(CPointer<out CPointed>?) -> CPointer<out CPointed>?>>? = null
     var SSL_free: CPointer<CFunction<(CPointer<out CPointed>?) -> Unit>>? = null
     var SSL_set_fd: CPointer<CFunction<(CPointer<out CPointed>?, Int) -> Int>>? = null
@@ -73,6 +74,7 @@ internal object OpenSSLBindings {
             SSL_CTX_new = dlsym(lib, "SSL_CTX_new")?.reinterpret()
             SSL_CTX_free = dlsym(lib, "SSL_CTX_free")?.reinterpret()
             SSL_CTX_set_default_verify_paths = dlsym(lib, "SSL_CTX_set_default_verify_paths")?.reinterpret()
+            SSL_CTX_set_cipher_list = dlsym(lib, "SSL_CTX_set_cipher_list")?.reinterpret()
             SSL_new = dlsym(lib, "SSL_new")?.reinterpret()
             SSL_free = dlsym(lib, "SSL_free")?.reinterpret()
             SSL_set_fd = dlsym(lib, "SSL_set_fd")?.reinterpret()
@@ -131,6 +133,13 @@ internal class LinuxOpenSSLSocket(
         val method = OpenSSLBindings.TLS_client_method?.invoke() ?: throw SSLException("Failed to get TLS client method")
         val ctx = OpenSSLBindings.SSL_CTX_new?.invoke(method) ?: throw SSLException("Failed to create SSL_CTX")
         sslCtxPtr = ctx
+
+        memScoped {
+            val rc = OpenSSLBindings.SSL_CTX_set_cipher_list?.invoke(ctx, "ALL:@SECLEVEL=0".cstr.ptr) ?: 0
+            if (rc == 0) {
+                OpenSSLBindings.SSL_CTX_set_cipher_list?.invoke(ctx, "ALL".cstr.ptr)
+            }
+        }
 
         if (trustManager == null || trustManager is SystemX509TrustManager) {
             OpenSSLBindings.SSL_CTX_set_default_verify_paths?.invoke(ctx)

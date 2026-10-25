@@ -41,16 +41,17 @@ internal object WinOpenSSLBindings {
     var SSL_CTX_new: CPointer<CFunction<(CPointer<out CPointed>?) -> CPointer<out CPointed>?>>? = null
     var SSL_CTX_free: CPointer<CFunction<(CPointer<out CPointed>?) -> Unit>>? = null
     var SSL_CTX_set_default_verify_paths: CPointer<CFunction<(CPointer<out CPointed>?) -> Int>>? = null
+    var SSL_CTX_set_cipher_list: CPointer<CFunction<(CPointer<out CPointed>?, CPointer<ByteVar>?) -> Int>>? = null
     var SSL_new: CPointer<CFunction<(CPointer<out CPointed>?) -> CPointer<out CPointed>?>>? = null
     var SSL_free: CPointer<CFunction<(CPointer<out CPointed>?) -> Unit>>? = null
     var SSL_set_fd: CPointer<CFunction<(CPointer<out CPointed>?, Int) -> Int>>? = null
-    var SSL_ctrl: CPointer<CFunction<(CPointer<out CPointed>?, Int, Long, CPointer<out CPointed>?) -> Long>>? = null
+    var SSL_ctrl: CPointer<CFunction<(CPointer<out CPointed>?, Int, Int, CPointer<out CPointed>?) -> Int>>? = null
     var SSL_connect: CPointer<CFunction<(CPointer<out CPointed>?) -> Int>>? = null
     var SSL_read: CPointer<CFunction<(CPointer<out CPointed>?, CPointer<out CPointed>?, Int) -> Int>>? = null
     var SSL_write: CPointer<CFunction<(CPointer<out CPointed>?, CPointer<out CPointed>?, Int) -> Int>>? = null
     var SSL_shutdown: CPointer<CFunction<(CPointer<out CPointed>?) -> Int>>? = null
     var SSL_get_peer_certificate: CPointer<CFunction<(CPointer<out CPointed>?) -> CPointer<out CPointed>?>>? = null
-    var SSL_get_verify_result: CPointer<CFunction<(CPointer<out CPointed>?) -> Long>>? = null
+    var SSL_get_verify_result: CPointer<CFunction<(CPointer<out CPointed>?) -> Int>>? = null
     var SSL_get_version: CPointer<CFunction<(CPointer<out CPointed>?) -> CPointer<ByteVar>?>>? = null
     var SSL_get_current_cipher: CPointer<CFunction<(CPointer<out CPointed>?) -> CPointer<out CPointed>?>>? = null
     var SSL_CIPHER_get_name: CPointer<CFunction<(CPointer<out CPointed>?) -> CPointer<ByteVar>?>>? = null
@@ -58,37 +59,29 @@ internal object WinOpenSSLBindings {
     var X509_free: CPointer<CFunction<(CPointer<out CPointed>?) -> Unit>>? = null
 
     init {
-        val cryptoCandidates = listOf(
-            "libcrypto-3-x64.dll",
-            "libcrypto-1_1-x64.dll",
-            "libcrypto.dll",
-            "libeay32.dll",
-            "C:\\Program Files\\OpenSSL-Win64\\bin\\libcrypto-3-x64.dll",
-            "C:\\Program Files\\Git\\mingw64\\bin\\libcrypto-3-x64.dll",
-            "C:\\msys64\\mingw64\\bin\\libcrypto-3-x64.dll"
-        )
-        val sslCandidates = listOf(
-            "libssl-3-x64.dll",
-            "libssl-1_1-x64.dll",
-            "libssl.dll",
-            "ssleay32.dll",
-            "C:\\Program Files\\OpenSSL-Win64\\bin\\libssl-3-x64.dll",
-            "C:\\Program Files\\Git\\mingw64\\bin\\libssl-3-x64.dll",
-            "C:\\msys64\\mingw64\\bin\\libssl-3-x64.dll"
+        val candidatePairs = listOf(
+            "libcrypto-3-x64.dll" to "libssl-3-x64.dll",
+            "libcrypto-1_1-x64.dll" to "libssl-1_1-x64.dll",
+            "libcrypto.dll" to "libssl.dll",
+            "libeay32.dll" to "ssleay32.dll"
         )
 
         var cLib: HMODULE? = null
-        for (name in cryptoCandidates) {
-            cLib = LoadLibraryA(name)
-            if (cLib != null) break
+        var lib: HMODULE? = null
+        for ((cryptoName, sslName) in candidatePairs) {
+            val loadedCrypto = LoadLibraryA(cryptoName)
+            if (loadedCrypto != null) {
+                val loadedSsl = LoadLibraryA(sslName)
+                if (loadedSsl != null) {
+                    cLib = loadedCrypto
+                    lib = loadedSsl
+                    break
+                } else {
+                    FreeLibrary(loadedCrypto)
+                }
+            }
         }
         cryptoLib = cLib
-
-        var lib: HMODULE? = null
-        for (name in sslCandidates) {
-            lib = LoadLibraryA(name)
-            if (lib != null) break
-        }
         sslLib = lib
 
         if (lib != null && cLib != null) {
@@ -97,6 +90,7 @@ internal object WinOpenSSLBindings {
             SSL_CTX_new = GetProcAddress(lib, "SSL_CTX_new")?.reinterpret()
             SSL_CTX_free = GetProcAddress(lib, "SSL_CTX_free")?.reinterpret()
             SSL_CTX_set_default_verify_paths = GetProcAddress(lib, "SSL_CTX_set_default_verify_paths")?.reinterpret()
+            SSL_CTX_set_cipher_list = GetProcAddress(lib, "SSL_CTX_set_cipher_list")?.reinterpret()
             SSL_new = GetProcAddress(lib, "SSL_new")?.reinterpret()
             SSL_free = GetProcAddress(lib, "SSL_free")?.reinterpret()
             SSL_set_fd = GetProcAddress(lib, "SSL_set_fd")?.reinterpret()
@@ -156,6 +150,13 @@ internal class MingwOpenSSLSocket(
         val ctx = WinOpenSSLBindings.SSL_CTX_new?.invoke(method) ?: throw SSLException("Failed to create SSL_CTX")
         sslCtxPtr = ctx
 
+        memScoped {
+            val rc = WinOpenSSLBindings.SSL_CTX_set_cipher_list?.invoke(ctx, "ALL:@SECLEVEL=0".cstr.ptr) ?: 0
+            if (rc == 0) {
+                WinOpenSSLBindings.SSL_CTX_set_cipher_list?.invoke(ctx, "ALL".cstr.ptr)
+            }
+        }
+
         if (trustManager == null || trustManager is SystemX509TrustManager) {
             WinOpenSSLBindings.SSL_CTX_set_default_verify_paths?.invoke(ctx)
         }
@@ -178,7 +179,7 @@ internal class MingwOpenSSLSocket(
         if (peerHostName.isNotEmpty()) {
             memScoped {
                 val hostCStr = peerHostName.cstr.ptr
-                WinOpenSSLBindings.SSL_ctrl?.invoke(ssl, SSL_CTRL_SET_TLSEXT_HOSTNAME, TLSEXT_NAMETYPE_host_name.toLong(), hostCStr)
+                WinOpenSSLBindings.SSL_ctrl?.invoke(ssl, SSL_CTRL_SET_TLSEXT_HOSTNAME, TLSEXT_NAMETYPE_host_name, hostCStr)
             }
         }
 
@@ -223,8 +224,8 @@ internal class MingwOpenSSLSocket(
                 }
             }
         } else {
-            val verifyRes = WinOpenSSLBindings.SSL_get_verify_result?.invoke(ssl) ?: 0L
-            if (peerCerts.isEmpty() || verifyRes != 0L) {
+            val verifyRes = WinOpenSSLBindings.SSL_get_verify_result?.invoke(ssl) ?: 0
+            if (peerCerts.isEmpty() || verifyRes != 0) {
                 close()
                 throw SSLHandshakeException("OpenSSL server certificate verification failed: result=$verifyRes")
             }

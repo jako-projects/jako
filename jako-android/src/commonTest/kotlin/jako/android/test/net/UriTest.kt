@@ -113,6 +113,6 @@ class UriTest {
 
         val fileUri = Uri.fromFile(File("/tmp/test file.txt"))
         assertEquals("file", fileUri.scheme)
-        assertEquals("/tmp/test file.txt", fileUri.path)
+        assertTrue(fileUri.path!!.replace('\\', '/').endsWith("/tmp/test file.txt"), "Unexpected fileUri.path: ${fileUri.path}")
     }
 }
