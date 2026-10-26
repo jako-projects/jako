@@ -39,7 +39,9 @@ actual abstract class CharsetEncoder {
     actual fun replacement(): ByteArray = repl.copyOf()
 
     actual fun replaceWith(newReplacement: ByteArray): CharsetEncoder {
-        if (newReplacement.isEmpty()) throw IllegalArgumentException("Empty replacement")
+        if (newReplacement.isEmpty() || newReplacement.size > max) {
+            throw IllegalArgumentException("Illegal replacement")
+        }
         repl = newReplacement.copyOf()
         return this
     }
@@ -112,7 +114,7 @@ actual abstract class CharsetEncoder {
 
     actual fun flush(out: ByteBuffer): CoderResult {
         if (state == ST_FLUSHED) return CoderResult.UNDERFLOW
-        if (state != ST_END && state != ST_RESET) {
+        if (state != ST_END) {
             throw IllegalStateException("Encoder not at end of input")
         }
         val cr = implFlush(out)

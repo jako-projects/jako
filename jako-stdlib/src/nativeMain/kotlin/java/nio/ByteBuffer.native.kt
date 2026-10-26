@@ -13,7 +13,7 @@ actual open class ByteBuffer internal constructor(
 
     actual open fun get(): Byte {
         val p = position()
-        if (p >= limit()) throw IndexOutOfBoundsException("Buffer overflow")
+        if (p >= limit()) throw BufferUnderflowException()
         val b = arrayData[offset + p]
         position(p + 1)
         return b
@@ -88,16 +88,16 @@ actual open class ByteBuffer internal constructor(
 
     actual open fun getShort(): Short {
         val p = position()
-        if (remaining() < 2) throw IndexOutOfBoundsException("Buffer underflow")
+        if (remaining() < 2) throw BufferUnderflowException()
         val v = readU16(arrayData, offset + p, byteOrder).toShort()
         position(p + 2)
         return v
     }
 
     actual open fun putShort(value: Short): ByteBuffer {
-        if (isReadOnly()) throw IllegalStateException("Read-only buffer")
+        if (isReadOnly()) throw ReadOnlyBufferException()
         val p = position()
-        if (remaining() < 2) throw IndexOutOfBoundsException("Buffer overflow")
+        if (remaining() < 2) throw BufferOverflowException()
         writeU16(arrayData, offset + p, value.toInt(), byteOrder)
         position(p + 2)
         return this
@@ -109,7 +109,7 @@ actual open class ByteBuffer internal constructor(
     }
 
     actual open fun putShort(index: Int, value: Short): ByteBuffer {
-        if (isReadOnly()) throw IllegalStateException("Read-only buffer")
+        if (isReadOnly()) throw ReadOnlyBufferException()
         if (index < 0 || index + 2 > limit()) throw IndexOutOfBoundsException("Index out of bounds: $index")
         writeU16(arrayData, offset + index, value.toInt(), byteOrder)
         return this
@@ -117,16 +117,16 @@ actual open class ByteBuffer internal constructor(
 
     actual open fun getInt(): Int {
         val p = position()
-        if (remaining() < 4) throw IndexOutOfBoundsException("Buffer underflow")
+        if (remaining() < 4) throw BufferUnderflowException()
         val v = readS32(arrayData, offset + p, byteOrder)
         position(p + 4)
         return v
     }
 
     actual open fun putInt(value: Int): ByteBuffer {
-        if (isReadOnly()) throw IllegalStateException("Read-only buffer")
+        if (isReadOnly()) throw ReadOnlyBufferException()
         val p = position()
-        if (remaining() < 4) throw IndexOutOfBoundsException("Buffer overflow")
+        if (remaining() < 4) throw BufferOverflowException()
         writeS32(arrayData, offset + p, value, byteOrder)
         position(p + 4)
         return this
@@ -138,7 +138,7 @@ actual open class ByteBuffer internal constructor(
     }
 
     actual open fun putInt(index: Int, value: Int): ByteBuffer {
-        if (isReadOnly()) throw IllegalStateException("Read-only buffer")
+        if (isReadOnly()) throw ReadOnlyBufferException()
         if (index < 0 || index + 4 > limit()) throw IndexOutOfBoundsException("Index out of bounds: $index")
         writeS32(arrayData, offset + index, value, byteOrder)
         return this
@@ -146,16 +146,16 @@ actual open class ByteBuffer internal constructor(
 
     actual open fun getLong(): Long {
         val p = position()
-        if (remaining() < 8) throw IndexOutOfBoundsException("Buffer underflow")
+        if (remaining() < 8) throw BufferUnderflowException()
         val v = readS64(arrayData, offset + p, byteOrder)
         position(p + 8)
         return v
     }
 
     actual open fun putLong(value: Long): ByteBuffer {
-        if (isReadOnly()) throw IllegalStateException("Read-only buffer")
+        if (isReadOnly()) throw ReadOnlyBufferException()
         val p = position()
-        if (remaining() < 8) throw IndexOutOfBoundsException("Buffer overflow")
+        if (remaining() < 8) throw BufferOverflowException()
         writeS64(arrayData, offset + p, value, byteOrder)
         position(p + 8)
         return this
@@ -167,7 +167,7 @@ actual open class ByteBuffer internal constructor(
     }
 
     actual open fun putLong(index: Int, value: Long): ByteBuffer {
-        if (isReadOnly()) throw IllegalStateException("Read-only buffer")
+        if (isReadOnly()) throw ReadOnlyBufferException()
         if (index < 0 || index + 8 > limit()) throw IndexOutOfBoundsException("Index out of bounds: $index")
         writeS64(arrayData, offset + index, value, byteOrder)
         return this
@@ -240,9 +240,17 @@ actual open class ByteBuffer internal constructor(
     }
 
     actual override fun isReadOnly(): Boolean = readOnly
-    actual override fun hasArray(): Boolean = hb != null
-    actual override fun array(): Any = hb ?: throw UnsupportedOperationException()
-    actual override fun arrayOffset(): Int = offset
+    actual override fun hasArray(): Boolean = hb != null && !readOnly && !isDirectBuffer
+    actual override fun array(): Any {
+        if (hb == null || isDirectBuffer) throw UnsupportedOperationException()
+        if (readOnly) throw ReadOnlyBufferException()
+        return hb
+    }
+    actual override fun arrayOffset(): Int {
+        if (hb == null || isDirectBuffer) throw UnsupportedOperationException()
+        if (readOnly) throw ReadOnlyBufferException()
+        return offset
+    }
     actual override fun isDirect(): Boolean = isDirectBuffer
 
     actual override val isReadOnly: Boolean get() = isReadOnly()
@@ -260,9 +268,16 @@ actual open class ByteBuffer internal constructor(
     }
 
     actual companion object {
-        actual fun allocate(capacity: Int): ByteBuffer = ByteBuffer(capacity, ByteArray(capacity), 0, false, false)
-        actual fun allocateDirect(capacity: Int): ByteBuffer = ByteBuffer(capacity, ByteArray(capacity), 0, true, false)
+        actual fun allocate(capacity: Int): ByteBuffer {
+            if (capacity < 0) throw IllegalArgumentException("capacity < 0: $capacity")
+            return ByteBuffer(capacity, ByteArray(capacity), 0, false, false)
+        }
+        actual fun allocateDirect(capacity: Int): ByteBuffer {
+            if (capacity < 0) throw IllegalArgumentException("capacity < 0: $capacity")
+            return ByteBuffer(capacity, ByteArray(capacity), 0, true, false)
+        }
         actual fun wrap(array: ByteArray, offset: Int, length: Int): ByteBuffer {
+            if (offset < 0 || length < 0 || offset > array.size - length) throw IndexOutOfBoundsException()
             val b = ByteBuffer(array.size, array, 0, false, false)
             b.position(offset)
             b.limit(offset + length)

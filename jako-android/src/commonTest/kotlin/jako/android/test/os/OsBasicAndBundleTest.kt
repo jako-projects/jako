@@ -1,8 +1,10 @@
 package jako.android.test.os
 
+import android.os.BaseBundle
 import android.os.Build
 import android.os.Bundle
 import android.os.Parcel
+import android.os.Parcelable
 import android.os.PersistableBundle
 import android.os.Process
 import android.os.SystemClock
@@ -10,6 +12,7 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -30,6 +33,11 @@ class OsBasicAndBundleTest {
         assertEquals(21, Build.VERSION_CODES.LOLLIPOP)
         assertEquals(29, Build.VERSION_CODES.Q)
         assertEquals("unknown", Build.UNKNOWN)
+        assertTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)
+        assertTrue(Build.VERSION.RELEASE.isNotEmpty())
+        assertTrue(Build.VERSION.SDK.isNotEmpty())
+        assertTrue(Build.VERSION.CODENAME.isNotEmpty())
+        assertNotNull(Build.VERSION.INCREMENTAL)
 
         assertTrue(Process.myPid() != 0)
         assertTrue(Process.myTid() != 0)
@@ -40,32 +48,43 @@ class OsBasicAndBundleTest {
     @Test
     fun testBundleAndPersistableBundle() {
         val bundle = Bundle()
-        assertTrue(bundle.isEmpty)
-        assertEquals(0, bundle.size())
+        val baseBundle: BaseBundle = bundle
+        assertTrue(baseBundle.isEmpty)
+        assertEquals(0, baseBundle.size())
 
-        bundle.putString("name", "Jako")
-        bundle.putInt("version", 1)
-        bundle.putBoolean("ready", true)
-        bundle.putDouble("pi", 3.14159)
-        bundle.putLong("timestamp", 1234567890L)
-        bundle.putIntArray("nums", intArrayOf(1, 2, 3))
+        baseBundle.putString("name", "Jako")
+        baseBundle.putInt("version", 1)
+        baseBundle.putBoolean("ready", true)
+        baseBundle.putDouble("pi", 3.14159)
+        baseBundle.putLong("timestamp", 1234567890L)
+        baseBundle.putIntArray("nums", intArrayOf(1, 2, 3))
+        baseBundle.putBooleanArray("bools", booleanArrayOf(true, false))
+        baseBundle.putLongArray("longs", longArrayOf(10L, 20L))
+        baseBundle.putDoubleArray("doubles", doubleArrayOf(1.5, 2.5))
+        baseBundle.putStringArray("strs", arrayOf("x", "y"))
         bundle.putStringArrayList("tags", arrayListOf("kmp", "ios", "android"))
 
         val child = Bundle()
         child.putString("innerKey", "innerVal")
         bundle.putBundle("child", child)
 
-        assertFalse(bundle.isEmpty)
-        assertEquals(8, bundle.size())
-        assertTrue(bundle.containsKey("name"))
-        assertEquals("Jako", bundle.getString("name"))
-        assertEquals("default", bundle.getString("missing", "default"))
-        assertEquals(1, bundle.getInt("version"))
-        assertEquals(42, bundle.getInt("missing", 42))
-        assertTrue(bundle.getBoolean("ready"))
-        assertEquals(3.14159, bundle.getDouble("pi"))
-        assertEquals(1234567890L, bundle.getLong("timestamp"))
-        assertContentEquals(intArrayOf(1, 2, 3), bundle.getIntArray("nums"))
+        assertFalse(baseBundle.isEmpty)
+        assertEquals(12, baseBundle.size())
+        assertTrue(baseBundle.containsKey("name"))
+        assertEquals("Jako", baseBundle.get("name"))
+        assertTrue(baseBundle.keySet().contains("name"))
+        assertEquals("Jako", baseBundle.getString("name"))
+        assertEquals("default", baseBundle.getString("missing", "default"))
+        assertEquals(1, baseBundle.getInt("version"))
+        assertEquals(42, baseBundle.getInt("missing", 42))
+        assertTrue(baseBundle.getBoolean("ready"))
+        assertEquals(3.14159, baseBundle.getDouble("pi"))
+        assertEquals(1234567890L, baseBundle.getLong("timestamp"))
+        assertContentEquals(intArrayOf(1, 2, 3), baseBundle.getIntArray("nums"))
+        assertContentEquals(booleanArrayOf(true, false), baseBundle.getBooleanArray("bools"))
+        assertContentEquals(longArrayOf(10L, 20L), baseBundle.getLongArray("longs"))
+        assertContentEquals(doubleArrayOf(1.5, 2.5), baseBundle.getDoubleArray("doubles"))
+        assertContentEquals(arrayOf<String?>("x", "y"), baseBundle.getStringArray("strs"))
         assertEquals<List<String>?>(listOf("kmp", "ios", "android"), bundle.getStringArrayList("tags"))
         assertEquals("innerVal", bundle.getBundle("child")?.getString("innerKey"))
 
@@ -73,8 +92,8 @@ class OsBasicAndBundleTest {
         bundle.getIntArray("nums")!![0] = 99
         assertEquals(1, copy.getIntArray("nums")!![0])
 
-        bundle.remove("version")
-        assertFalse(bundle.containsKey("version"))
+        baseBundle.remove("version")
+        assertFalse(baseBundle.containsKey("version"))
 
         val pb = PersistableBundle()
         pb.putString("k", "v")
@@ -84,7 +103,7 @@ class OsBasicAndBundleTest {
     }
 
     @Test
-    fun testParcel() {
+    fun testParcelAndCreator() {
         val p = Parcel.obtain()
         p.writeInt(42)
         p.writeLong(9876543210L)
@@ -118,5 +137,23 @@ class OsBasicAndBundleTest {
         assertEquals("bundleVal", readBundle?.getString("bundleKey"))
         assertEquals(123, readBundle?.getInt("bundleInt"))
         p2.recycle()
+
+        // Test Parcelable.Creator explicitly
+        val creator: Parcelable.Creator<TagItem> = object : Parcelable.Creator<TagItem> {
+            override fun createFromParcel(source: Parcel): TagItem {
+                return TagItem(source.readInt(), source.readString() ?: "")
+            }
+
+            override fun newArray(size: Int): Array<TagItem?> = arrayOfNulls(size)
+        }
+        val arr = creator.newArray(3)
+        assertEquals(3, arr.size)
+        val p3 = Parcel.obtain()
+        p3.writeInt(77)
+        p3.writeString("CreatorTag")
+        p3.setDataPosition(0)
+        val createdTag = creator.createFromParcel(p3)
+        p3.recycle()
+        assertEquals(TagItem(77, "CreatorTag"), createdTag)
     }
 }

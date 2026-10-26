@@ -1,6 +1,7 @@
 package java.time
 
 import java.io.Serializable
+import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 import java.time.temporal.Temporal
 import java.time.temporal.TemporalAccessor
@@ -17,6 +18,7 @@ actual class OffsetDateTime private constructor(
     actual fun toLocalTime(): LocalTime = dateTime.toLocalTime()
     actual fun toInstant(): Instant = Instant.ofEpochSecond(toEpochSecond(), dateTime.nano.toLong())
     actual fun toEpochSecond(): Long = dateTime.toEpochSecond(offset)
+    actual fun format(formatter: DateTimeFormatter): String = formatter.format(this)
 
     actual fun isAfter(other: OffsetDateTime): Boolean {
         val secsThis = toEpochSecond()
@@ -84,6 +86,10 @@ actual class OffsetDateTime private constructor(
 
         actual fun parse(text: CharSequence): OffsetDateTime {
             return parseOffsetDateTime(text.toString())
+        }
+
+        actual fun parse(text: CharSequence, formatter: DateTimeFormatter): OffsetDateTime {
+            return from(formatter.parse(text))
         }
 
         actual fun from(temporal: TemporalAccessor): OffsetDateTime {

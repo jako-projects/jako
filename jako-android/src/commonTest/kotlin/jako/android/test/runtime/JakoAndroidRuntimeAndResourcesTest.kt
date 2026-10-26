@@ -3,7 +3,10 @@ package jako.android.test.runtime
 import android.app.Application
 import android.content.Context
 import android.content.pm.ApplicationInfo
+import android.content.pm.PackageInfo
+import android.content.pm.PackageItemInfo
 import android.content.pm.PackageManager
+import android.content.res.AssetManager
 import android.content.res.Configuration
 import android.content.res.Resources
 import android.graphics.Color
@@ -14,6 +17,7 @@ import android.util.DisplayMetrics
 import android.util.Log
 import android.util.TypedValue
 import com.bennyhuo.jako.JakoApplication
+import com.bennyhuo.jako.JakoApplicationConfig
 import com.bennyhuo.jako.init
 import java.io.File
 import java.io.FileNotFoundException
@@ -47,6 +51,23 @@ class JakoAndroidRuntimeAndResourcesTest {
         assertTrue(defaultCtx.getPackageName().isNotEmpty())
         assertTrue(defaultCtx.getFilesDir().exists())
         assertTrue(defaultCtx.getCacheDir().exists())
+
+        // Test JakoApplicationConfig direct construction & methods
+        val cfg = JakoApplicationConfig()
+        cfg.packageName = "com.example.directcfg"
+        cfg.putMetaData("float_key", 2.5f)
+            .registerStringResource(0x7f010001, "str_val")
+            .registerStringArrayResource(0x7f010002, arrayOf("a", "b"))
+            .registerIntArrayResource(0x7f010003, intArrayOf(1, 2))
+            .registerIntegerResource(0x7f010004, 99)
+            .registerBooleanResource(0x7f010005, true)
+            .registerColorResource(0x7f010006, 0xFF00FF00.toInt())
+            .registerDimensionResource(0x7f010007, 16.0f)
+        assertEquals("com.example.directcfg", cfg.packageName)
+        assertEquals(2.5f, cfg.metaDataBundle.getFloat("float_key"))
+        assertEquals("str_val", cfg.stringResources[0x7f010001])
+        assertEquals(99, cfg.integerResources[0x7f010004])
+        assertEquals(true, cfg.booleanResources[0x7f010005])
     }
 
     @Test
@@ -93,15 +114,31 @@ class JakoAndroidRuntimeAndResourcesTest {
             assertTrue(Log.isLoggable("TestTag", Log.INFO))
             assertFalse(Log.isLoggable("TestTag", Log.VERBOSE))
 
-            // Verify PackageManager & ApplicationInfo & PackageInfo
+            // Verify PackageManager & ApplicationInfo & PackageInfo & PackageItemInfo
             val pm = app.getPackageManager()
-            val pkgInfo = pm.getPackageInfo("com.example.desktopapp", PackageManager.GET_META_DATA)
+            val pkgInfo: PackageInfo = pm.getPackageInfo("com.example.desktopapp", PackageManager.GET_META_DATA)
             assertEquals("com.example.desktopapp", pkgInfo.packageName)
             assertEquals("2.4.0", pkgInfo.versionName)
             assertEquals(240, pkgInfo.versionCode)
             assertEquals(240L, pkgInfo.getLongVersionCode())
+            pkgInfo.setLongVersionCode(500L)
+            assertEquals(500L, pkgInfo.getLongVersionCode())
+            assertEquals(0, pkgInfo.describeContents())
+            assertTrue(pkgInfo.toString().contains("com.example.desktopapp"))
 
-            val appInfo = pm.getApplicationInfo("com.example.desktopapp", PackageManager.GET_META_DATA)
+            val appInfo: ApplicationInfo = pm.getApplicationInfo("com.example.desktopapp", PackageManager.GET_META_DATA)
+            val itemInfo: PackageItemInfo = PackageItemInfo(appInfo)
+            assertEquals("com.example.desktopapp", itemInfo.packageName)
+            val emptyItemInfo = PackageItemInfo()
+            emptyItemInfo.name = "custom.item"
+            emptyItemInfo.packageName = "com.example.desktopapp"
+            emptyItemInfo.labelRes = 10
+            emptyItemInfo.nonLocalizedLabel = "Custom Item"
+            val copiedItemInfo = PackageItemInfo(emptyItemInfo)
+            assertEquals("custom.item", copiedItemInfo.name)
+            assertEquals("Custom Item", copiedItemInfo.nonLocalizedLabel)
+            assertEquals(10, copiedItemInfo.labelRes)
+
             assertEquals("com.example.desktopapp", appInfo.packageName)
             assertEquals(24, appInfo.minSdkVersion)
             assertEquals(29, appInfo.targetSdkVersion)
@@ -222,15 +259,21 @@ class JakoAndroidRuntimeAndResourcesTest {
             }
 
             // 1. Test AssetManager
-            val rootAssets = ctx.getAssets().list("")
+            val assetManager: AssetManager = ctx.getAssets()
+            assertEquals(0, AssetManager.ACCESS_UNKNOWN)
+            assertEquals(1, AssetManager.ACCESS_RANDOM)
+            assertEquals(2, AssetManager.ACCESS_STREAMING)
+            assertEquals(3, AssetManager.ACCESS_BUFFER)
+
+            val rootAssets = assetManager.list("")
             assertNotNull(rootAssets)
             assertTrue(rootAssets.contains("app_config.json"))
             assertTrue(rootAssets.contains("shaders"))
 
-            val shaderList = ctx.getAssets().list("shaders")
+            val shaderList = assetManager.list("shaders")
             assertContentEquals(arrayOf("fragment.glsl", "vertex.glsl"), shaderList)
 
-            val configJson = ctx.getAssets().open("app_config.json").use { input ->
+            val configJson = assetManager.open("app_config.json", AssetManager.ACCESS_BUFFER).use { input ->
                 val buf = ByteArray(64)
                 val n = input.read(buf)
                 buf.decodeToString(0, n)

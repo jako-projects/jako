@@ -23,9 +23,10 @@ class CancellationSignalAndFileUtilsTest {
         signal.throwIfCanceled()
 
         var callbackCount = 0
-        signal.setOnCancelListener {
+        val listener = CancellationSignal.OnCancelListener {
             callbackCount++
         }
+        signal.setOnCancelListener(listener)
         assertEquals(0, callbackCount)
 
         signal.cancel()

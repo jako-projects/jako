@@ -13,9 +13,14 @@ class PipeAndNioFilePhase1Test {
     @Test
     fun testPipeReadWrite() {
         val pipe = Pipe.open()
-        val sink = pipe.sink()
-        val source = pipe.source()
+        val sink: Pipe.SinkChannel = pipe.sink()
+        val source: Pipe.SourceChannel = pipe.source()
         try {
+            assertEquals(java.nio.channels.SelectionKey.OP_WRITE, sink.validOps())
+            assertEquals(java.nio.channels.SelectionKey.OP_READ, source.validOps())
+            assertTrue(sink.isOpen())
+            assertTrue(source.isOpen())
+
             val message = "Hello from Pipe!".encodeToByteArray()
             val writeBuf = ByteBuffer.wrap(message)
             val written = sink.write(writeBuf)
@@ -28,9 +33,42 @@ class PipeAndNioFilePhase1Test {
             val received = ByteArray(read)
             readBuf.get(received)
             assertEquals("Hello from Pipe!", received.decodeToString())
+
+            // Gathering write & scattering read
+            val g1 = ByteBuffer.wrap("Part1-".encodeToByteArray())
+            val g2 = ByteBuffer.wrap("Part2".encodeToByteArray())
+            assertEquals(11L, sink.write(arrayOf(g1, g2)))
+
+            val s1 = ByteBuffer.allocate(6)
+            val s2 = ByteBuffer.allocate(5)
+            assertEquals(11L, source.read(arrayOf(s1, s2)))
+            s1.flip()
+            s2.flip()
+            assertEquals("Part1-", ByteArray(6).also { s1.get(it) }.decodeToString())
+            assertEquals("Part2", ByteArray(5).also { s2.get(it) }.decodeToString())
+
+            // Read-only buffer throws IllegalArgumentException per ReadableByteChannel contract
+            assertFailsWith<IllegalArgumentException> {
+                source.read(ByteBuffer.allocate(4).asReadOnlyBuffer())
+            }
+
+            // Non-blocking read when empty returns 0, and -1 after sink closes
+            source.configureBlocking(false)
+            assertFalse(source.isBlocking())
+            assertEquals(0, source.read(ByteBuffer.allocate(4)))
+            sink.close()
+            assertFalse(sink.isOpen())
+            assertEquals(-1, source.read(ByteBuffer.allocate(4)))
         } finally {
             sink.close()
             source.close()
+        }
+        assertFalse(source.isOpen())
+        assertFailsWith<java.nio.channels.ClosedChannelException> {
+            source.read(ByteBuffer.allocate(4))
+        }
+        assertFailsWith<java.nio.channels.ClosedChannelException> {
+            sink.write(ByteBuffer.wrap(byteArrayOf(1)))
         }
 
         val ex1 = AsynchronousCloseException()
@@ -115,15 +153,19 @@ class PipeAndNioFilePhase1Test {
             assertEquals(setOf("notes.md"), filteredNames)
 
             val fs = FileSystems.getDefault()
-            val globMatcher = fs.getPathMatcher("glob:**/*.{kt,java}")
+            val globMatcher: PathMatcher = fs.getPathMatcher("glob:**/*.{kt,java}")
             assertTrue(globMatcher.matches(Paths.get("src/main/App.kt")))
             assertTrue(globMatcher.matches(Paths.get("src/App.java")))
             assertFalse(globMatcher.matches(Paths.get("App.java")))
             assertFalse(globMatcher.matches(Paths.get("README.md")))
 
-            val regexMatcher = fs.getPathMatcher("regex:^a.*\\.kt$")
+            val regexMatcher: PathMatcher = fs.getPathMatcher("regex:^a.*\\.kt$")
             assertTrue(regexMatcher.matches(Paths.get("alpha.kt")))
             assertFalse(regexMatcher.matches(Paths.get("beta.kt")))
+
+            val customMatcher = PathMatcher { path -> path.toString().endsWith(".md") }
+            assertTrue(customMatcher.matches(Paths.get("README.md")))
+            assertFalse(customMatcher.matches(Paths.get("App.kt")))
 
             assertFailsWith<DirectoryNotEmptyException> {
                 Files.delete(dir)

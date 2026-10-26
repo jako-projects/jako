@@ -70,11 +70,17 @@ class Base64Test {
         val bosEnc = ByteArrayOutputStream()
         val encoderStream = Base64.getEncoder().wrap(bosEnc)
 
-        encoderStream.write(originalText.encodeToByteArray())
+        val raw = originalText.encodeToByteArray()
+        // Write first 5 bytes one by one, then the rest in chunks to verify 3-byte quantum buffering
+        for (i in 0 until 5) {
+            encoderStream.write(raw[i].toInt())
+        }
+        encoderStream.write(raw, 5, raw.size - 5)
         encoderStream.flush()
         encoderStream.close()
 
         val encodedBytes = bosEnc.toByteArray()
+        assertEquals(Base64.getEncoder().encodeToString(raw), encodedBytes.decodeToString())
 
         val bis = ByteArrayInputStream(encodedBytes)
         val decoderStream = Base64.getDecoder().wrap(bis)
@@ -92,10 +98,31 @@ class Base64Test {
 
     @Test
     fun testEmptyData() {
-        val encoder = Base64.getEncoder()
-        val decoder = Base64.getDecoder()
+        val encoder: Base64.Encoder = Base64.getEncoder()
+        val decoder: Base64.Decoder = Base64.getDecoder()
 
         assertEquals("", encoder.encodeToString(ByteArray(0)))
         assertContentEquals(ByteArray(0), decoder.decode(""))
+
+        val rawBytes = "Base64ByteArray".encodeToByteArray()
+        val encodedBytes = encoder.encode(rawBytes)
+        val decodedBytes = decoder.decode(encodedBytes)
+        assertContentEquals(rawBytes, decodedBytes)
+
+        assertFailsWith<IllegalArgumentException> {
+            decoder.decode("!!!invalid_base64!!!")
+        }
+        assertFailsWith<IllegalArgumentException> {
+            decoder.decode("====")
+        }
+        assertFailsWith<IllegalArgumentException> {
+            decoder.decode("YWJj===")
+        }
+        assertFailsWith<IllegalArgumentException> {
+            decoder.decode("Y=Jj")
+        }
+        assertFailsWith<IllegalArgumentException> {
+            encoder.encode(rawBytes, ByteArray(2))
+        }
     }
 }

@@ -115,4 +115,16 @@ class KotlinStdlibExtensionsTest {
         val pattern2 = Regex("xyz\\w+").toPattern()
         assertTrue(pattern2.matcher("xyz_test").matches())
     }
+
+    @Test
+    fun testKotlinCharsets() {
+        assertEquals("UTF-8", kotlin.text.Charsets.UTF_8.name())
+        assertEquals("ISO-8859-1", kotlin.text.Charsets.ISO_8859_1.name())
+        assertEquals("US-ASCII", kotlin.text.Charsets.US_ASCII.name())
+        assertEquals("UTF-16", kotlin.text.Charsets.UTF_16.name())
+        assertEquals("UTF-16BE", kotlin.text.Charsets.UTF_16BE.name())
+        assertEquals("UTF-16LE", kotlin.text.Charsets.UTF_16LE.name())
+        assertEquals("UTF-32BE", kotlin.text.Charsets.UTF_32BE.name())
+        assertEquals("UTF-32LE", kotlin.text.Charsets.UTF_32LE.name())
+    }
 }

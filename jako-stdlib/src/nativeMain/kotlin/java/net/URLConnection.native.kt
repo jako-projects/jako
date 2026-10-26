@@ -40,6 +40,7 @@ actual abstract class URLConnection protected actual constructor(actual open val
         set(value) = setReadTimeout(value)
 
     actual open fun setDoInput(doinput: Boolean) {
+        check(!connected) { "Already connected" }
         _doInput = doinput
     }
 
@@ -50,6 +51,7 @@ actual abstract class URLConnection protected actual constructor(actual open val
         set(value) = setDoInput(value)
 
     actual open fun setDoOutput(dooutput: Boolean) {
+        check(!connected) { "Already connected" }
         _doOutput = dooutput
     }
 
@@ -60,6 +62,7 @@ actual abstract class URLConnection protected actual constructor(actual open val
         set(value) = setDoOutput(value)
 
     actual open fun setUseCaches(usecaches: Boolean) {
+        check(!connected) { "Already connected" }
         _useCaches = usecaches
     }
 
@@ -70,6 +73,7 @@ actual abstract class URLConnection protected actual constructor(actual open val
         set(value) = setUseCaches(value)
 
     actual open fun setRequestProperty(key: String, value: String?) {
+        check(!connected) { "Already connected" }
         if (value == null) {
             requestPropertiesMap.remove(key)
         } else {
@@ -78,21 +82,28 @@ actual abstract class URLConnection protected actual constructor(actual open val
     }
 
     actual open fun addRequestProperty(key: String, value: String?) {
+        check(!connected) { "Already connected" }
         if (value != null) {
-            requestPropertiesMap.getOrPut(key) { mutableListOf() }.add(value)
+            requestPropertiesMap.getOrPut(key) { mutableListOf() }.add(0, value)
         }
     }
 
-    actual open fun getRequestProperty(key: String): String? {
+    internal fun findRequestProperty(key: String): String? {
         for ((k, v) in requestPropertiesMap) {
             if (k.equals(key, ignoreCase = true)) {
-                return v.lastOrNull()
+                return v.firstOrNull()
             }
         }
         return null
     }
 
+    actual open fun getRequestProperty(key: String): String? {
+        check(!connected) { "Already connected" }
+        return findRequestProperty(key)
+    }
+
     actual open fun getRequestProperties(): Map<String, List<String>> {
+        check(!connected) { "Already connected" }
         val copy = LinkedHashMap<String, List<String>>()
         for ((k, v) in requestPropertiesMap) {
             copy[k] = v.toList()

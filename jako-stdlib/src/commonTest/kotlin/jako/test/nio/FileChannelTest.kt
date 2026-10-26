@@ -266,11 +266,18 @@ class FileChannelTest {
             ch.position(2L)
             assertEquals(2L, raf.filePointer)
 
-            val lock1 = ch.lock(0L, 10L, false)
+            val lock1: java.nio.channels.FileLock = ch.lock(0L, 10L, false)
+            assertEquals(ch, lock1.channel())
+            assertEquals(ch, lock1.acquiredBy())
+            assertEquals(0L, lock1.position())
+            assertEquals(10L, lock1.size())
             assertTrue(lock1.isValid)
+            assertTrue(lock1.isValid())
             assertTrue(!lock1.isShared)
+            assertTrue(!lock1.isShared())
             assertTrue(lock1.overlaps(5L, 10L))
             assertTrue(!lock1.overlaps(10L, 5L))
+            assertTrue(!lock1.overlaps(0L, 0L))
 
             var overlappingThrown = false
             try {
@@ -281,7 +288,9 @@ class FileChannelTest {
             assertTrue(overlappingThrown)
 
             // Non-overlapping lock on [10, 20) succeeds
-            val lock2 = ch.tryLock(10L, 10L, false)!!
+            val lock2: java.nio.channels.FileLock = ch.tryLock(10L, 10L, false)!!
+            assertEquals(10L, lock2.position())
+            assertEquals(10L, lock2.size())
             assertTrue(lock2.isValid)
             lock2.close()
             assertTrue(!lock2.isValid)

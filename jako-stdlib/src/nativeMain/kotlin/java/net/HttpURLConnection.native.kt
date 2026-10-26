@@ -234,13 +234,13 @@ internal open class SocketHttpURLConnection(url: URL) : HttpURLConnection(url) {
 
         val req = StringBuilder()
         req.append(method).append(' ').append(pathAndQuery).append(" HTTP/1.1\r\n")
-        if (getRequestProperty("Host") == null) {
+        if (findRequestProperty("Host") == null) {
             req.append("Host: ").append(hostHeader).append("\r\n")
         }
-        if (getRequestProperty("Connection") == null) {
+        if (findRequestProperty("Connection") == null) {
             req.append("Connection: close\r\n")
         }
-        if (bodyBytes.isNotEmpty() && getRequestProperty("Content-Length") == null) {
+        if (bodyBytes.isNotEmpty() && findRequestProperty("Content-Length") == null) {
             req.append("Content-Length: ").append(bodyBytes.size).append("\r\n")
         }
         for ((k, values) in requestPropertiesMap) {

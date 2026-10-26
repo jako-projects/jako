@@ -78,4 +78,59 @@ class CharStreamTest {
         sr.reset()
         assertEquals('c'.code, sr.read())
     }
+
+    @Test
+    fun testReaderFilterReaderAndFilterWriter() {
+        val customReader: Reader = object : Reader() {
+            private val text = "hello"
+            private var pos = 0
+            override fun read(cbuf: CharArray, off: Int, len: Int): Int {
+                if (pos >= text.length) return -1
+                val n = minOf(len, text.length - pos)
+                for (i in 0 until n) {
+                    cbuf[off + i] = text[pos + i]
+                }
+                pos += n
+                return n
+            }
+            override fun close() {}
+        }
+        assertFalse(customReader.markSupported())
+        assertFailsWith<IOException> { customReader.reset() }
+        assertEquals('h'.code, customReader.read())
+        assertEquals(1L, customReader.skip(1L))
+        val targetBuf = java.nio.CharBuffer.allocate(3)
+        assertEquals(3, customReader.read(targetBuf))
+        targetBuf.flip()
+        assertEquals("llo", targetBuf.toString())
+        customReader.close()
+
+        class UppercaseFilterReader(inReader: Reader) : FilterReader(inReader) {
+            override fun read(): Int {
+                val c = super.read()
+                return if (c == -1) -1 else c.toChar().uppercaseChar().code
+            }
+        }
+        val fr = UppercaseFilterReader(StringReader("abc"))
+        assertTrue(fr.markSupported())
+        assertEquals('A'.code, fr.read())
+        fr.mark(10)
+        val cbuf = CharArray(2)
+        assertEquals(2, fr.read(cbuf, 0, 2))
+        assertEquals("bc", cbuf.concatToString())
+        fr.reset()
+        assertEquals(1L, fr.skip(1L))
+        assertEquals('C'.code, fr.read())
+        fr.close()
+
+        val sw = StringWriter()
+        class PassThroughFilterWriter(out: Writer) : FilterWriter(out)
+        val fw = PassThroughFilterWriter(sw)
+        fw.write('X'.code)
+        fw.write(charArrayOf('Y', 'Z', '!'), 0, 2)
+        fw.write("-end-extra", 0, 4)
+        fw.flush()
+        fw.close()
+        assertEquals("XYZ-end", sw.toString())
+    }
 }

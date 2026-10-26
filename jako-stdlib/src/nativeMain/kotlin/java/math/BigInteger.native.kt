@@ -563,6 +563,9 @@ actual class BigInteger : Number, Comparable<BigInteger>, Serializable {
 
         actual fun valueOf(valLong: Long): BigInteger {
             if (valLong == 0L) return ZERO
+            if (valLong == Long.MIN_VALUE) {
+                return BigInteger(-1, intArrayOf(854775808, 223372036, 9))
+            }
             val sign = if (valLong > 0) 1 else -1
             var absVal = if (valLong < 0) -valLong else valLong
             val d0 = (absVal % BASE).toInt()

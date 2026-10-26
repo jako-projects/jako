@@ -1,12 +1,17 @@
 package java.time
 
 import java.io.Serializable
+import java.math.BigInteger
 import java.time.format.DateTimeParseException
 import java.time.temporal.ChronoUnit
 import java.time.temporal.Temporal
 import java.time.temporal.TemporalAmount
 import java.time.temporal.TemporalUnit
 import java.time.temporal.UnsupportedTemporalTypeException
+
+private val BI_NANOS_PER_SECOND: BigInteger = BigInteger.valueOf(1_000_000_000L)
+private val BI_LONG_MIN: BigInteger = BigInteger.valueOf(Long.MIN_VALUE)
+private val BI_LONG_MAX: BigInteger = BigInteger.valueOf(Long.MAX_VALUE)
 
 actual class Duration private constructor(
     actual val seconds: Long,
@@ -19,48 +24,99 @@ actual class Duration private constructor(
     actual fun toDays(): Long = seconds / 86400L
     actual fun toHours(): Long = seconds / 3600L
     actual fun toMinutes(): Long = seconds / 60L
-    actual fun toMillis(): Long = seconds * 1000L + nano / 1000000L
-    actual fun toNanos(): Long = seconds * 1000000000L + nano
 
-    actual fun plus(duration: Duration): Duration {
-        return ofSeconds(seconds + duration.seconds, (nano + duration.nano).toLong())
+    actual fun toMillis(): Long {
+        var tempSeconds = seconds
+        var tempNano = nano.toLong()
+        if (tempSeconds < 0) {
+            tempSeconds += 1L
+            tempNano -= 1_000_000_000L
+        }
+        val millis = multiplyExact(tempSeconds, 1000L)
+        return addExact(millis, tempNano / 1_000_000L)
     }
 
-    actual fun plusDays(daysToAdd: Long): Duration = plus(daysToAdd * 86400L, 0L)
-    actual fun plusHours(hoursToAdd: Long): Duration = plus(hoursToAdd * 3600L, 0L)
-    actual fun plusMinutes(minutesToAdd: Long): Duration = plus(minutesToAdd * 60L, 0L)
+    actual fun toNanos(): Long {
+        var tempSeconds = seconds
+        var tempNano = nano.toLong()
+        if (tempSeconds < 0) {
+            tempSeconds += 1L
+            tempNano -= 1_000_000_000L
+        }
+        val totalNanos = multiplyExact(tempSeconds, 1_000_000_000L)
+        return addExact(totalNanos, tempNano)
+    }
+
+    actual fun plus(duration: Duration): Duration {
+        return plus(duration.seconds, duration.nano.toLong())
+    }
+
+    actual fun plusDays(daysToAdd: Long): Duration = plus(multiplyExact(daysToAdd, 86400L), 0L)
+    actual fun plusHours(hoursToAdd: Long): Duration = plus(multiplyExact(hoursToAdd, 3600L), 0L)
+    actual fun plusMinutes(minutesToAdd: Long): Duration = plus(multiplyExact(minutesToAdd, 60L), 0L)
     actual fun plusSeconds(secondsToAdd: Long): Duration = plus(secondsToAdd, 0L)
     actual fun plusMillis(millisToAdd: Long): Duration = plus(millisToAdd / 1000L, (millisToAdd % 1000L) * 1_000_000L)
     actual fun plusNanos(nanosToAdd: Long): Duration = plus(0L, nanosToAdd)
 
     private fun plus(secondsToAdd: Long, nanosToAdd: Long): Duration {
         if ((secondsToAdd or nanosToAdd) == 0L) return this
-        return ofSeconds(seconds + secondsToAdd, nano.toLong() + nanosToAdd)
+        var epochSec = addExact(seconds, secondsToAdd)
+        epochSec = addExact(epochSec, nanosToAdd / 1_000_000_000L)
+        val newNanos = nano.toLong() + (nanosToAdd % 1_000_000_000L)
+        return ofSeconds(epochSec, newNanos)
     }
 
     actual fun minus(duration: Duration): Duration {
-        return ofSeconds(seconds - duration.seconds, (nano - duration.nano).toLong())
+        val secsToSubtract = duration.seconds
+        val nanosToSubtract = duration.nano
+        if (secsToSubtract == Long.MIN_VALUE) {
+            return plus(Long.MAX_VALUE, -nanosToSubtract.toLong()).plus(1L, 0L)
+        }
+        return plus(-secsToSubtract, -nanosToSubtract.toLong())
     }
 
-    actual fun minusDays(daysToSubtract: Long): Duration = plusDays(-daysToSubtract)
-    actual fun minusHours(hoursToSubtract: Long): Duration = plusHours(-hoursToSubtract)
-    actual fun minusMinutes(minutesToSubtract: Long): Duration = plusMinutes(-minutesToSubtract)
-    actual fun minusSeconds(secondsToSubtract: Long): Duration = plusSeconds(-secondsToSubtract)
-    actual fun minusMillis(millisToSubtract: Long): Duration = plusMillis(-millisToSubtract)
-    actual fun minusNanos(nanosToSubtract: Long): Duration = plusNanos(-nanosToSubtract)
+    actual fun minusDays(daysToSubtract: Long): Duration =
+        if (daysToSubtract == Long.MIN_VALUE) plusDays(Long.MAX_VALUE).plusDays(1L) else plusDays(-daysToSubtract)
+
+    actual fun minusHours(hoursToSubtract: Long): Duration =
+        if (hoursToSubtract == Long.MIN_VALUE) plusHours(Long.MAX_VALUE).plusHours(1L) else plusHours(-hoursToSubtract)
+
+    actual fun minusMinutes(minutesToSubtract: Long): Duration =
+        if (minutesToSubtract == Long.MIN_VALUE) plusMinutes(Long.MAX_VALUE).plusMinutes(1L) else plusMinutes(-minutesToSubtract)
+
+    actual fun minusSeconds(secondsToSubtract: Long): Duration =
+        if (secondsToSubtract == Long.MIN_VALUE) plusSeconds(Long.MAX_VALUE).plusSeconds(1L) else plusSeconds(-secondsToSubtract)
+
+    actual fun minusMillis(millisToSubtract: Long): Duration =
+        if (millisToSubtract == Long.MIN_VALUE) plusMillis(Long.MAX_VALUE).plusMillis(1L) else plusMillis(-millisToSubtract)
+
+    actual fun minusNanos(nanosToSubtract: Long): Duration =
+        if (nanosToSubtract == Long.MIN_VALUE) plusNanos(Long.MAX_VALUE).plusNanos(1L) else plusNanos(-nanosToSubtract)
 
     actual fun multipliedBy(multiplicand: Long): Duration {
         if (multiplicand == 0L) return ZERO
         if (multiplicand == 1L) return this
-        val totalNanos = toNanos() * multiplicand
-        return ofNanos(totalNanos)
+        return fromBigIntegerNanos(toBigIntegerNanos().multiply(BigInteger.valueOf(multiplicand)))
     }
 
     actual fun dividedBy(divisor: Long): Duration {
         if (divisor == 0L) throw ArithmeticException("Cannot divide by zero")
         if (divisor == 1L) return this
-        val totalNanos = toNanos() / divisor
-        return ofNanos(totalNanos)
+        return fromBigIntegerNanos(toBigIntegerNanos().divide(BigInteger.valueOf(divisor)))
+    }
+
+    private fun toBigIntegerNanos(): BigInteger {
+        return BigInteger.valueOf(seconds)
+            .multiply(BI_NANOS_PER_SECOND)
+            .add(BigInteger.valueOf(nano.toLong()))
+    }
+
+    private fun fromBigIntegerNanos(totalNanos: BigInteger): Duration {
+        val (q, r) = totalNanos.divideAndRemainder(BI_NANOS_PER_SECOND)
+        if (q < BI_LONG_MIN || q > BI_LONG_MAX) {
+            throw ArithmeticException("Exceeds capacity of Duration: $totalNanos")
+        }
+        return ofSeconds(q.toLong(), r.toLong())
     }
 
     actual fun negated(): Duration = multipliedBy(-1L)
@@ -141,12 +197,8 @@ actual class Duration private constructor(
         }
 
         actual fun ofSeconds(seconds: Long, nanoAdjustment: Long): Duration {
-            var secs = seconds + nanoAdjustment / 1000000000L
-            var nos = (nanoAdjustment % 1000000000L).toInt()
-            if (nos < 0) {
-                nos += 1000000000
-                secs--
-            }
+            val secs = addExact(seconds, nanoAdjustment.floorDiv(1000000000L))
+            val nos = nanoAdjustment.mod(1000000000L).toInt()
             return if ((secs or nos.toLong()) == 0L) ZERO else Duration(secs, nos)
         }
 
@@ -160,11 +212,11 @@ actual class Duration private constructor(
             return if ((secs or nos.toLong()) == 0L) ZERO else Duration(secs, nos)
         }
 
-        actual fun ofMinutes(minutes: Long): Duration = ofSeconds(minutes * 60L)
+        actual fun ofMinutes(minutes: Long): Duration = ofSeconds(multiplyExact(minutes, 60L), 0L)
 
-        actual fun ofHours(hours: Long): Duration = ofSeconds(hours * 3600L)
+        actual fun ofHours(hours: Long): Duration = ofSeconds(multiplyExact(hours, 3600L), 0L)
 
-        actual fun ofDays(days: Long): Duration = ofSeconds(days * 86400L)
+        actual fun ofDays(days: Long): Duration = ofSeconds(multiplyExact(days, 86400L), 0L)
 
         actual fun of(amount: Long, unit: TemporalUnit): Duration = ZERO.plus(amount, unit)
 
@@ -180,8 +232,8 @@ actual class Duration private constructor(
                     ChronoUnit.SECONDS -> plusSeconds(amount)
                     ChronoUnit.MINUTES -> plusMinutes(amount)
                     ChronoUnit.HOURS -> plusHours(amount)
-                    ChronoUnit.HALF_DAYS -> plusHours(amount * 12L)
-                    else -> plusSeconds(unit.duration.seconds * amount)
+                    ChronoUnit.HALF_DAYS -> plusHours(multiplyExact(amount, 12L))
+                    else -> plusSeconds(multiplyExact(unit.duration.seconds, amount))
                 }
             }
             val dur = unit.duration.multipliedBy(amount)
@@ -194,7 +246,7 @@ actual class Duration private constructor(
         actual fun between(startInclusive: Temporal, endExclusive: Temporal): Duration {
             return when {
                 startInclusive is Instant && endExclusive is Instant -> {
-                    val secs = endExclusive.epochSecond - startInclusive.epochSecond
+                    val secs = addExact(endExclusive.epochSecond, -startInclusive.epochSecond)
                     val nanos = (endExclusive.nano - startInclusive.nano).toLong()
                     ofSeconds(secs, nanos)
                 }
@@ -204,7 +256,7 @@ actual class Duration private constructor(
                 startInclusive is LocalDateTime && endExclusive is LocalDateTime -> {
                     val startSecs = startInclusive.toEpochSecond(ZoneOffset.UTC)
                     val endSecs = endExclusive.toEpochSecond(ZoneOffset.UTC)
-                    ofSeconds(endSecs - startSecs, (endExclusive.nano - startInclusive.nano).toLong())
+                    ofSeconds(addExact(endSecs, -startSecs), (endExclusive.nano - startInclusive.nano).toLong())
                 }
                 startInclusive is OffsetDateTime && endExclusive is OffsetDateTime -> {
                     between(startInclusive.toInstant(), endExclusive.toInstant())
@@ -239,65 +291,85 @@ actual class Duration private constructor(
             var secs = 0L
             var nanos = 0
             var parsedAny = false
-            while (idx < s.length) {
-                if (s[idx] == 'T' || s[idx] == 't') {
-                    if (inTime) throw DateTimeParseException("Text cannot be parsed to a Duration", s, idx)
-                    inTime = true
-                    idx++
-                    if (idx >= s.length) throw DateTimeParseException("Text cannot be parsed to a Duration", s, idx)
-                }
-                var sign = 1L
-                if (s[idx] == '+' || s[idx] == '-') {
-                    if (s[idx] == '-') sign = -1L
-                    idx++
-                }
-                val numStart = idx
-                while (idx < s.length && s[idx] in '0'..'9') idx++
-                if (idx == numStart) throw DateTimeParseException("Text cannot be parsed to a Duration", s, idx)
-                val num = s.substring(numStart, idx).toLongOrNull()
-                    ?: throw DateTimeParseException("Text cannot be parsed to a Duration", s, numStart)
-                var fracNanos = 0
-                var hasFrac = false
-                if (idx < s.length && (s[idx] == '.' || s[idx] == ',')) {
-                    hasFrac = true
-                    idx++
-                    val fracStart = idx
+            var lastUnitOrder = 0 // 1=D, 2=H, 3=M, 4=S
+            try {
+                while (idx < s.length) {
+                    if (s[idx] == 'T' || s[idx] == 't') {
+                        if (inTime) throw DateTimeParseException("Text cannot be parsed to a Duration", s, idx)
+                        inTime = true
+                        idx++
+                        if (idx >= s.length) throw DateTimeParseException("Text cannot be parsed to a Duration", s, idx)
+                    }
+                    var sign = 1L
+                    if (s[idx] == '+' || s[idx] == '-') {
+                        if (s[idx] == '-') sign = -1L
+                        idx++
+                    }
+                    val numStart = idx
                     while (idx < s.length && s[idx] in '0'..'9') idx++
-                    val fracStr = s.substring(fracStart, idx)
-                    if (fracStr.isEmpty() || fracStr.length > 9) {
-                        throw DateTimeParseException("Text cannot be parsed to a Duration", s, fracStart)
+                    if (idx == numStart) throw DateTimeParseException("Text cannot be parsed to a Duration", s, idx)
+                    val num = s.substring(numStart, idx).toLongOrNull()
+                        ?: throw DateTimeParseException("Text cannot be parsed to a Duration", s, numStart)
+                    var fracNanos = 0
+                    var hasFrac = false
+                    if (idx < s.length && (s[idx] == '.' || s[idx] == ',')) {
+                        hasFrac = true
+                        idx++
+                        val fracStart = idx
+                        while (idx < s.length && s[idx] in '0'..'9') idx++
+                        val fracStr = s.substring(fracStart, idx)
+                        if (fracStr.isEmpty() || fracStr.length > 9) {
+                            throw DateTimeParseException("Text cannot be parsed to a Duration", s, fracStart)
+                        }
+                        fracNanos = fracStr.padEnd(9, '0').toInt()
                     }
-                    fracNanos = fracStr.padEnd(9, '0').toInt()
+                    if (idx >= s.length) throw DateTimeParseException("Text cannot be parsed to a Duration", s, idx)
+                    val unitChar = s[idx].uppercaseChar()
+                    idx++
+                    parsedAny = true
+                    when (unitChar) {
+                        'D' -> {
+                            if (inTime || hasFrac || lastUnitOrder >= 1) {
+                                throw DateTimeParseException("Text cannot be parsed to a Duration", s, idx - 1)
+                            }
+                            lastUnitOrder = 1
+                            daysSecs = multiplyExact(multiplyExact(num, sign), 86400L)
+                        }
+                        'H' -> {
+                            if (!inTime || hasFrac || lastUnitOrder >= 2) {
+                                throw DateTimeParseException("Text cannot be parsed to a Duration", s, idx - 1)
+                            }
+                            lastUnitOrder = 2
+                            hoursSecs = multiplyExact(multiplyExact(num, sign), 3600L)
+                        }
+                        'M' -> {
+                            if (!inTime || hasFrac || lastUnitOrder >= 3) {
+                                throw DateTimeParseException("Text cannot be parsed to a Duration", s, idx - 1)
+                            }
+                            lastUnitOrder = 3
+                            minsSecs = multiplyExact(multiplyExact(num, sign), 60L)
+                        }
+                        'S' -> {
+                            if (!inTime || lastUnitOrder >= 4) {
+                                throw DateTimeParseException("Text cannot be parsed to a Duration", s, idx - 1)
+                            }
+                            lastUnitOrder = 4
+                            secs = multiplyExact(num, sign)
+                            nanos = if (sign < 0) -fracNanos else fracNanos
+                        }
+                        else -> throw DateTimeParseException("Text cannot be parsed to a Duration", s, idx - 1)
+                    }
                 }
-                if (idx >= s.length) throw DateTimeParseException("Text cannot be parsed to a Duration", s, idx)
-                val unitChar = s[idx].uppercaseChar()
-                idx++
-                parsedAny = true
-                when (unitChar) {
-                    'D' -> {
-                        if (inTime || hasFrac) throw DateTimeParseException("Text cannot be parsed to a Duration", s, idx - 1)
-                        daysSecs = num * sign * 86400L
-                    }
-                    'H' -> {
-                        if (!inTime || hasFrac) throw DateTimeParseException("Text cannot be parsed to a Duration", s, idx - 1)
-                        hoursSecs = num * sign * 3600L
-                    }
-                    'M' -> {
-                        if (!inTime || hasFrac) throw DateTimeParseException("Text cannot be parsed to a Duration", s, idx - 1)
-                        minsSecs = num * sign * 60L
-                    }
-                    'S' -> {
-                        if (!inTime) throw DateTimeParseException("Text cannot be parsed to a Duration", s, idx - 1)
-                        secs = num * sign
-                        nanos = if (sign < 0) -fracNanos else fracNanos
-                    }
-                    else -> throw DateTimeParseException("Text cannot be parsed to a Duration", s, idx - 1)
-                }
+                if (!parsedAny) throw DateTimeParseException("Text cannot be parsed to a Duration", s, 0)
+                val totalSecs = addExact(addExact(daysSecs, hoursSecs), addExact(minsSecs, secs))
+                val result = ofSeconds(totalSecs, nanos.toLong())
+                return if (negative) result.negated() else result
+            } catch (ex: DateTimeParseException) {
+                throw ex
+            } catch (ex: ArithmeticException) {
+                throw DateTimeParseException("Text cannot be parsed to a Duration: overflow", s, 0)
             }
-            if (!parsedAny) throw DateTimeParseException("Text cannot be parsed to a Duration", s, 0)
-            val totalSecs = daysSecs + hoursSecs + minsSecs + secs
-            val result = ofSeconds(totalSecs, nanos.toLong())
-            return if (negative) result.negated() else result
         }
     }
 }
+

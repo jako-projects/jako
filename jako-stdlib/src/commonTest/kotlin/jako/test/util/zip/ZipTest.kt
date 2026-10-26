@@ -323,6 +323,58 @@ class ZipTest {
         }
     }
 
+    @Test
+    fun testDeflaterOutputStreamAndInflaterInputStream() {
+        assertFailsWith<IllegalArgumentException> {
+            java.util.zip.DeflaterOutputStream(ByteArrayOutputStream(), Deflater(), 0)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            java.util.zip.InflaterInputStream(ByteArrayInputStream(ByteArray(0)), Inflater(), 0)
+        }
+
+        val payload = "DeflaterOutputStream & InflaterInputStream roundtrip test! ".repeat(10).encodeToByteArray()
+        val baos = ByteArrayOutputStream()
+        val dos = java.util.zip.DeflaterOutputStream(baos, true)
+        try {
+            dos.write(payload[0].toInt() and 0xFF)
+            dos.write(payload, 1, payload.size - 1)
+            dos.flush()
+            dos.finish()
+        } finally {
+            dos.close()
+        }
+        assertFailsWith<IOException> {
+            dos.write(1)
+        }
+
+        val compressed = baos.toByteArray()
+        assertTrue(compressed.isNotEmpty())
+
+        val iis = java.util.zip.InflaterInputStream(ByteArrayInputStream(compressed))
+        try {
+            assertFalse(iis.markSupported())
+            assertEquals(1, iis.available())
+            assertFailsWith<IOException> { iis.reset() }
+            assertFailsWith<IllegalArgumentException> { iis.skip(-1L) }
+
+            val firstByte = iis.read()
+            assertEquals(payload[0].toInt() and 0xFF, firstByte)
+
+            val skipped = iis.skip(5L)
+            assertEquals(5L, skipped)
+
+            val remaining = readAll(iis)
+            assertContentEquals(payload.copyOfRange(6, payload.size), remaining)
+            assertEquals(0, iis.available())
+            assertEquals(-1, iis.read())
+        } finally {
+            iis.close()
+        }
+        assertFailsWith<IOException> {
+            iis.read()
+        }
+    }
+
     private fun readAll(input: java.io.InputStream): ByteArray {
         val out = ByteArrayOutputStream()
         val buf = ByteArray(64)

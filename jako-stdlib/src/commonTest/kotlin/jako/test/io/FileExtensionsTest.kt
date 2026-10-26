@@ -96,17 +96,47 @@ class FileExtensionsTest {
             file2.writeText("a")
             file3.writeText("b")
 
-            val topDownNames = srcDir.walkTopDown().map { it.name }.toList()
+            val entered = mutableListOf<String>()
+            val left = mutableListOf<String>()
+            val topDownWalk: FileTreeWalk = srcDir.walk(FileWalkDirection.TOP_DOWN)
+                .onEnter { dir -> entered.add(dir.name); true }
+                .onLeave { dir -> left.add(dir.name) }
+                .onFail { _, _ -> }
+            val topDownNames = topDownWalk.map { it.name }.toList()
             assertEquals(srcDir.name, topDownNames.first())
             assertEquals(6, topDownNames.size)
+            assertTrue(entered.contains("a"))
+            assertTrue(left.contains("b"))
 
-            val bottomUpNames = srcDir.walkBottomUp().map { it.name }.toList()
+            val shallowNames = srcDir.walk(FileWalkDirection.TOP_DOWN).maxDepth(1).map { it.name }.toSet()
+            assertEquals(setOf(srcDir.name, "a", "root.txt"), shallowNames)
+            kotlin.test.assertFailsWith<IllegalArgumentException> {
+                srcDir.walk(FileWalkDirection.TOP_DOWN).maxDepth(0)
+            }
+
+            val bottomUpNames = srcDir.walk(FileWalkDirection.BOTTOM_UP).map { it.name }.toList()
             assertEquals(srcDir.name, bottomUpNames.last())
             assertEquals(6, bottomUpNames.size)
 
             assertTrue(srcDir.copyRecursively(dstDir, overwrite = true))
             assertTrue(File(dstDir, "root.txt").exists())
             assertEquals("b", File(File(File(dstDir, "a"), "b"), "b.txt").readText())
+
+            // Copy without overwrite using OnErrorAction.SKIP and OnErrorAction.TERMINATE
+            var skipConflicts = 0
+            assertTrue(
+                srcDir.copyRecursively(dstDir, overwrite = false) { _, _ ->
+                    skipConflicts++
+                    OnErrorAction.SKIP
+                }
+            )
+            assertTrue(skipConflicts > 0)
+
+            assertFalse(
+                srcDir.copyRecursively(dstDir, overwrite = false) { _, _ ->
+                    OnErrorAction.TERMINATE
+                }
+            )
         } finally {
             srcDir.deleteRecursively()
             dstDir.deleteRecursively()

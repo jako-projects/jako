@@ -85,12 +85,13 @@ actual open class Calendar : Serializable, Cloneable, Comparable<Calendar> {
             DAY_OF_MONTH, DATE -> dayOfMonth
             DAY_OF_WEEK -> dayOfWeek
             HOUR_OF_DAY -> hourOfDay
-            HOUR -> if (hourOfDay % 12 == 0) 12 else hourOfDay % 12
+            HOUR -> hourOfDay % 12
             AM_PM -> if (hourOfDay >= 12) 1 else 0
             MINUTE -> minute
             SECOND -> second
             MILLISECOND -> millisecond
             ZONE_OFFSET -> tz.rawOffset
+            DST_OFFSET -> tz.getOffset(timeInMillisVal) - tz.rawOffset
             else -> 0
         }
     }
@@ -102,6 +103,8 @@ actual open class Calendar : Serializable, Cloneable, Comparable<Calendar> {
             MONTH -> month = value
             DAY_OF_MONTH, DATE -> dayOfMonth = value
             HOUR_OF_DAY -> hourOfDay = value
+            HOUR -> hourOfDay = (if (hourOfDay >= 12) 12 else 0) + (value % 12)
+            AM_PM -> hourOfDay = (hourOfDay % 12) + (if (value == 1) 12 else 0)
             MINUTE -> minute = value
             SECOND -> second = value
             MILLISECOND -> millisecond = value
@@ -111,20 +114,32 @@ actual open class Calendar : Serializable, Cloneable, Comparable<Calendar> {
     }
 
     actual fun set(year: Int, month: Int, date: Int) {
-        set(YEAR, year)
-        set(MONTH, month)
-        set(DAY_OF_MONTH, date)
+        if (!isFieldsSet) computeFields()
+        this.year = year
+        this.month = month
+        this.dayOfMonth = date
+        computeTime()
     }
 
     actual fun set(year: Int, month: Int, date: Int, hourOfDay: Int, minute: Int) {
-        set(year, month, date)
-        set(HOUR_OF_DAY, hourOfDay)
-        set(MINUTE, minute)
+        if (!isFieldsSet) computeFields()
+        this.year = year
+        this.month = month
+        this.dayOfMonth = date
+        this.hourOfDay = hourOfDay
+        this.minute = minute
+        computeTime()
     }
 
     actual fun set(year: Int, month: Int, date: Int, hourOfDay: Int, minute: Int, second: Int) {
-        set(year, month, date, hourOfDay, minute)
-        set(SECOND, second)
+        if (!isFieldsSet) computeFields()
+        this.year = year
+        this.month = month
+        this.dayOfMonth = date
+        this.hourOfDay = hourOfDay
+        this.minute = minute
+        this.second = second
+        computeTime()
     }
 
     actual fun add(field: Int, amount: Int) {
@@ -137,9 +152,10 @@ actual open class Calendar : Serializable, Cloneable, Comparable<Calendar> {
                 month = totalMonths.floorMod(12)
             }
             DAY_OF_MONTH, DATE -> dayOfMonth += amount
-            HOUR_OF_DAY -> hourOfDay += amount
+            HOUR_OF_DAY, HOUR -> hourOfDay += amount
             MINUTE -> minute += amount
             SECOND -> second += amount
+            MILLISECOND -> millisecond += amount
         }
         computeTime()
     }
@@ -147,7 +163,7 @@ actual open class Calendar : Serializable, Cloneable, Comparable<Calendar> {
     actual override fun compareTo(other: Calendar): Int = timeInMillis.compareTo(other.timeInMillis)
 
     private fun computeFields() {
-        val totalMillis = timeInMillisVal + tz.rawOffset
+        val totalMillis = timeInMillisVal + tz.getOffset(timeInMillisVal)
         val seconds = totalMillis.floorDiv(1000L)
         millisecond = totalMillis.floorMod(1000L).toInt()
 
@@ -179,8 +195,9 @@ actual open class Calendar : Serializable, Cloneable, Comparable<Calendar> {
     }
 
     private fun computeTime() {
-        var y = year.toLong()
-        var m = month.toLong() + 1
+        val totalMonths = year.toLong() * 12L + month.toLong()
+        var y = totalMonths.floorDiv(12L)
+        var m = totalMonths.floorMod(12L) + 1L
         if (m <= 2) {
             y -= 1
             m += 12
@@ -192,8 +209,11 @@ actual open class Calendar : Serializable, Cloneable, Comparable<Calendar> {
         val epochDays = era * 146097L + doe - 719468L
 
         val dayMillis = (hourOfDay * 3600L + minute * 60L + second) * 1000L + millisecond
-        timeInMillisVal = epochDays * 86400000L + dayMillis - tz.rawOffset
-        isFieldsSet = true
+        val localMillis = epochDays * 86400000L + dayMillis
+        val approxUtc = localMillis - tz.rawOffset
+        val actualOffset = tz.getOffset(approxUtc)
+        timeInMillisVal = localMillis - actualOffset
+        computeFields()
     }
 
     actual companion object {

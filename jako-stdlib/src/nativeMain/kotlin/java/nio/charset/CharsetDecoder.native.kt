@@ -23,7 +23,9 @@ actual abstract class CharsetDecoder {
     actual fun replacement(): String = repl
 
     actual fun replaceWith(newReplacement: String): CharsetDecoder {
-        if (newReplacement.isEmpty()) throw IllegalArgumentException("Empty replacement")
+        if (newReplacement.isEmpty() || newReplacement.length > max) {
+            throw IllegalArgumentException("Illegal replacement")
+        }
         repl = newReplacement
         return this
     }
@@ -73,11 +75,8 @@ actual abstract class CharsetDecoder {
 
     actual fun decode(`in`: ByteBuffer): CharBuffer {
         var n = (`in`.remaining() * avg).toInt()
-        var out = CharBuffer.allocate(if (n == 0) 1 else n)
-        if (`in`.remaining() == 0) {
-            out.flip()
-            return out
-        }
+        var out = CharBuffer.allocate(n)
+        if (n == 0 && `in`.remaining() == 0) return out
         reset()
         while (true) {
             var cr = if (`in`.hasRemaining()) decode(`in`, out, true) else CoderResult.UNDERFLOW
@@ -99,6 +98,9 @@ actual abstract class CharsetDecoder {
 
     actual fun flush(out: CharBuffer): CoderResult {
         if (state == ST_FLUSHED) return CoderResult.UNDERFLOW
+        if (state != ST_END) {
+            throw IllegalStateException("Decoder not at end of input")
+        }
         val cr = implFlush(out)
         if (cr.isUnderflow) state = ST_FLUSHED
         return cr

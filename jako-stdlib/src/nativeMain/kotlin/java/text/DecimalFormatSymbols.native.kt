@@ -39,6 +39,10 @@ actual open class DecimalFormatSymbols : Cloneable, Serializable {
                 currencySymbol = "￥"
                 intlCurrencySymbol = "JPY"
             }
+            "ko" -> {
+                currencySymbol = "₩"
+                intlCurrencySymbol = "KRW"
+            }
             "en" -> {
                 if (locale.getCountry() == "GB") {
                     currencySymbol = "£"

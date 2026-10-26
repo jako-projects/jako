@@ -3,6 +3,7 @@
 package java.time
 
 import java.io.Serializable
+import java.time.format.DateTimeFormatter
 import java.time.temporal.Temporal
 import java.time.temporal.TemporalAccessor
 import java.time.temporal.TemporalAdjuster
@@ -15,6 +16,7 @@ expect class OffsetDateTime : Temporal, TemporalAdjuster, Serializable, Comparab
     fun toLocalTime(): LocalTime
     fun toInstant(): Instant
     fun toEpochSecond(): Long
+    fun format(formatter: DateTimeFormatter): String
     fun isAfter(other: OffsetDateTime): Boolean
     fun isBefore(other: OffsetDateTime): Boolean
     override fun adjustInto(temporal: Temporal): Temporal
@@ -30,6 +32,7 @@ expect class OffsetDateTime : Temporal, TemporalAdjuster, Serializable, Comparab
         fun of(date: LocalDate, time: LocalTime, offset: ZoneOffset): OffsetDateTime
         fun ofInstant(instant: Instant, zone: ZoneId): OffsetDateTime
         fun parse(text: CharSequence): OffsetDateTime
+        fun parse(text: CharSequence, formatter: DateTimeFormatter): OffsetDateTime
         fun from(temporal: TemporalAccessor): OffsetDateTime
     }
 }

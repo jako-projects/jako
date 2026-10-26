@@ -13,6 +13,12 @@ actual open class ThreadPoolExecutor actual constructor(
 ) : AbstractExecutorService() {
     private var isShutdownState = false
 
+    init {
+        if (corePoolSize < 0 || maximumPoolSize <= 0 || maximumPoolSize < corePoolSize || keepAliveTime < 0L) {
+            throw IllegalArgumentException()
+        }
+    }
+
     actual override fun execute(command: Runnable) {
         if (isShutdownState) throw RejectedExecutionException("Executor is shutdown")
         threadFactory.newThread(command).start()

@@ -144,8 +144,8 @@ internal class RuleBasedNativeCollator : Collator() {
         val lenCmp = normSource.length.compareTo(normTarget.length)
         if (lenCmp != 0 || strength == TERTIARY) return lenCmp
 
-        // Level 4 (IDENTICAL): raw codepoint comparison
-        return source.compareTo(target)
+        // Level 4 (IDENTICAL): normalized codepoint comparison
+        return normSource.compareTo(normTarget)
     }
 
     override fun getCollationKey(source: String): CollationKey {
@@ -173,7 +173,7 @@ internal class RuleBasedNativeCollator : Collator() {
         }
         if (strength >= IDENTICAL) {
             out.add(0)
-            appendUtf8(source)
+            appendUtf8(norm)
         }
         return NativeCollationKey(source, out.toByteArray())
     }

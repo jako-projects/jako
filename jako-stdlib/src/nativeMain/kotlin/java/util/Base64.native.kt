@@ -66,18 +66,96 @@ actual class Base64 private constructor() {
 
         actual fun wrap(src: OutputStream): OutputStream {
             return object : OutputStream() {
+                private var closed = false
+                private var b0 = 0
+                private var b1 = 0
+                private var b2 = 0
+                private var leftover = 0
+                private var linePos = 0
+
+                private fun checkOpen() {
+                    if (closed) throw java.io.IOException("Stream is closed")
+                }
+
+                private fun writeNewlineIfNeeded() {
+                    if (isMime && linePos >= 76) {
+                        src.write('\r'.code)
+                        src.write('\n'.code)
+                        linePos = 0
+                    }
+                }
+
                 override fun write(b: Int) {
                     write(byteArrayOf(b.toByte()), 0, 1)
                 }
 
                 override fun write(b: ByteArray, off: Int, len: Int) {
-                    val chunk = b.copyOfRange(off, off + len)
-                    val bytes = encode(chunk)
-                    src.write(bytes)
+                    checkOpen()
+                    if (off < 0 || len < 0 || len > b.size - off) throw IndexOutOfBoundsException()
+                    if (len == 0) return
+                    var idx = off
+                    val end = off + len
+                    if (leftover != 0) {
+                        while (idx < end && leftover < 3) {
+                            val v = b[idx++].toInt() and 0xFF
+                            if (leftover == 1) b1 = v else b2 = v
+                            leftover++
+                        }
+                        if (leftover < 3) return
+                        writeNewlineIfNeeded()
+                        src.write(table[b0 ushr 2].code)
+                        src.write(table[((b0 and 0x03) shl 4) or (b1 ushr 4)].code)
+                        src.write(table[((b1 and 0x0F) shl 2) or (b2 ushr 6)].code)
+                        src.write(table[b2 and 0x3F].code)
+                        linePos += 4
+                        leftover = 0
+                    }
+                    while (end - idx >= 3) {
+                        writeNewlineIfNeeded()
+                        val v0 = b[idx++].toInt() and 0xFF
+                        val v1 = b[idx++].toInt() and 0xFF
+                        val v2 = b[idx++].toInt() and 0xFF
+                        src.write(table[v0 ushr 2].code)
+                        src.write(table[((v0 and 0x03) shl 4) or (v1 ushr 4)].code)
+                        src.write(table[((v1 and 0x0F) shl 2) or (v2 ushr 6)].code)
+                        src.write(table[v2 and 0x3F].code)
+                        linePos += 4
+                    }
+                    if (idx < end) {
+                        b0 = b[idx++].toInt() and 0xFF
+                        leftover = 1
+                        if (idx < end) {
+                            b1 = b[idx].toInt() and 0xFF
+                            leftover = 2
+                        }
+                    }
                 }
 
-                override fun flush() = src.flush()
-                override fun close() = src.close()
+                override fun flush() {
+                    checkOpen()
+                    src.flush()
+                }
+
+                override fun close() {
+                    if (!closed) {
+                        closed = true
+                        if (leftover == 1) {
+                            writeNewlineIfNeeded()
+                            src.write(table[b0 ushr 2].code)
+                            src.write(table[(b0 and 0x03) shl 4].code)
+                            src.write('='.code)
+                            src.write('='.code)
+                        } else if (leftover == 2) {
+                            writeNewlineIfNeeded()
+                            src.write(table[b0 ushr 2].code)
+                            src.write(table[((b0 and 0x03) shl 4) or (b1 ushr 4)].code)
+                            src.write(table[(b1 and 0x0F) shl 2].code)
+                            src.write('='.code)
+                        }
+                        leftover = 0
+                        src.close()
+                    }
+                }
             }
         }
 
@@ -93,10 +171,44 @@ actual class Base64 private constructor() {
         }
 
         actual fun decode(src: String): ByteArray {
-            val clean = src.replace("\r", "").replace("\n", "").trimEnd('=')
-            if (clean.isEmpty()) return ByteArray(0)
-
             val table = if (isUrlSafe) URL_MAP else STD_MAP
+            val filtered = if (isMime) {
+                buildString(src.length) {
+                    for (ch in src) {
+                        if (ch == '=' || (ch.code in 0..255 && table[ch.code] >= 0)) {
+                            append(ch)
+                        }
+                    }
+                }
+            } else {
+                src
+            }
+            if (filtered.isEmpty()) return ByteArray(0)
+            val firstPad = filtered.indexOf('=')
+            val clean = if (firstPad != -1) {
+                val padCount = filtered.length - firstPad
+                if (firstPad == 0 || padCount > 2 || filtered.length % 4 != 0) {
+                    throw IllegalArgumentException("Input byte array has wrong 4-byte ending unit")
+                }
+                for (k in firstPad until filtered.length) {
+                    if (filtered[k] != '=') {
+                        throw IllegalArgumentException("Input byte array has wrong 4-byte ending unit")
+                    }
+                }
+                filtered.substring(0, firstPad)
+            } else {
+                filtered
+            }
+            if (clean.length % 4 == 1) {
+                throw IllegalArgumentException("Input byte[] should at least have 2 bytes for base64 bytes")
+            }
+
+            for (ch in clean) {
+                if (ch.code !in 0..255 || table[ch.code] < 0) {
+                    throw IllegalArgumentException("Illegal base64 character ${ch.code.toString(16)}")
+                }
+            }
+
             val bytes = ByteArray(clean.length * 3 / 4)
             var bIdx = 0
             var i = 0

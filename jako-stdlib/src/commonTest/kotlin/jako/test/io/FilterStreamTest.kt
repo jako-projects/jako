@@ -41,4 +41,36 @@ class FilterStreamTest {
         assertEquals(68, bytes[3].toInt())
         filter.close()
     }
+
+    @Test
+    fun testBufferedInputStreamAndBufferedOutputStream() {
+        assertFailsWith<IllegalArgumentException> {
+            BufferedInputStream(ByteArrayInputStream(ByteArray(0)), 0)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            BufferedOutputStream(ByteArrayOutputStream(), -1)
+        }
+
+        val baos = ByteArrayOutputStream()
+        val bos = BufferedOutputStream(baos, 4)
+        bos.write('A'.code)
+        bos.write("BCDEFG".encodeToByteArray(), 0, 6)
+        bos.flush()
+        bos.close()
+        assertEquals("ABCDEFG", baos.toByteArray().decodeToString())
+
+        val bis = BufferedInputStream(ByteArrayInputStream(baos.toByteArray()), 4)
+        assertTrue(bis.markSupported())
+        assertEquals('A'.code, bis.read())
+        bis.mark(10)
+        val chunk = ByteArray(3)
+        assertEquals(3, bis.read(chunk, 0, 3))
+        assertEquals("BCD", chunk.decodeToString())
+        bis.reset()
+        assertEquals('B'.code, bis.read())
+        assertEquals(2L, bis.skip(2L))
+        assertEquals('E'.code, bis.read())
+        assertTrue(bis.available() >= 2)
+        bis.close()
+    }
 }

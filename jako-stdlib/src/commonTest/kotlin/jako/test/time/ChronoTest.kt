@@ -243,4 +243,136 @@ class ChronoTest {
         assertEquals(10957L, LocalDate.of(2000, 1, 1).toEpochDay())
         assertEquals(LocalDate.of(2000, 1, 1), LocalDate.ofEpochDay(10957))
     }
+
+    @Test
+    fun testUsDstSpringForwardGapAndFallBackOverlap() {
+        val ny = ZoneId.of("America/New_York")
+
+        // 2024 US Spring Forward: 2024-03-10 02:00 EST (-05:00) -> 03:00 EDT (-04:00)
+        // Local time 02:30 is in the gap and must be pushed forward by 1 hour to 03:30-04:00
+        val inGap = ZonedDateTime.of(2024, 3, 10, 2, 30, 0, 0, ny)
+        assertEquals(LocalDateTime.of(2024, 3, 10, 3, 30), inGap.toLocalDateTime())
+        assertEquals(ZoneOffset.ofHours(-4), inGap.offset)
+
+        // Before gap at 01:30-05:00: plusHours(1) crosses into EDT 03:30-04:00, plusDays(1) stays at 01:30-04:00
+        val beforeGap = ZonedDateTime.of(2024, 3, 10, 1, 30, 0, 0, ny)
+        assertEquals(ZoneOffset.ofHours(-5), beforeGap.offset)
+        val plusOneHour = beforeGap.plusHours(1)
+        assertEquals(LocalDateTime.of(2024, 3, 10, 3, 30), plusOneHour.toLocalDateTime())
+        assertEquals(ZoneOffset.ofHours(-4), plusOneHour.offset)
+        val plusOneDay = beforeGap.plusDays(1)
+        assertEquals(LocalDateTime.of(2024, 3, 11, 1, 30), plusOneDay.toLocalDateTime())
+        assertEquals(ZoneOffset.ofHours(-4), plusOneDay.offset)
+
+        // 2024 US Fall Back: 2024-11-03 02:00 EDT (-04:00) -> 01:00 EST (-05:00)
+        // Local time 01:30 is in the overlap and defaults to earlier offset (-04:00)
+        val inOverlap = ZonedDateTime.of(2024, 11, 3, 1, 30, 0, 0, ny)
+        assertEquals(LocalDateTime.of(2024, 11, 3, 1, 30), inOverlap.toLocalDateTime())
+        assertEquals(ZoneOffset.ofHours(-4), inOverlap.offset)
+
+        val later = inOverlap.withLaterOffsetAtOverlap()
+        assertEquals(LocalDateTime.of(2024, 11, 3, 1, 30), later.toLocalDateTime())
+        assertEquals(ZoneOffset.ofHours(-5), later.offset)
+        assertEquals(3600L, later.toEpochSecond() - inOverlap.toEpochSecond())
+
+        val backToEarlier = later.withEarlierOffsetAtOverlap()
+        assertEquals(ZoneOffset.ofHours(-4), backToEarlier.offset)
+
+        // Parsing with explicit offset in overlap preserves the offset
+        val parsedEarly = ZonedDateTime.parse("2024-11-03T01:30:00-04:00[America/New_York]")
+        val parsedLate = ZonedDateTime.parse("2024-11-03T01:30:00-05:00[America/New_York]")
+        assertEquals(ZoneOffset.ofHours(-4), parsedEarly.offset)
+        assertEquals(ZoneOffset.ofHours(-5), parsedLate.offset)
+    }
+
+    @Test
+    fun testEuDstSpringForwardAndFallBack() {
+        val london = ZoneId.of("Europe/London")
+        // 2024 EU Spring Forward: last Sunday of March (2024-03-31) at 01:00 UTC
+        val londonGap = ZonedDateTime.of(2024, 3, 31, 1, 30, 0, 0, london)
+        assertEquals(LocalDateTime.of(2024, 3, 31, 2, 30), londonGap.toLocalDateTime())
+        assertEquals(ZoneOffset.ofHours(1), londonGap.offset)
+
+        // 2024 EU Fall Back: last Sunday of October (2024-10-27) at 01:00 UTC (02:00 BST -> 01:00 GMT)
+        val londonOverlap = ZonedDateTime.of(2024, 10, 27, 1, 30, 0, 0, london)
+        assertEquals(ZoneOffset.ofHours(1), londonOverlap.offset)
+        assertEquals(ZoneOffset.UTC, londonOverlap.withLaterOffsetAtOverlap().offset)
+
+        val paris = ZoneId.of("Europe/Paris")
+        // Paris Spring Forward: 02:00 CET (+01:00) -> 03:00 CEST (+02:00)
+        val parisGap = ZonedDateTime.of(2024, 3, 31, 2, 30, 0, 0, paris)
+        assertEquals(LocalDateTime.of(2024, 3, 31, 3, 30), parisGap.toLocalDateTime())
+        assertEquals(ZoneOffset.ofHours(2), parisGap.offset)
+
+        // Paris Fall Back: 03:00 CEST (+02:00) -> 02:00 CET (+01:00)
+        val parisOverlap = ZonedDateTime.of(2024, 10, 27, 2, 30, 0, 0, paris)
+        assertEquals(ZoneOffset.ofHours(2), parisOverlap.offset)
+        assertEquals(ZoneOffset.ofHours(1), parisOverlap.withLaterOffsetAtOverlap().offset)
+    }
+
+    @Test
+    fun testTimeZoneDstParity() {
+        val tz = java.util.TimeZone.getTimeZone("America/New_York")
+        assertTrue(tz.useDaylightTime())
+        val winterEpochMs = ZonedDateTime.of(2024, 1, 15, 12, 0, 0, 0, ZoneOffset.UTC).toInstant().toEpochMilli()
+        val summerEpochMs = ZonedDateTime.of(2024, 7, 15, 12, 0, 0, 0, ZoneOffset.UTC).toInstant().toEpochMilli()
+        assertEquals(-5 * 3600 * 1000, tz.getOffset(winterEpochMs))
+        assertEquals(-4 * 3600 * 1000, tz.getOffset(summerEpochMs))
+        assertFalse(tz.inDaylightTime(java.util.Date(winterEpochMs)))
+        assertTrue(tz.inDaylightTime(java.util.Date(summerEpochMs)))
+    }
+
+    @Test
+    fun testPeriodExtremesAndOverflow() {
+        val maxYears = Period.ofYears(Int.MAX_VALUE)
+        assertEquals(Int.MAX_VALUE, maxYears.years)
+        assertFailsWith<ArithmeticException> {
+            maxYears.plusYears(1)
+        }
+        assertFailsWith<ArithmeticException> {
+            Period.ofYears(Int.MIN_VALUE).negated()
+        }
+        assertFailsWith<ArithmeticException> {
+            Period.ofYears(1_000_000_000).multipliedBy(3)
+        }
+        assertEquals(Period.of(0, 0, 14), Period.parse("P2W"))
+        assertEquals(Period.of(-1, -2, -3), Period.parse("-P1Y2M3D"))
+        assertFailsWith<DateTimeParseException> {
+            Period.parse("P1D2Y")
+        }
+        assertFailsWith<DateTimeParseException> {
+            Period.parse("P999999999999Y")
+        }
+    }
+
+    @Test
+    fun testSouthernHemisphereDstTransitions() {
+        val sydney = ZoneId.of("Australia/Sydney")
+        // January is Southern Hemisphere summer (AEDT +11:00); July is winter (AEST +10:00)
+        val sydneySummer = ZonedDateTime.of(2024, 1, 15, 12, 0, 0, 0, sydney)
+        val sydneyWinter = ZonedDateTime.of(2024, 7, 15, 12, 0, 0, 0, sydney)
+        assertEquals(ZoneOffset.ofHours(11), sydneySummer.offset)
+        assertEquals(ZoneOffset.ofHours(10), sydneyWinter.offset)
+
+        // 2024 Sydney Spring Forward: first Sunday of October (2024-10-06) at 02:00 AEST (+10:00) -> 03:00 AEDT (+11:00)
+        val sydneyGap = ZonedDateTime.of(2024, 10, 6, 2, 30, 0, 0, sydney)
+        assertEquals(LocalDateTime.of(2024, 10, 6, 3, 30), sydneyGap.toLocalDateTime())
+        assertEquals(ZoneOffset.ofHours(11), sydneyGap.offset)
+
+        // 2024 Sydney Fall Back: first Sunday of April (2024-04-07) at 03:00 AEDT (+11:00) -> 02:00 AEST (+10:00)
+        val sydneyOverlap = ZonedDateTime.of(2024, 4, 7, 2, 30, 0, 0, sydney)
+        assertEquals(ZoneOffset.ofHours(11), sydneyOverlap.offset)
+        assertEquals(ZoneOffset.ofHours(10), sydneyOverlap.withLaterOffsetAtOverlap().offset)
+
+        // TimeZone parity for Southern Hemisphere
+        val tzSydney = java.util.TimeZone.getTimeZone("Australia/Sydney")
+        assertTrue(tzSydney.useDaylightTime())
+        assertTrue(tzSydney.inDaylightTime(java.util.Date(sydneySummer.toInstant().toEpochMilli())))
+        assertFalse(tzSydney.inDaylightTime(java.util.Date(sydneyWinter.toInstant().toEpochMilli())))
+
+        val auckland = ZoneId.of("Pacific/Auckland")
+        assertEquals(ZoneOffset.ofHours(13), ZonedDateTime.of(2024, 1, 15, 12, 0, 0, 0, auckland).offset)
+        assertEquals(ZoneOffset.ofHours(12), ZonedDateTime.of(2024, 7, 15, 12, 0, 0, 0, auckland).offset)
+    }
 }
+

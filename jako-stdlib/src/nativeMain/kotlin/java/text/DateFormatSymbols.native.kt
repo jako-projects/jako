@@ -28,7 +28,118 @@ actual open class DateFormatSymbols : Serializable, Cloneable {
 
     actual constructor() : this(Locale.getDefault())
 
-    actual constructor(locale: Locale)
+    actual constructor(locale: Locale) {
+        when (locale.language.lowercase()) {
+            "zh" -> {
+                eras = arrayOf("公元前", "公元")
+                months = arrayOf(
+                    "一月", "二月", "三月", "四月", "五月", "六月",
+                    "七月", "八月", "九月", "十月", "十一月", "十二月", ""
+                )
+                shortMonths = arrayOf(
+                    "一月", "二月", "三月", "四月", "五月", "六月",
+                    "七月", "八月", "九月", "十月", "十一月", "十二月", ""
+                )
+                weekdays = arrayOf(
+                    "", "星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"
+                )
+                shortWeekdays = arrayOf(
+                    "", "星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"
+                )
+                ampms = arrayOf("上午", "下午")
+            }
+            "de" -> {
+                eras = arrayOf("v. Chr.", "n. Chr.")
+                months = arrayOf(
+                    "Januar", "Februar", "März", "April", "Mai", "Juni",
+                    "Juli", "August", "September", "Oktober", "November", "Dezember", ""
+                )
+                shortMonths = arrayOf(
+                    "Jan", "Feb", "Mär", "Apr", "Mai", "Jun",
+                    "Jul", "Aug", "Sep", "Okt", "Nov", "Dez", ""
+                )
+                weekdays = arrayOf(
+                    "", "Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"
+                )
+                shortWeekdays = arrayOf(
+                    "", "So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"
+                )
+                ampms = arrayOf("vorm.", "nachm.")
+            }
+            "fr" -> {
+                eras = arrayOf("av. J.-C.", "ap. J.-C.")
+                months = arrayOf(
+                    "janvier", "février", "mars", "avril", "mai", "juin",
+                    "juillet", "août", "septembre", "octobre", "novembre", "décembre", ""
+                )
+                shortMonths = arrayOf(
+                    "janv.", "févr.", "mars", "avr.", "mai", "juin",
+                    "juil.", "août", "sept.", "oct.", "nov.", "déc.", ""
+                )
+                weekdays = arrayOf(
+                    "", "dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"
+                )
+                shortWeekdays = arrayOf(
+                    "", "dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."
+                )
+                ampms = arrayOf("AM", "PM")
+            }
+            "ja" -> {
+                eras = arrayOf("紀元前", "西暦")
+                months = arrayOf(
+                    "1月", "2月", "3月", "4月", "5月", "6月",
+                    "7月", "8月", "9月", "10月", "11月", "12月", ""
+                )
+                shortMonths = arrayOf(
+                    "1月", "2月", "3月", "4月", "5月", "6月",
+                    "7月", "8月", "9月", "10月", "11月", "12月", ""
+                )
+                weekdays = arrayOf(
+                    "", "日曜日", "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日"
+                )
+                shortWeekdays = arrayOf(
+                    "", "日", "月", "火", "水", "木", "金", "土"
+                )
+                ampms = arrayOf("午前", "午後")
+            }
+            "it" -> {
+                eras = arrayOf("BC", "dopo Cristo")
+                months = arrayOf(
+                    "gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno",
+                    "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre", ""
+                )
+                shortMonths = arrayOf(
+                    "gen", "feb", "mar", "apr", "mag", "giu",
+                    "lug", "ago", "set", "ott", "nov", "dic", ""
+                )
+                weekdays = arrayOf(
+                    "", "domenica", "lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato"
+                )
+                shortWeekdays = arrayOf(
+                    "", "dom", "lun", "mar", "mer", "gio", "ven", "sab"
+                )
+                ampms = arrayOf("m.", "p.")
+            }
+            "ko" -> {
+                eras = arrayOf("기원전", "서기")
+                months = arrayOf(
+                    "1월", "2월", "3월", "4월", "5월", "6월",
+                    "7월", "8월", "9월", "10월", "11월", "12월", ""
+                )
+                shortMonths = arrayOf(
+                    "1월", "2월", "3월", "4월", "5월", "6월",
+                    "7월", "8월", "9월", "10월", "11월", "12월", ""
+                )
+                weekdays = arrayOf(
+                    "", "일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"
+                )
+                shortWeekdays = arrayOf(
+                    "", "일", "월", "화", "수", "목", "금", "토"
+                )
+                ampms = arrayOf("오전", "오후")
+            }
+        }
+    }
 
     actual open fun getEras(): Array<String> = eras.copyOf()
     actual open fun setEras(newEras: Array<String>) { eras = newEras.copyOf() }

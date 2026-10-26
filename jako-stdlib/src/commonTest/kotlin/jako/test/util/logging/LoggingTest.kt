@@ -1,5 +1,6 @@
 package jako.test.util.logging
 
+import java.util.logging.Handler
 import java.util.logging.Level
 import java.util.logging.LogRecord
 import java.util.logging.Logger
@@ -37,7 +38,7 @@ class LoggingTest {
     }
 
     @Test
-    fun testLogRecordAndFormatter() {
+    fun testLogRecordFormatterAndHandler() {
         val record = LogRecord(Level.INFO, "Hello logging")
         record.loggerName = "my.logger"
         record.millis = 1000L
@@ -51,5 +52,34 @@ class LoggingTest {
         val formatted = formatter.format(record)
         assertTrue(formatted.contains("Hello logging"))
         assertTrue(formatted.contains("INFO"))
+
+        val published = mutableListOf<String>()
+        var flushed = false
+        var closed = false
+        val handler = object : Handler() {
+            override fun publish(record: LogRecord) {
+                if (record.level.intValue() >= getLevel().intValue()) {
+                    published.add(record.message)
+                }
+            }
+
+            override fun flush() {
+                flushed = true
+            }
+
+            override fun close() {
+                closed = true
+            }
+        }
+        assertEquals(Level.ALL, handler.getLevel())
+        handler.setLevel(Level.WARNING)
+        assertEquals(Level.WARNING, handler.level)
+        handler.publish(LogRecord(Level.INFO, "ignored"))
+        handler.publish(LogRecord(Level.SEVERE, "captured"))
+        handler.flush()
+        handler.close()
+        assertEquals(listOf("captured"), published)
+        assertTrue(flushed)
+        assertTrue(closed)
     }
 }

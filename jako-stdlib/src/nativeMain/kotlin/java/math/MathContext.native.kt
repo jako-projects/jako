@@ -17,16 +17,29 @@ actual class MathContext : Serializable {
     }
 
     actual constructor(valStr: String) {
-        val trimmed = valStr.trim()
-        val precisionIdx = trimmed.indexOf("precision=")
-        val roundingIdx = trimmed.indexOf("roundingMode=")
-        if (precisionIdx == -1 || roundingIdx == -1) {
+        if (!valStr.startsWith("precision=")) {
             throw IllegalArgumentException("bad string format")
         }
-        val precSub = trimmed.substring(precisionIdx + 10, roundingIdx).trim()
-        val roundSub = trimmed.substring(roundingIdx + 13).trim()
-        this.precision = precSub.toInt()
-        this.roundingMode = RoundingMode.valueOf(roundSub)
+        val spaceIdx = valStr.indexOf(' ')
+        if (spaceIdx == -1) {
+            throw IllegalArgumentException("bad string format")
+        }
+        val precSub = valStr.substring(10, spaceIdx)
+        val rest = valStr.substring(spaceIdx + 1)
+        if (!rest.startsWith("roundingMode=")) {
+            throw IllegalArgumentException("bad string format")
+        }
+        val roundSub = rest.substring(13)
+        val parsedPrecision = precSub.toIntOrNull() ?: throw IllegalArgumentException("bad string format")
+        if (parsedPrecision < 0) {
+            throw IllegalArgumentException("Digits < 0")
+        }
+        this.precision = parsedPrecision
+        this.roundingMode = try {
+            RoundingMode.valueOf(roundSub)
+        } catch (e: IllegalArgumentException) {
+            throw IllegalArgumentException("bad string format")
+        }
     }
 
     override fun equals(other: Any?): Boolean {

@@ -20,12 +20,13 @@ actual class Instant private constructor(
     actual fun getNano(): Int = nano
 
     actual fun toEpochMilli(): Long {
-        if (epochSecond >= 0 || nano == 0) {
-            val millis = epochSecond * 1000L
-            return millis + (nano / 1000000L)
+        if (epochSecond < 0 && nano > 0) {
+            val millis = multiplyExact(epochSecond + 1, 1000L)
+            val adjustment = (nano / 1_000_000L) - 1000L
+            return addExact(millis, adjustment)
         } else {
-            val millis = (epochSecond + 1) * 1000L
-            return millis + (nano / 1000000L) - 1000L
+            val millis = multiplyExact(epochSecond, 1000L)
+            return addExact(millis, (nano / 1_000_000L))
         }
     }
 
@@ -52,7 +53,7 @@ actual class Instant private constructor(
             if (amountToAdd.years != 0 || amountToAdd.months != 0) {
                 throw UnsupportedTemporalTypeException("Instant does not support Period with years or months")
             }
-            return plusSeconds(amountToAdd.days * SECONDS_PER_DAY)
+            return plusSeconds(multiplyExact(amountToAdd.days.toLong(), SECONDS_PER_DAY))
         }
         throw DateTimeException("Unsupported TemporalAmount for Instant: $amountToAdd")
     }
@@ -64,10 +65,10 @@ actual class Instant private constructor(
                 ChronoUnit.MICROS -> plus(amountToAdd / 1_000_000L, (amountToAdd % 1_000_000L) * 1000L)
                 ChronoUnit.MILLIS -> plusMillis(amountToAdd)
                 ChronoUnit.SECONDS -> plusSeconds(amountToAdd)
-                ChronoUnit.MINUTES -> plusSeconds(amountToAdd * 60L)
-                ChronoUnit.HOURS -> plusSeconds(amountToAdd * 3600L)
-                ChronoUnit.HALF_DAYS -> plusSeconds(amountToAdd * 43200L)
-                ChronoUnit.DAYS -> plusSeconds(amountToAdd * SECONDS_PER_DAY)
+                ChronoUnit.MINUTES -> plusSeconds(multiplyExact(amountToAdd, 60L))
+                ChronoUnit.HOURS -> plusSeconds(multiplyExact(amountToAdd, 3600L))
+                ChronoUnit.HALF_DAYS -> plusSeconds(multiplyExact(amountToAdd, 43200L))
+                ChronoUnit.DAYS -> plusSeconds(multiplyExact(amountToAdd, SECONDS_PER_DAY))
                 else -> throw UnsupportedTemporalTypeException("Unsupported unit: $unit")
             }
         }
@@ -76,7 +77,7 @@ actual class Instant private constructor(
 
     actual fun plusSeconds(secondsToAdd: Long): Instant {
         if (secondsToAdd == 0L) return this
-        return ofEpochSecond(epochSecond + secondsToAdd, nano.toLong())
+        return plus(secondsToAdd, 0L)
     }
 
     actual fun plusMillis(millisToAdd: Long): Instant {
@@ -91,19 +92,26 @@ actual class Instant private constructor(
 
     private fun plus(secondsToAdd: Long, nanosToAdd: Long): Instant {
         if ((secondsToAdd or nanosToAdd) == 0L) return this
-        val epochSec = epochSecond + secondsToAdd
-        return ofEpochSecond(epochSec, nano + nanosToAdd)
+        var epochSec = addExact(epochSecond, secondsToAdd)
+        epochSec = addExact(epochSec, nanosToAdd / NANOS_PER_SECOND)
+        val newNanos = nano + (nanosToAdd % NANOS_PER_SECOND)
+        return ofEpochSecond(epochSec, newNanos)
     }
 
     actual fun minus(amountToSubtract: TemporalAmount): Instant {
         if (amountToSubtract is Duration) {
-            return plus(-amountToSubtract.seconds, -amountToSubtract.nano.toLong())
+            val secsToSubtract = amountToSubtract.seconds
+            val nanosToSubtract = amountToSubtract.nano
+            if (secsToSubtract == Long.MIN_VALUE) {
+                return plus(Long.MAX_VALUE, -nanosToSubtract.toLong()).plus(1L, 0L)
+            }
+            return plus(-secsToSubtract, -nanosToSubtract.toLong())
         }
         if (amountToSubtract is Period) {
             if (amountToSubtract.years != 0 || amountToSubtract.months != 0) {
                 throw UnsupportedTemporalTypeException("Instant does not support Period with years or months")
             }
-            return minusSeconds(amountToSubtract.days * SECONDS_PER_DAY)
+            return minusSeconds(multiplyExact(amountToSubtract.days.toLong(), SECONDS_PER_DAY))
         }
         throw DateTimeException("Unsupported TemporalAmount for Instant: $amountToSubtract")
     }
@@ -140,12 +148,12 @@ actual class Instant private constructor(
     actual fun until(endExclusive: Temporal, unit: TemporalUnit): Long {
         val end = from(endExclusive)
         if (unit is ChronoUnit) {
-            val secsDiff = end.epochSecond - epochSecond
+            val secsDiff = addExact(end.epochSecond, -epochSecond)
             val nanosDiff = (end.nano - nano).toLong()
             return when (unit) {
-                ChronoUnit.NANOS -> secsDiff * NANOS_PER_SECOND + nanosDiff
-                ChronoUnit.MICROS -> (secsDiff * NANOS_PER_SECOND + nanosDiff) / 1000L
-                ChronoUnit.MILLIS -> toEpochMilliDiff(end)
+                ChronoUnit.NANOS -> addExact(multiplyExact(secsDiff, NANOS_PER_SECOND), nanosDiff)
+                ChronoUnit.MICROS -> addExact(multiplyExact(secsDiff, 1_000_000L), nanosDiff / 1000L)
+                ChronoUnit.MILLIS -> addExact(end.toEpochMilli(), -toEpochMilli())
                 ChronoUnit.SECONDS -> secsUntil(end)
                 ChronoUnit.MINUTES -> secsUntil(end) / 60L
                 ChronoUnit.HOURS -> secsUntil(end) / 3600L
@@ -157,14 +165,8 @@ actual class Instant private constructor(
         return unit.between(this, end)
     }
 
-    private fun toEpochMilliDiff(end: Instant): Long {
-        val secsDiff = end.epochSecond - epochSecond
-        val nanosDiff = (end.nano - nano).toLong()
-        return secsDiff * 1000L + nanosDiff / 1_000_000L
-    }
-
     private fun secsUntil(end: Instant): Long {
-        var secsDiff = end.epochSecond - epochSecond
+        var secsDiff = addExact(end.epochSecond, -epochSecond)
         val nanosDiff = end.nano - nano
         if (secsDiff > 0 && nanosDiff < 0) {
             secsDiff--
@@ -206,34 +208,39 @@ actual class Instant private constructor(
     override fun toString(): String = DateTimeFormatter.ISO_INSTANT.format(this)
 
     actual companion object {
+        private const val MIN_SECOND = -31557014167219200L
+        private const val MAX_SECOND = 31556889864403199L
+
         actual val EPOCH: Instant = Instant(0L, 0)
-        actual val MIN: Instant = ofEpochSecond(-31557014167219200L, 0)
-        actual val MAX: Instant = ofEpochSecond(31556889864403199L, 999999999)
+        actual val MIN: Instant = ofEpochSecond(MIN_SECOND, 0)
+        actual val MAX: Instant = ofEpochSecond(MAX_SECOND, 999999999)
 
         actual fun now(): Instant = ofEpochMilli(System.currentTimeMillis())
 
         actual fun now(clock: Clock): Instant = clock.instant()
 
         actual fun ofEpochMilli(epochMilli: Long): Instant {
-            var secs = epochMilli / 1000L
-            var mos = (epochMilli % 1000L).toInt()
-            if (mos < 0) {
-                mos += 1000
-                secs--
-            }
-            return Instant(secs, mos * 1000000)
+            val secs = epochMilli.floorDiv(1000L)
+            val mos = epochMilli.mod(1000L).toInt()
+            return create(secs, mos * 1000000)
         }
 
-        actual fun ofEpochSecond(epochSecond: Long): Instant = ofEpochSecond(epochSecond, 0L)
+        actual fun ofEpochSecond(epochSecond: Long): Instant = create(epochSecond, 0)
 
         actual fun ofEpochSecond(epochSecond: Long, nanoAdjustment: Long): Instant {
-            var secs = epochSecond + nanoAdjustment / 1000000000L
-            var nos = (nanoAdjustment % 1000000000L).toInt()
-            if (nos < 0) {
-                nos += 1000000000
-                secs--
+            val secs = addExact(epochSecond, nanoAdjustment.floorDiv(1000000000L))
+            val nos = nanoAdjustment.mod(1000000000L).toInt()
+            return create(secs, nos)
+        }
+
+        private fun create(seconds: Long, nanoOfSecond: Int): Instant {
+            if ((seconds or nanoOfSecond.toLong()) == 0L) {
+                return EPOCH
             }
-            return Instant(secs, nos)
+            if (seconds < MIN_SECOND || seconds > MAX_SECOND) {
+                throw DateTimeException("Instant exceeds minimum or maximum instant")
+            }
+            return Instant(seconds, nanoOfSecond)
         }
 
         actual fun parse(text: CharSequence): Instant {

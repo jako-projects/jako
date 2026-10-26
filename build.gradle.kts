@@ -61,3 +61,16 @@ tasks.register<Exec>("dumpApiBaseline") {
         "--rerun-tasks"
     )
 }
+
+tasks.register<Exec>("dumpTestCoverage") {
+    group = "verification"
+    description = "Scans commonMain public declarations vs commonTest references and regenerates TEST_COVERAGE.md."
+    workingDir = rootDir
+    commandLine(
+        "./gradlew",
+        ":jako-stdlib:jvmTest",
+        "--tests", "jako.test.parity.JdkSignatureParityTest.testPublicClassCoverageLedger",
+        "-Pjako.updateTestCoverage=true",
+        "--rerun-tasks"
+    )
+}

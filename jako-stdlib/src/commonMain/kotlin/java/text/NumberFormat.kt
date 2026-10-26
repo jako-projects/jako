@@ -2,6 +2,7 @@
 
 package java.text
 
+import java.math.RoundingMode
 import java.util.Locale
 
 expect abstract class NumberFormat : Format {
@@ -11,7 +12,8 @@ expect abstract class NumberFormat : Format {
     abstract fun format(number: Double, toAppendTo: StringBuilder, pos: FieldPosition): StringBuilder
     abstract fun format(number: Long, toAppendTo: StringBuilder, pos: FieldPosition): StringBuilder
     abstract fun parse(source: String, parsePosition: ParsePosition): Number?
-    open fun parse(source: String): Number?
+    @Throws(ParseException::class)
+    open fun parse(source: String): Number
     open fun isGroupingUsed(): Boolean
     open fun setGroupingUsed(newValue: Boolean)
     open fun getMaximumIntegerDigits(): Int
@@ -22,8 +24,13 @@ expect abstract class NumberFormat : Format {
     open fun setMaximumFractionDigits(newValue: Int)
     open fun getMinimumFractionDigits(): Int
     open fun setMinimumFractionDigits(newValue: Int)
+    open fun getRoundingMode(): RoundingMode
+    open fun setRoundingMode(roundingMode: RoundingMode)
 
     companion object {
+        val INTEGER_FIELD: Int
+        val FRACTION_FIELD: Int
+
         fun getInstance(): NumberFormat
         fun getInstance(inLocale: Locale): NumberFormat
         fun getNumberInstance(): NumberFormat

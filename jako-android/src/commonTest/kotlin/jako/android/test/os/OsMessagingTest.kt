@@ -4,6 +4,7 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
 import android.os.Message
+import android.os.MessageQueue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -96,18 +97,27 @@ class OsMessagingTest {
         val ht = HandlerThread("worker-2")
         ht.start()
         val looper = ht.looper!!
+        val queue: MessageQueue = looper.queue
         val handler = Handler(looper)
 
         val order = mutableListOf<Int>()
         val idleCalled = AtomicInteger(0)
         val latch = CountDownLatch(1)
 
+        val removableIdle = MessageQueue.IdleHandler {
+            idleCalled.addAndGet(100)
+            false
+        }
+        queue.addIdleHandler(removableIdle)
+        queue.removeIdleHandler(removableIdle)
+
         handler.post(Runnable {
-            looper.queue.addIdleHandler {
+            val oneShotIdle = MessageQueue.IdleHandler {
                 idleCalled.incrementAndGet()
                 latch.countDown()
                 false // remove after first idle
             }
+            queue.addIdleHandler(oneShotIdle)
             handler.sendMessage(handler.obtainMessage(10))
             handler.sendMessageAtFrontOfQueue(handler.obtainMessage(20))
         })

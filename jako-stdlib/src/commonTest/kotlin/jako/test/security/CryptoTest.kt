@@ -10,9 +10,11 @@ import java.security.KeyPairGenerator
 import java.security.MessageDigest
 import java.security.NoSuchAlgorithmException
 import java.security.Signature
+import java.security.interfaces.RSAKey
 import java.security.interfaces.RSAPrivateKey
 import java.security.interfaces.RSAPublicKey
 import java.security.spec.ECGenParameterSpec
+import java.security.spec.EncodedKeySpec
 import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.RSAPrivateKeySpec
 import java.security.spec.RSAPublicKeySpec
@@ -424,6 +426,147 @@ class CryptoTest {
         // Tamper with message -> false
         verifier.update("Tampered ECDSA message!".encodeToByteArray())
         assertFalse(verifier.verify(signature))
+    }
+
+    @Test
+    fun testNistEmptyAndMultiBlockShaAndRfc4231HmacVectors() {
+        // NIST FIPS 180-4 empty string vectors
+        val empty = ByteArray(0)
+        assertEquals(
+            "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+            MessageDigest.getInstance("SHA-1").digest(empty).toHex()
+        )
+        assertEquals(
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            MessageDigest.getInstance("SHA-256").digest(empty).toHex()
+        )
+        assertEquals(
+            "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b",
+            MessageDigest.getInstance("SHA-384").digest(empty).toHex()
+        )
+        assertEquals(
+            "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e",
+            MessageDigest.getInstance("SHA-512").digest(empty).toHex()
+        )
+
+        // NIST 448-bit multi-block vector ("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq")
+        val multiBlock = "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq".encodeToByteArray()
+        assertEquals(
+            "84983e441c3bd26ebaae4aa1f95129e5e54670f1",
+            MessageDigest.getInstance("SHA-1").digest(multiBlock).toHex()
+        )
+        assertEquals(
+            "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1",
+            MessageDigest.getInstance("SHA-256").digest(multiBlock).toHex()
+        )
+
+        // RFC 4231 Test Case 1: Key = 20 bytes of 0x0b, Data = "Hi There"
+        val keyCase1 = ByteArray(20) { 0x0b.toByte() }
+        val dataCase1 = "Hi There".encodeToByteArray()
+        val mac256 = Mac.getInstance("HmacSHA256")
+        mac256.init(SecretKeySpec(keyCase1, "HmacSHA256"))
+        assertEquals(
+            "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7",
+            mac256.doFinal(dataCase1).toHex()
+        )
+
+        val mac384 = Mac.getInstance("HmacSHA384")
+        mac384.init(SecretKeySpec(keyCase1, "HmacSHA384"))
+        assertEquals(
+            "afd03944d84895626b0825f4ab46907f15f9dadbe4101ec682aa034c7cebc59cfaea9ea9076ede7f4af152e8b2fa9cb6",
+            mac384.doFinal(dataCase1).toHex()
+        )
+
+        val mac512 = Mac.getInstance("HmacSHA512")
+        mac512.init(SecretKeySpec(keyCase1, "HmacSHA512"))
+        assertEquals(
+            "87aa7cdea5ef619d4ff0b4241a1d6cb02379f4e2ce4ec2787ad0b30545e17cde" +
+                "daa833b7d6b8a702038b274eaea3f4e4be9d914eeb61f1702e696c203a126854",
+            mac512.doFinal(dataCase1).toHex()
+        )
+    }
+
+    @Test
+    fun testNistAesCtrAndGcmTagSizesVectors() {
+        // NIST SP 800-38A F.5.1 CTR-AES128.Encrypt
+        val ctrKey = SecretKeySpec(hexToBytes("2b7e151628aed2a6abf7158809cf4f3c"), "AES")
+        val initCounter = IvParameterSpec(hexToBytes("f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff"))
+        val plain = hexToBytes("6bc1bee22e409f96e93d7e117393172aae2d8a571e03ac9c9eb76fac45af8e51")
+        val expectedCtr = hexToBytes("874d6191b620e3261bef6864990db6ce9806f66b7970fdff8617187bb9fffdff")
+
+        val ctr = Cipher.getInstance("AES/CTR/NoPadding")
+        ctr.init(Cipher.ENCRYPT_MODE, ctrKey, initCounter)
+        assertContentEquals(expectedCtr, ctr.doFinal(plain))
+
+        ctr.init(Cipher.DECRYPT_MODE, ctrKey, initCounter)
+        assertContentEquals(plain, ctr.doFinal(expectedCtr))
+
+        // AES-GCM with 96-bit (12-byte) authentication tag and empty plaintext (GMAC mode)
+        val gcmKey = SecretKeySpec(hexToBytes("feffe9928665731c6d6a8f9467308308"), "AES")
+        val gcmIv = hexToBytes("cafebabefacedbaddecaf888")
+        val aad = "authenticated-header-only".encodeToByteArray()
+
+        val gcm96 = Cipher.getInstance("AES/GCM/NoPadding")
+        gcm96.init(Cipher.ENCRYPT_MODE, gcmKey, GCMParameterSpec(96, gcmIv))
+        gcm96.updateAAD(aad)
+        val tagOnly = gcm96.doFinal(ByteArray(0))
+        assertEquals(12, tagOnly.size)
+
+        val gcm96Dec = Cipher.getInstance("AES/GCM/NoPadding")
+        gcm96Dec.init(Cipher.DECRYPT_MODE, gcmKey, GCMParameterSpec(96, gcmIv))
+        gcm96Dec.updateAAD(aad)
+        assertContentEquals(ByteArray(0), gcm96Dec.doFinal(tagOnly))
+    }
+
+    @Test
+    fun testRsaKeyAndEncodedKeySpecRoundTrips() {
+        val kpg = KeyPairGenerator.getInstance("RSA")
+        kpg.initialize(512)
+        val kp = kpg.generateKeyPair()
+
+        val pubKey = kp.public as RSAPublicKey
+        val privKey = kp.private as RSAPrivateKey
+
+        // Verify RSAKey superinterface contract on both public and private keys
+        val pubRsaKey: RSAKey = pubKey
+        val privRsaKey: RSAKey = privKey
+        assertEquals(pubRsaKey.getModulus(), privRsaKey.getModulus())
+        assertEquals(pubRsaKey.modulus, privRsaKey.modulus)
+        assertEquals(512, pubRsaKey.modulus.bitLength())
+
+        // Verify EncodedKeySpec hierarchy (X509EncodedKeySpec & PKCS8EncodedKeySpec)
+        val x509Spec: EncodedKeySpec = X509EncodedKeySpec(pubKey.encoded)
+        assertEquals("X.509", x509Spec.getFormat())
+        assertEquals("X.509", x509Spec.format)
+        assertContentEquals(pubKey.encoded, x509Spec.getEncoded())
+        assertContentEquals(pubKey.encoded, x509Spec.encoded)
+
+        val pkcs8Spec: EncodedKeySpec = PKCS8EncodedKeySpec(privKey.encoded)
+        assertEquals("PKCS#8", pkcs8Spec.getFormat())
+        assertEquals("PKCS#8", pkcs8Spec.format)
+        assertContentEquals(privKey.encoded, pkcs8Spec.getEncoded())
+        assertContentEquals(privKey.encoded, pkcs8Spec.encoded)
+
+        val kf = KeyFactory.getInstance("RSA")
+        val decodedPub = kf.generatePublic(x509Spec) as RSAPublicKey
+        val decodedPriv = kf.generatePrivate(pkcs8Spec) as RSAPrivateKey
+        assertEquals(pubRsaKey.modulus, (decodedPub as RSAKey).modulus)
+        assertEquals(privRsaKey.modulus, (decodedPriv as RSAKey).modulus)
+
+        // KeyFactory.getKeySpec and translateKey round-trip
+        val pubSpecTemplate = RSAPublicKeySpec(pubRsaKey.modulus, pubKey.publicExponent)
+        val extractedPubSpec = kf.getKeySpec(decodedPub, pubSpecTemplate.javaClass)
+        assertEquals(pubRsaKey.modulus, extractedPubSpec.modulus)
+        assertEquals(pubKey.publicExponent, extractedPubSpec.publicExponent)
+
+        val extractedX509 = kf.getKeySpec(decodedPub, x509Spec.javaClass)
+        assertContentEquals(pubKey.encoded, extractedX509.encoded)
+
+        val extractedPkcs8 = kf.getKeySpec(decodedPriv, pkcs8Spec.javaClass)
+        assertContentEquals(privKey.encoded, extractedPkcs8.encoded)
+
+        val translatedPub = kf.translateKey(decodedPub) as RSAPublicKey
+        assertEquals(pubRsaKey.modulus, (translatedPub as RSAKey).modulus)
     }
 }
 

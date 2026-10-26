@@ -75,12 +75,41 @@ class StreamApiTest {
 
     @Test
     fun testStreamBuildersIterateConcatAndClose() {
-        val built = Stream.builder<String>()
+        val streamBuilder: Stream.Builder<String> = Stream.builder()
+        streamBuilder.accept("zero")
+        val built = streamBuilder
             .add("first")
             .add("second")
             .build()
             .collect(Collectors.toList())
-        assertEquals(listOf("first", "second"), built)
+        assertEquals(listOf("zero", "first", "second"), built)
+        kotlin.test.assertFailsWith<IllegalStateException> {
+            streamBuilder.add("after-build")
+        }
+
+        val intBuilder: IntStream.Builder = IntStream.builder()
+        intBuilder.accept(10)
+        intBuilder.add(20).add(30)
+        assertContentEquals(intArrayOf(10, 20, 30), intBuilder.build().toArray())
+        kotlin.test.assertFailsWith<IllegalStateException> {
+            intBuilder.add(40)
+        }
+
+        val longBuilder: LongStream.Builder = LongStream.builder()
+        longBuilder.accept(100L)
+        longBuilder.add(200L)
+        assertContentEquals(longArrayOf(100L, 200L), longBuilder.build().toArray())
+        kotlin.test.assertFailsWith<IllegalStateException> {
+            longBuilder.add(300L)
+        }
+
+        val doubleBuilder: DoubleStream.Builder = DoubleStream.builder()
+        doubleBuilder.accept(1.5)
+        doubleBuilder.add(2.5)
+        assertContentEquals(doubleArrayOf(1.5, 2.5), doubleBuilder.build().toArray())
+        kotlin.test.assertFailsWith<IllegalStateException> {
+            doubleBuilder.add(3.5)
+        }
 
         val powersOfTwo = Stream.iterate(1, UnaryOperator { it * 2 })
             .limit(5)
@@ -126,8 +155,13 @@ class StreamApiTest {
         val customCollector = Collector.of(
             Supplier { ArrayList<Int>() },
             { list, v: Int -> list.add(v * 10) },
-            BinaryOperator { l1, l2 -> l1.addAll(l2); l1 }
+            BinaryOperator { l1, l2 -> l1.addAll(l2); l1 },
+            Collector.Characteristics.IDENTITY_FINISH,
+            Collector.Characteristics.UNORDERED
         )
+        assertTrue(customCollector.characteristics().contains(Collector.Characteristics.IDENTITY_FINISH))
+        assertTrue(customCollector.characteristics().contains(Collector.Characteristics.UNORDERED))
+        assertFalse(customCollector.characteristics().contains(Collector.Characteristics.CONCURRENT))
         val collected = StreamSupport.stream(Arrays.spliterator(arrayOf(1, 2, 3)), false)
             .collect(customCollector)
         assertEquals(listOf(10, 20, 30), collected)

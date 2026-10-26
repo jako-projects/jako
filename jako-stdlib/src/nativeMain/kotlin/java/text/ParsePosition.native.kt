@@ -5,5 +5,6 @@ actual class ParsePosition actual constructor(actual var index: Int) {
     actual fun getIndex(): Int = index
     actual fun setIndex(index: Int) { this.index = index }
     actual fun getErrorIndex(): Int = errorIndex
+    actual fun setErrorIndex(ei: Int) { this.errorIndex = ei }
     actual var errorIndex: Int = -1
 }

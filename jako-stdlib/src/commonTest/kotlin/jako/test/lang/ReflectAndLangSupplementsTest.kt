@@ -142,10 +142,12 @@ class ReflectAndLangSupplementsTest {
         assertEquals(Thread.State.NEW, t.state)
         t.priority = Thread.MAX_PRIORITY
         assertEquals(Thread.MAX_PRIORITY, t.priority)
-        t.setUncaughtExceptionHandler { _, e ->
+        val ueh = Thread.UncaughtExceptionHandler { _, e ->
             caughtError.set(e)
             latch.countDown()
         }
+        t.setUncaughtExceptionHandler(ueh)
+        assertEquals(ueh, t.getUncaughtExceptionHandler())
         t.start()
         assertTrue(latch.await(5, TimeUnit.SECONDS))
         t.join(5000)
@@ -176,5 +178,48 @@ class ReflectAndLangSupplementsTest {
         assertEquals("monitor", IllegalMonitorStateException("monitor").message)
         assertEquals("sec", SecurityException("sec").message)
         assertEquals("store", ArrayStoreException("store").message)
+    }
+
+    @Test
+    fun testCharacterAndMath() {
+        assertTrue(java.lang.Character.isDigit('5'))
+        assertTrue(java.lang.Character.isDigit('5'.code))
+        assertFalse(java.lang.Character.isDigit('a'))
+        assertTrue(java.lang.Character.isLetter('Z'))
+        assertTrue(java.lang.Character.isLetter('Z'.code))
+        assertTrue(java.lang.Character.isLetterOrDigit('9'))
+        assertTrue(java.lang.Character.isLetterOrDigit('k'.code))
+        assertTrue(java.lang.Character.isWhitespace(' '))
+        assertTrue(java.lang.Character.isWhitespace('\n'.code))
+        assertTrue(java.lang.Character.isISOControl('\u0007'))
+        assertTrue(java.lang.Character.isISOControl(0x7F))
+        assertEquals('a', java.lang.Character.toLowerCase('A'))
+        assertEquals('a'.code, java.lang.Character.toLowerCase('A'.code))
+        assertEquals('Z', java.lang.Character.toUpperCase('z'))
+        assertEquals('Z'.code, java.lang.Character.toUpperCase('z'.code))
+        assertEquals(15, java.lang.Character.digit('f', 16))
+        assertEquals(15, java.lang.Character.digit('F'.code, 16))
+        assertEquals('f', java.lang.Character.forDigit(15, 16))
+        assertEquals(1, java.lang.Character.charCount(0x41))
+        assertEquals(2, java.lang.Character.charCount(0x1F600))
+        val surrogatePair = java.lang.Character.toChars(0x1F600)
+        assertEquals(2, surrogatePair.size)
+        assertEquals(0x1F600, java.lang.Character.codePointAt(surrogatePair.concatToString(), 0))
+        assertFailsWith<IllegalArgumentException> { java.lang.Character.toChars(-1) }
+
+        assertTrue(java.lang.Math.PI > 3.14159 && java.lang.Math.PI < 3.14160)
+        assertTrue(java.lang.Math.E > 2.71828 && java.lang.Math.E < 2.71829)
+        assertEquals(3, java.lang.Math.min(3, 7))
+        assertEquals(3L, java.lang.Math.min(3L, 7L))
+        assertEquals(1.5f, java.lang.Math.min(1.5f, 2.5f))
+        assertEquals(1.5, java.lang.Math.min(1.5, 2.5))
+        assertEquals(7, java.lang.Math.max(3, 7))
+        assertEquals(7L, java.lang.Math.max(3L, 7L))
+        assertEquals(2.5f, java.lang.Math.max(1.5f, 2.5f))
+        assertEquals(2.5, java.lang.Math.max(1.5, 2.5))
+        assertEquals(42, java.lang.Math.abs(-42))
+        assertEquals(42L, java.lang.Math.abs(-42L))
+        assertEquals(3.5f, java.lang.Math.abs(-3.5f))
+        assertEquals(3.5, java.lang.Math.abs(-3.5))
     }
 }

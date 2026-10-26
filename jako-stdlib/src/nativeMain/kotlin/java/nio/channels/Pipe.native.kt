@@ -41,7 +41,7 @@ internal class PipeImpl : Pipe() {
         }
 
         override fun read(dst: ByteBuffer): Int {
-            if (dst.isReadOnly()) throw ReadOnlyBufferException()
+            if (dst.isReadOnly()) throw IllegalArgumentException("Read-only buffer")
             lock.withLock {
                 if (!sourceOpen) throw ClosedChannelException()
                 val rem = dst.remaining()
@@ -70,7 +70,7 @@ internal class PipeImpl : Pipe() {
             var total = 0L
             for (i in offset until offset + length) {
                 val dst = dsts[i]
-                if (dst.isReadOnly()) throw ReadOnlyBufferException()
+                if (dst.isReadOnly()) throw IllegalArgumentException("Read-only buffer")
                 if (!dst.hasRemaining()) continue
                 val n = read(dst)
                 if (n < 0) return if (total == 0L) -1L else total

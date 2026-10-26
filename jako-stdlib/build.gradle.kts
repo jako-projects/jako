@@ -20,6 +20,8 @@ kotlin {
             useJUnitPlatform()
             systemProperty("jako.jdkRelease", providers.gradleProperty("jako.jdkRelease").orElse("8").get())
             systemProperty("jako.updateApiBaseline", providers.gradleProperty("jako.updateApiBaseline").orElse("false").get())
+            systemProperty("jako.updateTestCoverage", providers.gradleProperty("jako.updateTestCoverage").orElse("false").get())
+            systemProperty("jako.enforceTestCoverage", providers.gradleProperty("jako.enforceTestCoverage").orElse("true").get())
         }
     }
 

@@ -1,6 +1,7 @@
 package jako.test.text
 
 import java.text.*
+import java.text.CollationKey
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
@@ -110,14 +111,24 @@ class TextSupplementsTest {
         assertTrue(collator.compare("abc", "ABC") < 0)
         assertTrue(collator.compare("A", "b") < 0)
 
-        val k1 = collator.getCollationKey("apple")
-        val k2 = collator.getCollationKey("banana")
-        val k3 = collator.getCollationKey("apple")
+        // Canonical decomposition vs no decomposition on precomposed/decomposed "café"
+        collator.setDecomposition(Collator.CANONICAL_DECOMPOSITION)
+        assertEquals(Collator.CANONICAL_DECOMPOSITION, collator.getDecomposition())
+        assertEquals(0, collator.compare("caf\u00e9", "cafe\u0301"))
+
+        val k1: CollationKey = collator.getCollationKey("apple")
+        val k2: CollationKey = collator.getCollationKey("banana")
+        val k3: CollationKey = collator.getCollationKey("apple")
+        assertEquals("apple", k1.sourceString)
         assertEquals("apple", k1.getSourceString())
         assertTrue(k1.compareTo(k2) < 0)
+        assertTrue(k2.compareTo(k1) > 0)
         assertEquals(0, k1.compareTo(k3))
         assertEquals(k1, k3)
+        assertEquals(k1.hashCode(), k3.hashCode())
+        assertNotEquals(k1, k2)
         assertTrue(k1.toByteArray().isNotEmpty())
+        assertContentEquals(k1.toByteArray(), k3.toByteArray())
     }
 
     @Test

@@ -60,12 +60,14 @@ public class FileTreeWalk private constructor(
             if (direction == FileWalkDirection.TOP_DOWN) {
                 results.add(current)
             }
-            if (depth < maxDepth) {
-                val children = current.listFiles()
-                if (children == null) {
-                    onFail?.invoke(current, IOException("Cannot list files in a directory"))
-                } else {
-                    for (child in children) {
+            val children = current.listFiles()
+            if (children == null) {
+                onFail?.invoke(current, IOException("Cannot list files in a directory"))
+            } else {
+                for (child in children) {
+                    if (!child.isDirectory() || depth >= maxDepth) {
+                        results.add(child)
+                    } else {
                         walkRecursive(child, depth + 1)
                     }
                 }

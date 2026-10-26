@@ -81,6 +81,6 @@ actual abstract class Authenticator actual constructor() {
             protocol: String?,
             prompt: String?,
             scheme: String?
-        ): PasswordAuthentication? = requestPasswordAuthentication(host, addr, port, protocol, prompt, scheme, null, null)
+        ): PasswordAuthentication? = requestPasswordAuthentication(host, addr, port, protocol, prompt, scheme, null, RequestorType.SERVER)
     }
 }

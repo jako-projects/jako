@@ -157,34 +157,58 @@ actual class Period private constructor(
             var weeks = 0
             var days = 0
             var parsedAny = false
-            while (idx < s.length) {
-                var sign = 1
-                if (s[idx] == '+' || s[idx] == '-') {
-                    if (s[idx] == '-') sign = -1
+            var lastUnitOrder = 0 // 1=Y, 2=M, 3=W, 4=D
+            try {
+                while (idx < s.length) {
+                    var sign = 1
+                    if (s[idx] == '+' || s[idx] == '-') {
+                        if (s[idx] == '-') sign = -1
+                        idx++
+                    }
+                    val numStart = idx
+                    while (idx < s.length && s[idx] in '0'..'9') idx++
+                    if (idx == numStart || idx >= s.length) {
+                        throw DateTimeParseException("Text cannot be parsed to a Period", s, idx)
+                    }
+                    val num = s.substring(numStart, idx).toIntOrNull()
+                        ?: throw DateTimeParseException("Text cannot be parsed to a Period", s, numStart)
+                    val unitChar = s[idx].uppercaseChar()
                     idx++
+                    parsedAny = true
+                    val signedNum = multiplyExact(num, sign)
+                    when (unitChar) {
+                        'Y' -> {
+                            if (lastUnitOrder >= 1) throw DateTimeParseException("Text cannot be parsed to a Period", s, idx - 1)
+                            lastUnitOrder = 1
+                            years = signedNum
+                        }
+                        'M' -> {
+                            if (lastUnitOrder >= 2) throw DateTimeParseException("Text cannot be parsed to a Period", s, idx - 1)
+                            lastUnitOrder = 2
+                            months = signedNum
+                        }
+                        'W' -> {
+                            if (lastUnitOrder >= 3) throw DateTimeParseException("Text cannot be parsed to a Period", s, idx - 1)
+                            lastUnitOrder = 3
+                            weeks = signedNum
+                        }
+                        'D' -> {
+                            if (lastUnitOrder >= 4) throw DateTimeParseException("Text cannot be parsed to a Period", s, idx - 1)
+                            lastUnitOrder = 4
+                            days = signedNum
+                        }
+                        else -> throw DateTimeParseException("Text cannot be parsed to a Period", s, idx - 1)
+                    }
                 }
-                val numStart = idx
-                while (idx < s.length && s[idx] in '0'..'9') idx++
-                if (idx == numStart || idx >= s.length) {
-                    throw DateTimeParseException("Text cannot be parsed to a Period", s, idx)
-                }
-                val num = s.substring(numStart, idx).toIntOrNull()
-                    ?: throw DateTimeParseException("Text cannot be parsed to a Period", s, numStart)
-                val unitChar = s[idx].uppercaseChar()
-                idx++
-                parsedAny = true
-                when (unitChar) {
-                    'Y' -> years = num * sign
-                    'M' -> months = num * sign
-                    'W' -> weeks = num * sign
-                    'D' -> days = num * sign
-                    else -> throw DateTimeParseException("Text cannot be parsed to a Period", s, idx - 1)
-                }
+                if (!parsedAny) throw DateTimeParseException("Text cannot be parsed to a Period", s, 0)
+                val totalDays = addExact(days, multiplyExact(weeks, 7))
+                val result = of(years, months, totalDays)
+                return if (negative) result.negated() else result
+            } catch (ex: DateTimeParseException) {
+                throw ex
+            } catch (ex: ArithmeticException) {
+                throw DateTimeParseException("Text cannot be parsed to a Period: overflow", s, 0)
             }
-            if (!parsedAny) throw DateTimeParseException("Text cannot be parsed to a Period", s, 0)
-            val totalDays = addExact(days, multiplyExact(weeks, 7))
-            val result = of(years, months, totalDays)
-            return if (negative) result.negated() else result
         }
 
         private fun fromAmount(amount: TemporalAmount): Period {

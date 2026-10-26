@@ -8,6 +8,7 @@ expect class ParsePosition {
     fun getIndex(): Int
     fun setIndex(index: Int)
     fun getErrorIndex(): Int
+    fun setErrorIndex(ei: Int)
     var index: Int
     var errorIndex: Int
 }

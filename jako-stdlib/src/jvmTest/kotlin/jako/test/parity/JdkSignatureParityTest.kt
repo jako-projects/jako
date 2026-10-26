@@ -1139,6 +1139,256 @@ class JdkSignatureParityTest {
         }
     }
 
+    private data class ClassCoverageItem(
+        val moduleName: String,
+        val pkg: String,
+        val fqName: String,
+        val kind: String,
+        val matchedTests: List<String>,
+        val isException: Boolean,
+        val isMarkerOrBaseInterface: Boolean
+    )
+
+    /**
+     * Scans all public declarations across `jako-stdlib` and `jako-android` `commonMain` source trees
+     * against `commonTest` references, maintains `TEST_COVERAGE.md` (when `-Pjako.updateTestCoverage=true`),
+     * and enforces 0 untested non-exempt public classes when `-Pjako.enforceTestCoverage=true`.
+     */
+    @Test
+    fun testPublicClassCoverageLedger() {
+        val repoRoot = findRepoRoot()
+        val updateCoverage = System.getProperty("jako.updateTestCoverage")?.toBoolean() == true
+        val enforceCoverage = System.getProperty("jako.enforceTestCoverage", "true").toBoolean()
+
+        val modules = listOf(
+            Triple(
+                "jako-stdlib",
+                File(repoRoot, "jako-stdlib/src/commonMain/kotlin"),
+                File(repoRoot, "jako-stdlib/src/commonTest/kotlin")
+            ),
+            Triple(
+                "jako-android",
+                File(repoRoot, "jako-android/src/commonMain/kotlin"),
+                File(repoRoot, "jako-android/src/commonTest/kotlin")
+            )
+        )
+
+        val exemptSimpleTypeKinds = setOf(
+            "java.io.Serializable",
+            "java.io.Closeable",
+            "java.io.Flushable",
+            "java.lang.Cloneable",
+            "java.lang.Object",
+            "java.security.Principal",
+            "java.security.spec.KeySpec",
+            "java.security.spec.AlgorithmParameterSpec",
+            "java.nio.file.CopyOption",
+            "java.nio.file.OpenOption",
+            "java.nio.channels.InterruptibleChannel",
+            "java.nio.channels.ByteChannel",
+            "java.nio.channels.ReadableByteChannel",
+            "java.nio.channels.WritableByteChannel",
+            "java.nio.channels.ScatteringByteChannel",
+            "java.nio.channels.GatheringByteChannel",
+            "java.nio.channels.SeekableByteChannel",
+            "java.nio.channels.NetworkChannel",
+            "java.nio.channels.SelectableChannel",
+            "java.time.temporal.Temporal",
+            "java.time.temporal.TemporalAccessor",
+            "java.time.temporal.TemporalAdjuster",
+            "java.time.temporal.TemporalAmount",
+            "java.time.temporal.TemporalField",
+            "java.time.temporal.TemporalUnit",
+            "java.util.Queue",
+            "java.util.Deque",
+            "java.util.SortedSet",
+            "java.util.NavigableSet",
+            "java.util.NavigableMap",
+            "java.util.PrimitiveIterator",
+            "java.util.PrimitiveIterator.OfInt",
+            "java.util.PrimitiveIterator.OfLong",
+            "java.util.PrimitiveIterator.OfDouble",
+            "java.util.Spliterator.OfPrimitive",
+            "java.util.Spliterator.OfInt",
+            "java.util.Spliterator.OfLong",
+            "java.util.Spliterator.OfDouble",
+            "java.util.concurrent.BlockingQueue",
+            "java.util.concurrent.BlockingDeque",
+            "java.util.concurrent.TransferQueue",
+            "java.util.concurrent.ExecutorService",
+            "java.util.concurrent.ScheduledExecutorService",
+            "java.util.concurrent.ScheduledFuture",
+            "java.util.concurrent.RunnableFuture",
+            "java.util.concurrent.CompletionStage",
+            "java.util.concurrent.CompletionService",
+            "java.util.concurrent.locks.ReadWriteLock",
+            "java.util.function.Consumer",
+            "java.util.function.BiConsumer",
+            "java.util.function.BiPredicate",
+            "java.util.stream.BaseStream",
+            "java.util.zip.Checksum",
+            "javax.net.ssl.KeyManager"
+        )
+
+        data class TestFileEntry(
+            val relPath: String,
+            val strippedContent: String,
+            val tokens: Set<String>
+        )
+
+        val allItems = mutableListOf<ClassCoverageItem>()
+
+        for ((moduleName, mainRoot, testRoot) in modules) {
+            if (!mainRoot.isDirectory) continue
+            val decls = parseSourceTree(mainRoot, isExpect = true).toMutableMap()
+            decls.putAll(parseConcreteClasses(mainRoot))
+
+            val testEntries = if (testRoot.isDirectory) {
+                testRoot.walkTopDown()
+                    .filter { it.isFile && it.extension == "kt" }
+                    .sortedBy { it.invariantSeparatorsPath }
+                    .map { tf ->
+                        val raw = tf.readText()
+                        val noBlock = raw.replace(Regex("""/\*[\s\S]*?\*/"""), "")
+                        val noComments = noBlock.replace(Regex("""//.*"""), "")
+                        val tokens = Regex("""\b[A-Za-z_][A-Za-z0-9_]*\b""")
+                            .findAll(noComments)
+                            .map { it.value }
+                            .toSet()
+                        TestFileEntry(
+                            relPath = tf.relativeTo(testRoot).invariantSeparatorsPath,
+                            strippedContent = noComments,
+                            tokens = tokens
+                        )
+                    }
+                    .toList()
+            } else {
+                emptyList()
+            }
+
+            for ((fqName, decl) in decls.entries.sortedBy { it.key }) {
+                val parts = fqName.split('.')
+                val pkgParts = parts.takeWhile { it.first().isLowerCase() }
+                val clsParts = parts.dropWhile { it.first().isLowerCase() }.ifEmpty { listOf(parts.last()) }
+                val pkg = pkgParts.joinToString(".")
+                val topSimple = clsParts.first()
+                val leafSimple = clsParts.last()
+
+                val matched = testEntries.filter { te ->
+                    fqName in te.strippedContent ||
+                        (leafSimple in te.tokens && (clsParts.size == 1 || topSimple in te.tokens))
+                }.map { it.relPath }
+
+                val isException = fqName.endsWith("Exception") || fqName.endsWith("Error") ||
+                    "Exception" in decl.supertypes || "Error" in decl.supertypes || "IOException" in decl.supertypes
+                val isExempt = fqName in exemptSimpleTypeKinds
+
+                allItems.add(
+                    ClassCoverageItem(
+                        moduleName = moduleName,
+                        pkg = pkg,
+                        fqName = fqName,
+                        kind = decl.kind,
+                        matchedTests = matched,
+                        isException = isException,
+                        isMarkerOrBaseInterface = isExempt
+                    )
+                )
+            }
+        }
+
+        val coverageDoc = File(repoRoot, "TEST_COVERAGE.md")
+        val markdown = buildCoverageMarkdown(allItems)
+        if (updateCoverage || !coverageDoc.isFile) {
+            coverageDoc.writeText(markdown)
+        }
+
+        val untestedActionable = allItems.filter {
+            it.matchedTests.isEmpty() && !it.isException && !it.isMarkerOrBaseInterface
+        }
+
+        println(
+            "📊 [TestCoverageLedger] Total public types: ${allItems.size}, " +
+                "Directly tested: ${allItems.count { it.matchedTests.isNotEmpty() }}, " +
+                "Actionable untested classes: ${untestedActionable.size}"
+        )
+
+        if (enforceCoverage && untestedActionable.isNotEmpty()) {
+            fail(
+                "Found ${untestedActionable.size} untested public class(es) in commonMain without commonTest coverage:\n" +
+                    untestedActionable.joinToString("\n") { "  - [${it.moduleName}] ${it.fqName} (${it.kind})" } +
+                    "\nAdd unit tests in commonTest and run './gradlew dumpTestCoverage'."
+            )
+        }
+    }
+
+    private fun buildCoverageMarkdown(items: List<ClassCoverageItem>): String {
+        val sb = StringBuilder()
+        sb.append("# `jako` Public Class Test Coverage Ledger (公开类测试覆盖率账本)\n\n")
+        sb.append("> **自动生成说明**：本文件由 `./gradlew dumpTestCoverage`（`JdkSignatureParityTest.testPublicClassCoverageLedger`）自动扫描 `commonMain` 公开类型与 `commonTest` 引用关系生成，请勿手动编辑。\n\n")
+
+        val total = items.size
+        val tested = items.count { it.matchedTests.isNotEmpty() }
+        val untestedActionable = items.filter { it.matchedTests.isEmpty() && !it.isException && !it.isMarkerOrBaseInterface }
+        val untestedExempt = items.filter { it.matchedTests.isEmpty() && it.isMarkerOrBaseInterface }
+        val untestedExceptions = items.filter { it.matchedTests.isEmpty() && it.isException }
+
+        sb.append("## 1. 总体概览 (Overall Summary)\n\n")
+        sb.append("| 模块 (Module) | 公开类型总数 | 已有直接测试 | 待补测核心类 (Actionable) | 豁免基础接口/标记接口 | 未显式引用异常类 | 核心类覆盖率 |\n")
+        sb.append("| :--- | ---: | ---: | ---: | ---: | ---: | ---: |\n")
+
+        for (mod in listOf("jako-stdlib", "jako-android")) {
+            val modItems = items.filter { it.moduleName == mod }
+            val modTotal = modItems.size
+            val modTested = modItems.count { it.matchedTests.isNotEmpty() }
+            val modActionable = modItems.count { it.matchedTests.isEmpty() && !it.isException && !it.isMarkerOrBaseInterface }
+            val modExempt = modItems.count { it.matchedTests.isEmpty() && it.isMarkerOrBaseInterface }
+            val modExc = modItems.count { it.matchedTests.isEmpty() && it.isException }
+            val coreDenom = (modTotal - modExempt - modExc).coerceAtLeast(1)
+            val coreNum = coreDenom - modActionable
+            val pct = (coreNum * 100.0 / coreDenom).toInt()
+            sb.append("| `$mod` | $modTotal | $modTested | **$modActionable** | $modExempt | $modExc | $pct% ($coreNum/$coreDenom) |\n")
+        }
+        val totalCoreDenom = (total - untestedExempt.size - untestedExceptions.size).coerceAtLeast(1)
+        val totalCoreNum = totalCoreDenom - untestedActionable.size
+        val totalPct = (totalCoreNum * 100.0 / totalCoreDenom).toInt()
+        sb.append("| **合计 (Total)** | **$total** | **$tested** | **${untestedActionable.size}** | **${untestedExempt.size}** | **${untestedExceptions.size}** | **$totalPct% ($totalCoreNum/$totalCoreDenom)** |\n\n")
+
+        sb.append("## 2. 按包分类统计 (Coverage by Package)\n\n")
+        sb.append("| 模块 | 包名 (Package) | 总类型数 | 已测试 | 待补测核心类 | 待补测清单 |\n")
+        sb.append("| :--- | :--- | ---: | ---: | ---: | :--- |\n")
+
+        val byModPkg = items.groupBy { it.moduleName to it.pkg }.toSortedMap(compareBy<Pair<String, String>> { it.first }.thenBy { it.second })
+        for ((key, pkgItems) in byModPkg) {
+            val (mod, pkg) = key
+            val pTotal = pkgItems.size
+            val pTested = pkgItems.count { it.matchedTests.isNotEmpty() }
+            val pUntested = pkgItems.filter { it.matchedTests.isEmpty() && !it.isException && !it.isMarkerOrBaseInterface }
+            val missingNames = if (pUntested.isEmpty()) "✅ 全部覆盖" else pUntested.joinToString(", ") { "`${it.fqName.removePrefix("$pkg.")}`" }
+            sb.append("| `$mod` | `$pkg` | $pTotal | $pTested | ${pUntested.size} | $missingNames |\n")
+        }
+        sb.append("\n")
+
+        sb.append("## 3. 待补测核心类清单 (Actionable Untested Classes: ${untestedActionable.size})\n\n")
+        if (untestedActionable.isEmpty()) {
+            sb.append("🎉 **所有非豁免公开核心类均已在 `commonTest` 中包含直接测试引用！**\n\n")
+        } else {
+            for (item in untestedActionable) {
+                sb.append("- [ ] `[${item.moduleName}]` `${item.fqName}` (${item.kind})\n")
+            }
+            sb.append("\n")
+        }
+
+        sb.append("## 4. 豁免的抽象/标记接口与基础契约 (Exempt Marker/Base Interfaces: ${untestedExempt.size})\n\n")
+        sb.append("> 以下接口属于基础父接口或标记接口，已通过其具体实现类间接测试覆盖：\n\n")
+        for (item in untestedExempt) {
+            sb.append("- `${item.fqName}` (${item.kind})\n")
+        }
+        sb.append("\n")
+
+        return sb.toString()
+    }
+
     private fun parseClassSourceFileAndMembers(data: ByteArray): Pair<String?, Set<String>> {
         val buf = java.nio.ByteBuffer.wrap(data)
         if (buf.remaining() < 10 || buf.int != 0xCAFEBABE.toInt()) return null to emptySet()

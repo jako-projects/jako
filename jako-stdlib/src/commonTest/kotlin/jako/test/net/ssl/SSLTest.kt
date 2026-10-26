@@ -251,6 +251,82 @@ class SSLTest {
         }
     }
 
+    @Test
+    fun testSNIHostNameValidationAndEquality() {
+        val sni1 = SNIHostName("example.com")
+        assertEquals("example.com", sni1.getAsciiName())
+        assertEquals("example.com", sni1.asciiName)
+        assertContentEquals("example.com".encodeToByteArray(), sni1.getEncoded())
+        assertEquals("type=host_name (0), value=example.com", sni1.toString())
+
+        // Case-insensitive equality and hashCode
+        val sniUpper = SNIHostName("EXAMPLE.COM")
+        assertEquals(sni1, sniUpper)
+        assertEquals(sni1.hashCode(), sniUpper.hashCode())
+
+        // Encoded byte[] constructor
+        val sniFromBytes = SNIHostName("api.example.org".encodeToByteArray())
+        assertEquals("api.example.org", sniFromBytes.asciiName)
+
+        // IDN punycode conversion
+        val sniIdn = SNIHostName("bücher.de")
+        assertEquals("xn--bcher-kva.de", sniIdn.asciiName.lowercase())
+
+        // Invalid hostnames rejected with IllegalArgumentException
+        assertFailsWith<IllegalArgumentException> {
+            SNIHostName("")
+        }
+        assertFailsWith<IllegalArgumentException> {
+            SNIHostName("example.com.")
+        }
+        assertFailsWith<IllegalArgumentException> {
+            SNIHostName("-invalid.example.com")
+        }
+        assertFailsWith<IllegalArgumentException> {
+            SNIHostName(ByteArray(0))
+        }
+    }
+
+    @Test
+    fun testExtendedSSLSessionContract() {
+        val server = LoopbackTls12Server { "OK".encodeToByteArray() }
+        server.start()
+        try {
+            val cf = CertificateFactory.getInstance("X.509")
+            val serverCert = cf.generateCertificate(ByteArrayInputStream(TestTlsCredentials.certificateDer))
+            val ks = KeyStore.getInstance(KeyStore.getDefaultType())
+            ks.load(null, null)
+            ks.setCertificateEntry("loopback", serverCert)
+            val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
+            tmf.init(ks)
+
+            val sslContext = SSLContext.getInstance("TLS")
+            sslContext.init(null, tmf.getTrustManagers(), null)
+
+            val rawSocket = Socket("127.0.0.1", server.port)
+            val sslSocket = wrapWithTlsRsaCipherSuite(sslContext.getSocketFactory())
+                .createSocket(rawSocket, "secure.example.com", server.port, true) as SSLSocket
+            sslSocket.setSoTimeout(5000)
+            sslSocket.startHandshake()
+
+            val session = sslSocket.getSession()
+            assertTrue(session is ExtendedSSLSession)
+            val extSession: ExtendedSSLSession = session
+            assertEquals("secure.example.com", extSession.getPeerHost())
+            assertEquals(server.port, extSession.getPeerPort())
+            assertTrue(extSession.isValid())
+
+            val requestedNames = extSession.getRequestedServerNames()
+            assertNotNull(requestedNames)
+            assertEquals(requestedNames, extSession.requestedServerNames)
+            assertTrue(requestedNames.contains(SNIHostName("secure.example.com")))
+
+            sslSocket.close()
+        } finally {
+            server.close()
+        }
+    }
+
     private fun wrapWithTlsRsaCipherSuite(delegate: SSLSocketFactory): SSLSocketFactory {
         return object : SSLSocketFactory() {
             private fun configure(s: Socket): Socket {

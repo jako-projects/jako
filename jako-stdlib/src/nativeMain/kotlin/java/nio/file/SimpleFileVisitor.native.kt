@@ -43,35 +43,28 @@ internal fun walk(
         return visitor.visitFileFailed(path, e)
     }
 
-    if (!attrs.isDirectory()) {
+    if (!attrs.isDirectory() || depth >= maxDepth) {
         return visitor.visitFile(path, attrs)
     }
 
     val pre = visitor.preVisitDirectory(path, attrs)
     when (pre) {
         FileVisitResult.TERMINATE -> return FileVisitResult.TERMINATE
-        FileVisitResult.SKIP_SIBLINGS -> {
-            val post = visitor.postVisitDirectory(path, null)
-            return if (post == FileVisitResult.TERMINATE) FileVisitResult.TERMINATE else FileVisitResult.SKIP_SIBLINGS
-        }
-        FileVisitResult.SKIP_SUBTREE -> {
-            return normalizePost(visitor.postVisitDirectory(path, null))
-        }
-        FileVisitResult.CONTINUE -> { /* walk children when depth allows */ }
+        FileVisitResult.SKIP_SIBLINGS -> return FileVisitResult.SKIP_SIBLINGS
+        FileVisitResult.SKIP_SUBTREE -> return FileVisitResult.CONTINUE
+        FileVisitResult.CONTINUE -> { /* walk children */ }
     }
 
     var ioExc: IOException? = null
-    if (depth < maxDepth) {
-        val files = path.toFile().listFiles()
-        if (files == null) {
-            ioExc = IOException("Unable to list directory $path")
-        } else {
-            for (childFile in files) {
-                val child = path.resolve(childFile.getName())
-                val result = walk(child, depth + 1, maxDepth, visitor)
-                if (result == FileVisitResult.TERMINATE) return FileVisitResult.TERMINATE
-                if (result == FileVisitResult.SKIP_SIBLINGS) break
-            }
+    val files = path.toFile().listFiles()
+    if (files == null) {
+        ioExc = IOException("Unable to list directory $path")
+    } else {
+        for (childFile in files) {
+            val child = path.resolve(childFile.getName())
+            val result = walk(child, depth + 1, maxDepth, visitor)
+            if (result == FileVisitResult.TERMINATE) return FileVisitResult.TERMINATE
+            if (result == FileVisitResult.SKIP_SIBLINGS) break
         }
     }
 

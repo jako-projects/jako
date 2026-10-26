@@ -1109,30 +1109,59 @@ class java.math.BigDecimal : Comparable, Number, Serializable {
   constructor/1
   constructor/1
   constructor/2
+  constructor/2
+  constructor/2
+  constructor/2
+  constructor/2
+  constructor/2
+  constructor/3
   property ONE
   property TEN
   property ZERO
   fun abs/0
+  fun abs/1
   fun add/1
+  fun add/2
+  fun byteValueExact/0
   fun compareTo/1
   fun divide/1
   fun divide/2
   fun divide/3
+  fun divideAndRemainder/1
+  fun divideAndRemainder/2
+  fun divideToIntegralValue/1
+  fun divideToIntegralValue/2
   fun equals/1
   fun hashCode/0
+  fun intValueExact/0
+  fun longValueExact/0
+  fun max/1
+  fun min/1
   fun movePointLeft/1
   fun movePointRight/1
   fun multiply/1
+  fun multiply/2
   fun negate/0
+  fun negate/1
+  fun plus/0
+  fun plus/1
   fun pow/1
+  fun pow/2
   fun precision/0
   fun remainder/1
+  fun remainder/2
+  fun round/1
   fun scale/0
+  fun scaleByPowerOfTen/1
   fun setScale/1
   fun setScale/2
+  fun shortValueExact/0
   fun signum/0
   fun stripTrailingZeros/0
   fun subtract/1
+  fun subtract/2
+  fun toBigInteger/0
+  fun toBigIntegerExact/0
   fun toByte/0
   fun toChar/0
   fun toDouble/0
@@ -1143,6 +1172,7 @@ class java.math.BigDecimal : Comparable, Number, Serializable {
   fun toPlainString/0
   fun toShort/0
   fun toString/0
+  fun ulp/0
   fun unscaledValue/0
   fun valueOf/1
   fun valueOf/2
@@ -3145,6 +3175,7 @@ class java.text.ChoiceFormat : NumberFormat {
 
 abstract class java.text.CollationKey : Comparable {
   constructor/1
+  property sourceString
   fun compareTo/1
   fun getSourceString/0
   fun toByteArray/0
@@ -3173,11 +3204,38 @@ abstract class java.text.Collator : Cloneable, Comparator {
 }
 
 abstract class java.text.DateFormat : Format {
+  property DATE_FIELD
+  property DEFAULT
+  property ERA_FIELD
+  property FULL
+  property HOUR_OF_DAY0_FIELD
+  property HOUR_OF_DAY1_FIELD
+  property LONG
+  property MEDIUM
+  property MILLISECOND_FIELD
+  property MINUTE_FIELD
+  property MONTH_FIELD
+  property SECOND_FIELD
+  property SHORT
+  property YEAR_FIELD
   property isLenient
   property timeZone
   fun format/1
+  fun getDateInstance/0
+  fun getDateInstance/1
+  fun getDateInstance/2
+  fun getDateTimeInstance/0
+  fun getDateTimeInstance/2
+  fun getDateTimeInstance/3
+  fun getInstance/0
+  fun getTimeInstance/0
+  fun getTimeInstance/1
+  fun getTimeInstance/2
+  fun getTimeZone/0
   fun parse/1
   fun parse/2
+  fun setLenient/1
+  fun setTimeZone/1
 }
 
 class java.text.DateFormatSymbols : Cloneable, Serializable {
@@ -3258,6 +3316,7 @@ class java.text.FieldPosition {
   constructor/1
   property beginIndex
   property endIndex
+  property field
   fun getBeginIndex/0
   fun getEndIndex/0
   fun getField/0
@@ -3277,6 +3336,10 @@ class java.text.MessageFormat : Format {
   constructor/2
   fun applyPattern/1
   fun format/2*
+  fun getLocale/0
+  fun parse/1
+  fun parse/2
+  fun setLocale/1
   fun toPattern/0
 }
 
@@ -3290,6 +3353,8 @@ enum class java.text.Normalizer.Form {
 
 abstract class java.text.NumberFormat : Format {
   constructor/0
+  property FRACTION_FIELD
+  property INTEGER_FIELD
   fun format/1
   fun format/3
   fun getCurrencyInstance/0
@@ -3306,6 +3371,7 @@ abstract class java.text.NumberFormat : Format {
   fun getNumberInstance/1
   fun getPercentInstance/0
   fun getPercentInstance/1
+  fun getRoundingMode/0
   fun isGroupingUsed/0
   fun parse/1
   fun parse/2
@@ -3314,6 +3380,7 @@ abstract class java.text.NumberFormat : Format {
   fun setMaximumIntegerDigits/1
   fun setMinimumFractionDigits/1
   fun setMinimumIntegerDigits/1
+  fun setRoundingMode/1
 }
 
 class java.text.ParseException : Exception {
@@ -3328,6 +3395,7 @@ class java.text.ParsePosition {
   property index
   fun getErrorIndex/0
   fun getIndex/0
+  fun setErrorIndex/1
   fun setIndex/1
 }
 
@@ -3720,6 +3788,7 @@ class java.time.OffsetDateTime : Comparable, Serializable, Temporal, TemporalAdj
   property offset
   fun adjustInto/1
   fun compareTo/1
+  fun format/1
   fun from/1
   fun getOffset/0
   fun isAfter/1
@@ -3730,6 +3799,7 @@ class java.time.OffsetDateTime : Comparable, Serializable, Temporal, TemporalAdj
   fun of/3
   fun ofInstant/2
   fun parse/1
+  fun parse/2
   fun toEpochSecond/0
   fun toInstant/0
   fun toLocalDate/0
@@ -3901,33 +3971,89 @@ class java.time.ZoneOffset : Comparable, Serializable, TemporalAccessor, Tempora
 }
 
 class java.time.ZonedDateTime : Serializable, Temporal {
+  property dayOfMonth
+  property dayOfWeek
+  property dayOfYear
+  property hour
+  property minute
+  property month
+  property monthValue
+  property nano
   property offset
+  property second
+  property year
   property zone
+  fun format/1
   fun from/1
+  fun getDayOfMonth/0
+  fun getDayOfWeek/0
+  fun getDayOfYear/0
+  fun getHour/0
+  fun getMinute/0
+  fun getMonth/0
+  fun getMonthValue/0
+  fun getNano/0
   fun getOffset/0
+  fun getSecond/0
+  fun getYear/0
   fun getZone/0
+  fun minus/1
+  fun minusDays/1
+  fun minusHours/1
+  fun minusMinutes/1
+  fun minusMonths/1
+  fun minusNanos/1
+  fun minusSeconds/1
+  fun minusWeeks/1
+  fun minusYears/1
   fun now/0
   fun now/1
   fun of/2
   fun of/3
+  fun of/8
   fun ofInstant/2
   fun parse/1
+  fun parse/2
+  fun plus/1
+  fun plusDays/1
+  fun plusHours/1
+  fun plusMinutes/1
+  fun plusMonths/1
+  fun plusNanos/1
+  fun plusSeconds/1
+  fun plusWeeks/1
+  fun plusYears/1
   fun toEpochSecond/0
   fun toInstant/0
   fun toLocalDate/0
   fun toLocalDateTime/0
   fun toLocalTime/0
   fun toOffsetDateTime/0
+  fun withEarlierOffsetAtOverlap/0
+  fun withLaterOffsetAtOverlap/0
+  fun withZoneSameInstant/1
+  fun withZoneSameLocal/1
 }
 
 class java.time.format.DateTimeFormatter {
+  property BASIC_ISO_DATE
+  property ISO_DATE_TIME
   property ISO_INSTANT
   property ISO_LOCAL_DATE
   property ISO_LOCAL_DATE_TIME
   property ISO_LOCAL_TIME
+  property ISO_OFFSET_DATE_TIME
+  property ISO_ZONED_DATE_TIME
+  property locale
+  property zone
   fun format/1
+  fun getLocale/0
+  fun getZone/0
   fun ofPattern/1
+  fun ofPattern/2
   fun parse/1
+  fun withLocale/1
+  fun withZone/1
 }
 
 class java.time.format.DateTimeParseException : DateTimeException {
@@ -7430,8 +7556,10 @@ interface javax.net.ssl.KeyManager {
 
 class javax.net.ssl.SNIHostName {
   constructor/1
+  constructor/1
   property asciiName
   fun getAsciiName/0
+  fun getEncoded/0
 }
 
 class javax.net.ssl.SSLContext {

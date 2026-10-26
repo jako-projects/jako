@@ -26,24 +26,20 @@ actual open class ChoiceFormat : NumberFormat {
     actual open fun getFormats(): Array<Any> = Array(choiceFormats.size) { choiceFormats[it] }
 
     actual open fun applyPattern(newPattern: String) {
-        val segments = newPattern.split('|')
         val limits = ArrayList<Double>()
         val formats = ArrayList<String>()
-        for (seg in segments) {
-            if (seg.isEmpty()) continue
-            var sepIdx = -1
-            var sepChar = '#'
-            for (i in seg.indices) {
-                val c = seg[i]
-                if (c == '#' || c == '<' || c == '\u2264') {
-                    sepIdx = i
-                    sepChar = c
-                    break
-                }
+        val numBuf = StringBuilder()
+        val fmtBuf = StringBuilder()
+        var part = 0 // 0 = limit number, 1 = format text
+        var sepChar = '#'
+        var inQuote = false
+
+        fun flushSegment() {
+            if (part == 0) {
+                if (numBuf.isEmpty()) return
+                throw IllegalArgumentException("Invalid ChoiceFormat pattern: $newPattern")
             }
-            if (sepIdx < 0) throw IllegalArgumentException("Invalid ChoiceFormat pattern: $newPattern")
-            val numStr = seg.substring(0, sepIdx).trim()
-            val fmtStr = seg.substring(sepIdx + 1)
+            val numStr = numBuf.toString().trim()
             val baseLimit = when (numStr) {
                 "\u221E", "Infinity" -> Double.POSITIVE_INFINITY
                 "-\u221E", "-Infinity" -> Double.NEGATIVE_INFINITY
@@ -54,7 +50,50 @@ actual open class ChoiceFormat : NumberFormat {
                 throw IllegalArgumentException("ChoiceFormat limits must be in ascending order")
             }
             limits.add(limit)
-            formats.add(fmtStr)
+            formats.add(fmtBuf.toString())
+            numBuf.setLength(0)
+            fmtBuf.setLength(0)
+            part = 0
+            sepChar = '#'
+        }
+
+        var i = 0
+        while (i < newPattern.length) {
+            val c = newPattern[i]
+            if (c == '\'') {
+                if (i + 1 < newPattern.length && newPattern[i + 1] == '\'') {
+                    (if (part == 0) numBuf else fmtBuf).append('\'')
+                    i += 2
+                    continue
+                }
+                inQuote = !inQuote
+                i++
+                continue
+            }
+            if (inQuote) {
+                (if (part == 0) numBuf else fmtBuf).append(c)
+                i++
+                continue
+            }
+            when {
+                c == '<' || c == '#' || c == '\u2264' -> {
+                    if (part != 0 || numBuf.isEmpty()) {
+                        throw IllegalArgumentException("Invalid ChoiceFormat pattern: $newPattern")
+                    }
+                    sepChar = c
+                    part = 1
+                }
+                c == '|' -> {
+                    flushSegment()
+                }
+                else -> {
+                    (if (part == 0) numBuf else fmtBuf).append(c)
+                }
+            }
+            i++
+        }
+        if (part == 1 || numBuf.isNotEmpty()) {
+            flushSegment()
         }
         choiceLimits = limits.toDoubleArray()
         choiceFormats = formats.toTypedArray()

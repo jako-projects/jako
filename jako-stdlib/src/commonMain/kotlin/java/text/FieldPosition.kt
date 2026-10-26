@@ -9,6 +9,7 @@ expect open class FieldPosition {
     open fun setBeginIndex(bi: Int)
     open fun getEndIndex(): Int
     open fun setEndIndex(ei: Int)
+    open val field: Int
     open var beginIndex: Int
     open var endIndex: Int
 }
