@@ -2,9 +2,9 @@
 
 [English](README.md) | [中文](README_zh.md)
 
-**jako** is an open-source project dedicated to porting and aligning **Java 8 Standard Library APIs** for Kotlin Multiplatform (JVM & Native).
+**jako** is an open-source project dedicated to porting and aligning **Java 8 Standard Library APIs** for Kotlin Multiplatform (**JVM**, **Native**, **Node.js `js`**, and **WebAssembly `wasmJs`**).
 
-On Kotlin Multiplatform Native targets, many standard `java.*` libraries (such as `java.io.File`) that Java developers are familiar with are natively unavailable. `jako` bridges this gap by providing C-Interop (POSIX / Win32) implementations on Native targets — all under the real `java.*` package names — so existing JVM libraries can compile and run on Kotlin Native **without changing a single import statement**.
+On non-JVM Kotlin Multiplatform targets (Native, JS, and WasmJs), standard `java.*` libraries (such as `java.io.File`, `java.net.Socket`, `java.time.*`, `java.nio.*`, `java.security.*`) that Java developers are familiar with are natively unavailable. `jako` bridges this gap by providing POSIX / Win32 C-Interop implementations on Native targets and Node.js (`node:fs`, `node:net`, `node:dgram`, `node:dns`, `node:crypto`, `node:child_process`, `worker_threads` + `SharedArrayBuffer`/`Atomics`) implementations on JS & WasmJs — all under the real `java.*` package names — so existing JVM libraries can compile and run across Kotlin Multiplatform **without changing a single import statement**.
 
 ---
 
@@ -15,15 +15,17 @@ On Kotlin Multiplatform Native targets, many standard `java.*` libraries (such a
    - Unified unit tests written in `commonTest`. Running `./gradlew check` executes:
      - `jvmTest`: Runs tests against real **JDK 8** (JVM target — `compileKotlinJvm` is empty, tests compile against the real JDK classes).
      - `nativeTest`: Runs the exact same tests against **Kotlin Native** and C-interop implementations.
-     - Passing tests on both targets guarantees Native parity with JDK 8 behavior.
+     - `jsNodeTest` & `wasmJsNodeTest`: Runs the exact same tests on **Node.js (JS IR & WebAssembly)**.
+     - Passing tests across all targets guarantees multiplatform parity with JDK 8 behavior.
 
 2. **Zero-Overhead on JVM (Empty `jvmJar`)**
-   - Unlike `actual typealias` wrapper approaches, `jako` declares `java.*` and `kotlin.*` APIs in `commonMain` for KMP metadata and Native compilation, while configuring `compileKotlinJvm` with empty sources (`setSource(emptyList())`).
+   - Unlike `actual typealias` wrapper approaches, `jako` declares `java.*` and `kotlin.*` APIs in `commonMain` for KMP metadata and non-JVM compilation, while configuring `compileKotlinJvm` with empty sources (`setSource(emptyList())`).
    - On JVM, the Kotlin compiler resolves all `java.*` and `kotlin.*` symbols directly to the real JDK and official `kotlin-stdlib`, and `jvmJar` contains **no `.class` files** — zero runtime overhead, zero indirection, zero classpath pollution.
 
-3. **Cross-Platform Native Support (POSIX & Win32)**
-   - Supports macOS (`arm64`, `x64`), iOS (`arm64`, `x64`, `simulatorArm64`), tvOS, watchOS, Linux (`x64`, `arm64`), and Windows (`mingwX64`).
-   - C-Interop wrappers with strict memory management (`memScoped`) and POSIX `errno` / Win32 error code mapping.
+3. **Full Multiplatform Support (Native POSIX/Win32 + Node.js JS/WasmJs)**
+   - **Native**: Supports macOS (`arm64`, `x64`), iOS (`arm64`, `x64`, `simulatorArm64`), tvOS, watchOS, Linux (`x64`, `arm64`), and Windows (`mingwX64`) via C-Interop (`memScoped`) and POSIX `errno` / Win32 error code mapping.
+   - **JS & WasmJs (Node.js)**: Supports `js(IR) { nodejs() }` and `wasmJs { nodejs() }` with synchronous filesystem (`node:fs`), process (`node:child_process`), OS/env (`node:os`), cryptography (`node:crypto`), and real OS TCP/UDP/DNS networking (`node:net`, `node:dgram`, `node:dns` via background `worker_threads` + `SharedArrayBuffer`/`Atomics`).
+   - **Explicit Runtime Boundaries**: APIs that are fundamentally incompatible with a target runtime (such as preemptive multi-threading `Thread.start()` on single-threaded JS/WasmJs) throw a standardized `UnsupportedOperationException` with clear diagnostic messages; see [`UNSUPPORTED_APIS.md`](UNSUPPORTED_APIS.md).
 
 4. **Explicit Nullability Decisions**
    - Clear decisions and documentation for mapping Java platform types (`T!`) to explicit Kotlin types (`T` vs `T?`).
@@ -127,17 +129,17 @@ kotlin {
 ## 🎯 Status & Coverage
 
 - **Zero-Dependency Standard Library**: `jako-stdlib` is published as an independent, zero-dependency multiplatform library.
-- **Package-by-Package Tracking**: All ported Java 8 packages and Kotlin-stdlib extensions are tracked in [`API_CHECKLIST.md`](API_CHECKLIST.md).
-- **100% Behavioral & Signature Parity**: Dual-target behavioral tests (`commonTest`) and automated JDK reflection parity checks (`JdkSignatureParityTest`) run against both real JDK and Kotlin Native implementations.
+- **Package-by-Package Tracking**: All ported Java 8 packages and Kotlin-stdlib extensions are tracked in [`API_CHECKLIST.md`](API_CHECKLIST.md), with 100% public class unit test coverage tracked in [`TEST_COVERAGE.md`](TEST_COVERAGE.md) and target runtime boundaries documented in [`UNSUPPORTED_APIS.md`](UNSUPPORTED_APIS.md).
+- **100% Behavioral & Signature Parity**: Multi-target behavioral tests (`commonTest`) and automated JDK reflection parity checks (`JdkSignatureParityTest`) run against real JDK, Kotlin Native, Node.js (`js`), and WebAssembly (`wasmJs`) implementations.
 
 | Layer | Component | Status |
 |:---|:---|:---|
-| **jako-stdlib** | Core `java.*` / `javax.*` APIs for Native | ✅ 577 classes & interfaces implemented; see [`API_CHECKLIST.md`](API_CHECKLIST.md) |
-| **jako-android** | Core `android.*`, `org.json` & `org.xmlpull.v1` APIs for Native | ✅ `android.app`, `android.content` (`res`, `pm`), `android.util`, `android.text`, `android.net`, `android.os`, `android.graphics`, `android.webkit`, `android.preference`, `org.json`, `org.xmlpull.v1` & `JakoApplication.init`; see [`ANDROID_API_CHECKLIST.md`](ANDROID_API_CHECKLIST.md) |
-| **jako-compiler-plugin** | K2 FIR + IR Kotlin Compiler Plugin | ✅ Enables `@Synchronized` in `commonMain` & Native with reentrant monitor locks |
+| **jako-stdlib** | Core `java.*` / `javax.*` APIs for Native, JS & WasmJs | ✅ 611 actionable public classes & interfaces (100% test coverage); see [`API_CHECKLIST.md`](API_CHECKLIST.md) & [`TEST_COVERAGE.md`](TEST_COVERAGE.md) |
+| **jako-android** | Core `android.*`, `org.json` & `org.xmlpull.v1` APIs | ✅ `android.app`, `android.content` (`res`, `pm`), `android.util`, `android.text`, `android.net`, `android.os`, `android.graphics`, `android.webkit`, `android.preference`, `org.json`, `org.xmlpull.v1` & `JakoApplication.init`; see [`ANDROID_API_CHECKLIST.md`](ANDROID_API_CHECKLIST.md) |
+| **jako-compiler-plugin** | K2 FIR + IR Kotlin Compiler Plugin | ✅ Enables `@Synchronized` across `commonMain`, Native, JS & WasmJs with reentrant monitor locks |
 | **jako-gradle-plugin** | Unified Gradle plugin (`com.bennyhuo.jako`) | ✅ Wires `jako-compiler-plugin` (`@Synchronized`) and generates compile-time `R.kt` from `res/` |
 | **Kotlin Extensions** | Official `kotlin.*` extensions for Java APIs | ✅ Concrete implementations in `commonMain` under official `kotlin.*` packages |
-| **sample** | Standalone KMP Sample Project | ✅ Demonstrates `jako-stdlib`, `jako-android` & `jako-gradle-plugin` across JVM & Native via `includeBuild("../")` |
+| **sample** | Standalone KMP Sample Project | ✅ Demonstrates `jako-stdlib`, `jako-android` & `jako-gradle-plugin` across JVM, Native, JS & WasmJs via `includeBuild("../")` |
 
 ---
 
@@ -155,16 +157,31 @@ flowchart TB
             JvmMain["<b>jvmMain (Empty Jar)</b><br/><code>compileKotlinJvm</code> has empty sources"]
         end
 
-        subgraph NativeSide["<b>Native Targets</b>"]
-            NativeMain["<b>nativeMain</b><br/><code>actual</code> implementations & shared C-Interop"]
-            PosixMain["<b>posixMain</b><br/>macOS · iOS · tvOS · watchOS · Linux<br/>(POSIX / Darwin / Linux APIs)"]
-            MingwMain["<b>mingwMain</b><br/>Windows x64<br/>(POSIX + Win32 APIs)"]
-            NativeMain --> PosixMain
-            NativeMain --> MingwMain
+        subgraph NonJvmSide["<b>nonJvmMain (Shared Pure-Kotlin Actuals)</b>"]
+            NonJvmMain["<b>nonJvmMain</b><br/><code>java.time</code> · <code>java.math</code> · <code>java.text</code> · <code>java.util</code> · <code>java.security</code>"]
+
+            subgraph NativeSide["<b>Native Targets</b>"]
+                NativeMain["<b>nativeMain</b><br/>C-Interop & Native runtime"]
+                PosixMain["<b>posixMain</b><br/>macOS · iOS · tvOS · watchOS · Linux"]
+                MingwMain["<b>mingwMain</b><br/>Windows x64 (POSIX + Win32)"]
+                NativeMain --> PosixMain
+                NativeMain --> MingwMain
+            end
+
+            subgraph WebSide["<b>Web / Node.js Targets</b>"]
+                WebMain["<b>webMain</b><br/>Shared Node.js I/O, Crypto & Network"]
+                JsMain["<b>jsMain</b><br/>Node.js (JS IR)"]
+                WasmJsMain["<b>wasmJsMain</b><br/>Node.js (WebAssembly)"]
+                WebMain --> JsMain
+                WebMain --> WasmJsMain
+            end
+
+            NonJvmMain --> NativeMain
+            NonJvmMain --> WebMain
         end
 
         Common --> JvmMain
-        Common --> NativeMain
+        Common --> NonJvmMain
     end
 
     Jdk["<b>Real JDK & Official kotlin-stdlib</b><br/>Resolved directly by Kotlin/JVM compiler (Zero Overhead)"]

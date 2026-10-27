@@ -177,8 +177,10 @@ internal fun startPosixProcess(
     if (workDir != null) {
         sb.append("cd ").append(posixShellQuote(workDir.absolutePath)).append(" || exit 127; ")
     }
-    if (readFd >= 0) {
+    if (readFd in 0..9) {
         sb.append("exec 0<&").append(readFd).append("; ")
+    } else if (readFd >= 10) {
+        sb.append("exec < /dev/fd/").append(readFd).append("; ")
     }
     sb.append("echo \$\$ > ").append(posixShellQuote(pidFile.absolutePath)).append("; ")
     sb.append("exec ").append(posixShellQuote(resolvedExec))
@@ -285,6 +287,12 @@ internal class NativeProcessImpl(
                 done = true
                 cond.signalAll()
             }
+            try {
+                stdinStream.close()
+            } catch (_: Throwable) {
+            }
+            stdoutStream.onProcessFinished()
+            (stderrStream as? TailFileInputStream)?.onProcessFinished()
             pidFile.delete()
         }, "Process-Worker")
         worker.isDaemon = true
@@ -446,11 +454,13 @@ internal class TailFileInputStream(
     private val file: File,
     private val proc: NativeProcessImpl
 ) : InputStream() {
+    private val streamLock = ReentrantLock()
     private var raf: RandomAccessFile? = null
     private var pos: Long = 0L
     private var closed = false
+    private var eof = false
 
-    private fun ensureOpen(): RandomAccessFile {
+    private fun ensureOpenLocked(): RandomAccessFile {
         if (closed) throw IOException("Stream closed")
         var r = raf
         if (r == null) {
@@ -458,6 +468,17 @@ internal class TailFileInputStream(
             raf = r
         }
         return r
+    }
+
+    internal fun onProcessFinished() {
+        streamLock.withLock {
+            if (closed || eof) {
+                cleanupFileLocked()
+            } else if (!file.exists() || pos >= file.length()) {
+                eof = true
+                cleanupFileLocked()
+            }
+        }
     }
 
     override fun read(): Int {
@@ -471,55 +492,74 @@ internal class TailFileInputStream(
             throw IndexOutOfBoundsException("off=$off, len=$len, size=${b.size}")
         }
         if (len == 0) return 0
-        val r = ensureOpen()
         while (true) {
-            r.seek(pos)
-            val n = r.read(b, off, len)
-            if (n > 0) {
-                pos += n
-                return n
-            }
-            if (proc.isFinished()) {
+            streamLock.withLock {
+                if (closed) throw IOException("Stream closed")
+                if (eof) return -1
+                val r = ensureOpenLocked()
                 r.seek(pos)
-                val finalRead = r.read(b, off, len)
-                if (finalRead > 0) {
-                    pos += finalRead
-                    return finalRead
+                val n = r.read(b, off, len)
+                if (n > 0) {
+                    pos += n
+                    if (proc.isFinished() && pos >= file.length()) {
+                        eof = true
+                        cleanupFileLocked()
+                    }
+                    return n
                 }
-                cleanupFile()
-                return -1
+                if (proc.isFinished()) {
+                    r.seek(pos)
+                    val finalRead = r.read(b, off, len)
+                    if (finalRead > 0) {
+                        pos += finalRead
+                        if (pos >= file.length()) {
+                            eof = true
+                            cleanupFileLocked()
+                        }
+                        return finalRead
+                    }
+                    eof = true
+                    cleanupFileLocked()
+                    return -1
+                }
             }
             proc.awaitBrief(5L)
         }
     }
 
     override fun available(): Int {
-        if (closed) return 0
-        val len = file.length()
-        val rem = len - pos
-        return if (rem > 0L) rem.coerceAtMost(Int.MAX_VALUE.toLong()).toInt() else 0
+        streamLock.withLock {
+            if (closed || eof || !file.exists()) return 0
+            val len = file.length()
+            val rem = len - pos
+            return if (rem > 0L) rem.coerceAtMost(Int.MAX_VALUE.toLong()).toInt() else 0
+        }
     }
 
     override fun close() {
-        if (!closed) {
-            closed = true
-            try {
-                raf?.close()
-            } catch (_: Throwable) {
-            }
-            raf = null
-            if (proc.isFinished()) {
-                cleanupFile()
+        streamLock.withLock {
+            if (!closed) {
+                closed = true
+                try {
+                    raf?.close()
+                } catch (_: Throwable) {
+                }
+                raf = null
+                if (proc.isFinished()) {
+                    cleanupFileLocked()
+                }
             }
         }
     }
 
-    private fun cleanupFile() {
+    private fun cleanupFileLocked() {
         try {
             raf?.close()
         } catch (_: Throwable) {
         }
         raf = null
-        file.delete()
+        if (file.exists()) {
+            file.delete()
+        }
     }
 }

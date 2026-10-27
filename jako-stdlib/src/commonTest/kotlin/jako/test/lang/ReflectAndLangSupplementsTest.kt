@@ -148,12 +148,22 @@ class ReflectAndLangSupplementsTest {
         }
         t.setUncaughtExceptionHandler(ueh)
         assertEquals(ueh, t.getUncaughtExceptionHandler())
-        t.start()
-        assertTrue(latch.await(5, TimeUnit.SECONDS))
-        t.join(5000)
-        assertEquals(Thread.State.TERMINATED, t.state)
-        assertEquals("root-child", childObserved.get())
-        assertEquals("boom", caughtError.get()?.message)
+        try {
+            t.start()
+            assertTrue(latch.await(5, TimeUnit.SECONDS))
+            t.join(5000)
+            assertEquals(Thread.State.TERMINATED, t.state)
+            assertEquals("root-child", childObserved.get())
+            assertEquals("boom", caughtError.get()?.message)
+        } catch (uoe: UnsupportedOperationException) {
+            assertTrue(uoe.message!!.contains("java.lang.Thread.start()"))
+            try {
+                t.run()
+            } catch (ex: Throwable) {
+                t.getUncaughtExceptionHandler()?.uncaughtException(t, ex)
+            }
+            assertEquals("boom", caughtError.get()?.message)
+        }
         inheritable.remove()
     }
 

@@ -40,7 +40,7 @@ internal fun getObjectMonitor(obj: Any): ObjectMonitor {
 private val staticClassMonitorLockObj = Any()
 
 @PublishedApi
-internal fun lockObjectMonitor(obj: Any?): Any {
+internal actual fun lockObjectMonitor(obj: Any?): Any {
     val target = obj ?: staticClassMonitorLockObj
     val monitor = getObjectMonitor(target)
     monitor.lock.lock()
@@ -48,7 +48,7 @@ internal fun lockObjectMonitor(obj: Any?): Any {
 }
 
 @PublishedApi
-internal fun unlockObjectMonitor(monitor: Any) {
+internal actual fun unlockObjectMonitor(monitor: Any) {
     (monitor as ObjectMonitor).lock.unlock()
 }
 

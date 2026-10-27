@@ -33,7 +33,6 @@ kotlin {
 
     val nativeTargets = listOf(
         macosArm64(),
-        macosX64(),
         linuxX64(),
         linuxArm64(),
         mingwX64()
@@ -45,6 +44,17 @@ kotlin {
                 entryPoint = "com.bennyhuo.jako.sample.main"
             }
         }
+    }
+
+    js {
+        nodejs()
+        binaries.executable()
+    }
+
+    @OptIn(org.jetbrains.kotlin.gradle.ExperimentalWasmDsl::class)
+    wasmJs {
+        nodejs()
+        binaries.executable()
     }
 
     sourceSets {
@@ -89,11 +99,12 @@ val hostNativeTarget = when {
     else -> ""
 }
 val hostNativeTestTask = hostNativeTarget.replaceFirstChar { it.lowercase() } + "Test"
+val enabledTestTasks = setOf("jvmTest", hostNativeTestTask, "jsTest", "jsNodeTest", "wasmJsTest", "wasmJsNodeTest")
 tasks.matching {
     when {
         it.name.startsWith("linkDebugTest") -> !it.name.endsWith(hostNativeTarget)
-        it.name.startsWith("compileTestKotlin") -> !it.name.endsWith("Jvm") && !it.name.endsWith(hostNativeTarget)
-        it.name.endsWith("Test") && it.name != "jvmTest" && it.name != hostNativeTestTask -> true
+        it.name.startsWith("compileTestKotlin") -> !it.name.endsWith("Jvm") && !it.name.endsWith(hostNativeTarget) && !it.name.endsWith("Js") && !it.name.endsWith("WasmJs")
+        it.name.endsWith("Test") && it.name !in enabledTestTasks -> true
         else -> false
     }
 }.configureEach {

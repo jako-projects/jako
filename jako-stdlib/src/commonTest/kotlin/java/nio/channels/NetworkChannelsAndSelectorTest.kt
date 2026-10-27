@@ -228,13 +228,31 @@ class NetworkChannelsAndSelectorTest {
                 val port = (server.getLocalAddress() as InetSocketAddress).getPort()
                 server.register(selector, SelectionKey.OP_ACCEPT)
 
-                // 1. Cross-thread wakeup while blocked in select(5000L)
+                // 1. Cross-thread / scheduled wakeup while blocked in select(5000L)
                 val waker = java.lang.Thread(java.lang.Runnable {
                     java.lang.Thread.sleep(60)
                     selector.wakeup()
                 })
                 val t0 = java.lang.System.currentTimeMillis()
-                waker.start()
+                try {
+                    waker.start()
+                } catch (_: UnsupportedOperationException) {
+                    val scheduler = java.util.concurrent.Executors.newScheduledThreadPool(1)
+                    try {
+                        scheduler.schedule(
+                            java.lang.Runnable { selector.wakeup() },
+                            40L,
+                            java.util.concurrent.TimeUnit.MILLISECONDS
+                        )
+                        val n = selector.select(5000L)
+                        val elapsed = java.lang.System.currentTimeMillis() - t0
+                        assertEquals(0, n)
+                        assertTrue(elapsed < 2500L, "Scheduled Selector.wakeup() should wake up blocking select() promptly (took ${elapsed}ms)")
+                    } finally {
+                        scheduler.shutdown()
+                    }
+                    return
+                }
                 val n = selector.select(5000L)
                 val elapsed = java.lang.System.currentTimeMillis() - t0
                 waker.join()

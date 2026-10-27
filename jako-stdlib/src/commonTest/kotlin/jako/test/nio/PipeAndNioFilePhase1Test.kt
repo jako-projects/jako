@@ -91,6 +91,12 @@ class PipeAndNioFilePhase1Test {
             val fromUri = File(uri)
             assertEquals(file.getCanonicalPath(), fromUri.getCanonicalPath())
 
+            val isWindows = System.getProperty("os.name")?.lowercase()?.contains("win") == true
+            if (isWindows) {
+                val winDriveUri = java.net.URI("file", null, "/C:/Users/Runner/Temp/sample.txt", null, null)
+                assertEquals("C:/Users/Runner/Temp/sample.txt", File(winDriveUri).getPath().replace('\\', '/'))
+            }
+
             file.deleteOnExit()
             assertTrue(file.setWritable(false))
             assertTrue(file.setWritable(true))

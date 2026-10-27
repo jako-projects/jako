@@ -255,13 +255,56 @@ class JdkSignatureParityTest {
         val repoRoot = findRepoRoot()
         val stdlibDir = File(repoRoot, "jako-stdlib")
         val commonDecls = parseSourceTree(File(stdlibDir, "src/commonMain/kotlin"), isExpect = true)
-        val nativeDecls = mutableMapOf<String, TypeDecl>()
-        nativeDecls.putAll(parseSourceTree(File(stdlibDir, "src/nativeMain/kotlin"), isExpect = false))
-        nativeDecls.putAll(parseSourceTree(File(stdlibDir, "src/posixMain/kotlin"), isExpect = false))
+        val nonJvmDecls = parseSourceTree(File(stdlibDir, "src/nonJvmMain/kotlin"), isExpect = false)
+        val nativeSharedDecls = parseSourceTree(File(stdlibDir, "src/nativeMain/kotlin"), isExpect = false)
+        val posixOnlyDecls = parseSourceTree(File(stdlibDir, "src/posixMain/kotlin"), isExpect = false)
+        val mingwOnlyDecls = parseSourceTree(File(stdlibDir, "src/mingwMain/kotlin"), isExpect = false)
 
-        val nativeTypealiases = parseActualTypealiases(File(stdlibDir, "src/nativeMain/kotlin"))
+        val nativeDecls = mutableMapOf<String, TypeDecl>()
+        nativeDecls.putAll(nonJvmDecls)
+        nativeDecls.putAll(nativeSharedDecls)
+        nativeDecls.putAll(posixOnlyDecls)
+
+        val mingwDecls = mutableMapOf<String, TypeDecl>()
+        mingwDecls.putAll(nonJvmDecls)
+        mingwDecls.putAll(nativeSharedDecls)
+        mingwDecls.putAll(mingwOnlyDecls)
+
+        val webDecls = mutableMapOf<String, TypeDecl>()
+        webDecls.putAll(nonJvmDecls)
+        webDecls.putAll(parseSourceTree(File(stdlibDir, "src/webMain/kotlin"), isExpect = false))
+        webDecls.putAll(parseSourceTree(File(stdlibDir, "src/jsMain/kotlin"), isExpect = false))
+        webDecls.putAll(parseSourceTree(File(stdlibDir, "src/wasmJsMain/kotlin"), isExpect = false))
+
+        val nonJvmTypealiases = parseActualTypealiases(File(stdlibDir, "src/nonJvmMain/kotlin"))
+        val nativeSharedTypealiases = nonJvmTypealiases + parseActualTypealiases(File(stdlibDir, "src/nativeMain/kotlin"))
+        val nativeTypealiases = nativeSharedTypealiases + parseActualTypealiases(File(stdlibDir, "src/posixMain/kotlin"))
+        val mingwTypealiases = nativeSharedTypealiases + parseActualTypealiases(File(stdlibDir, "src/mingwMain/kotlin"))
+        val webTypealiases = nonJvmTypealiases +
+            parseActualTypealiases(File(stdlibDir, "src/webMain/kotlin")) +
+            parseActualTypealiases(File(stdlibDir, "src/jsMain/kotlin")) +
+            parseActualTypealiases(File(stdlibDir, "src/wasmJsMain/kotlin"))
 
         val errors = mutableListOf<String>()
+
+        val sourceSetSuffixRules = listOf(
+            "nonJvmMain" to ".nonJvm.kt",
+            "nativeMain" to ".native.kt",
+            "posixMain" to ".posix.kt",
+            "mingwMain" to ".mingw.kt",
+            "webMain" to ".web.kt",
+            "jsMain" to ".js.kt",
+            "wasmJsMain" to ".wasmJs.kt"
+        )
+        for ((sourceSetName, requiredSuffix) in sourceSetSuffixRules) {
+            val dir = File(stdlibDir, "src/$sourceSetName/kotlin")
+            if (!dir.isDirectory) continue
+            dir.walkTopDown().filter { it.isFile && it.extension == "kt" }.forEach { file ->
+                if (!file.name.endsWith(requiredSuffix)) {
+                    errors.add("File naming convention violation in $sourceSetName: ${file.relativeTo(stdlibDir)} must end with '$requiredSuffix'")
+                }
+            }
+        }
 
         val cl = Thread.currentThread().contextClassLoader
         for ((fqName, commonDecl) in commonDecls.entries.sortedBy { it.key }) {
@@ -273,29 +316,73 @@ class JdkSignatureParityTest {
             if (expectedSourceFile != null && commonDecl.sourceFile != expectedSourceFile) {
                 errors.add("File organization mismatch for commonMain $fqName: expected $expectedSourceFile (from stdlib/JDK SourceFile), found ${commonDecl.sourceFile}")
             }
-            if (fqName in nativeTypealiases) continue
-            val nativeDecl = nativeDecls[fqName]
-            if (nativeDecl == null) {
-                errors.add("Missing actual declaration in nativeMain/posixMain for expect ${commonDecl.kind} $fqName (${commonDecl.sourceFile})")
-                continue
-            }
-            if (expectedSourceFile != null) {
-                val baseName = expectedSourceFile.removeSuffix(".kt")
-                if (nativeDecl.sourceFile != "$baseName.native.kt" && nativeDecl.sourceFile != "$baseName.posix.kt") {
-                    errors.add("File organization mismatch for nativeMain/posixMain $fqName: expected $baseName.native.kt (or .posix.kt), found ${nativeDecl.sourceFile}")
+            if (fqName !in nativeTypealiases) {
+                val nativeDecl = nativeDecls[fqName]
+                if (nativeDecl == null) {
+                    errors.add("Missing actual declaration in nonJvmMain/nativeMain/posixMain for expect ${commonDecl.kind} $fqName (${commonDecl.sourceFile})")
+                } else {
+                    if (expectedSourceFile != null) {
+                        val baseName = expectedSourceFile.removeSuffix(".kt")
+                        val validNativeFiles = setOf("$baseName.nonJvm.kt", "$baseName.native.kt", "$baseName.posix.kt")
+                        if (nativeDecl.sourceFile !in validNativeFiles) {
+                            errors.add("File organization mismatch for nonJvmMain/nativeMain/posixMain $fqName: expected one of $validNativeFiles, found ${nativeDecl.sourceFile}")
+                        }
+                    }
+                    if (commonDecl.supertypes != nativeDecl.supertypes) {
+                        errors.add(
+                            "Supertype mismatch for $fqName (Native POSIX):\n" +
+                                "  commonMain (${commonDecl.sourceFile}): ${commonDecl.supertypes}\n" +
+                                "  native (${nativeDecl.sourceFile}): ${nativeDecl.supertypes}"
+                        )
+                    }
                 }
             }
-            if (commonDecl.supertypes != nativeDecl.supertypes) {
-                errors.add(
-                    "Supertype mismatch for $fqName:\n" +
-                        "  commonMain (${commonDecl.sourceFile}): ${commonDecl.supertypes}\n" +
-                        "  nativeMain (${nativeDecl.sourceFile}): ${nativeDecl.supertypes}"
-                )
+            if (fqName !in mingwTypealiases) {
+                val mingwDecl = mingwDecls[fqName]
+                if (mingwDecl == null) {
+                    errors.add("Missing actual declaration in nonJvmMain/nativeMain/mingwMain for expect ${commonDecl.kind} $fqName (${commonDecl.sourceFile})")
+                } else {
+                    if (expectedSourceFile != null) {
+                        val baseName = expectedSourceFile.removeSuffix(".kt")
+                        val validMingwFiles = setOf("$baseName.nonJvm.kt", "$baseName.native.kt", "$baseName.mingw.kt")
+                        if (mingwDecl.sourceFile !in validMingwFiles) {
+                            errors.add("File organization mismatch for nonJvmMain/nativeMain/mingwMain $fqName: expected one of $validMingwFiles, found ${mingwDecl.sourceFile}")
+                        }
+                    }
+                    if (commonDecl.supertypes != mingwDecl.supertypes) {
+                        errors.add(
+                            "Supertype mismatch for $fqName (Native Mingw):\n" +
+                                "  commonMain (${commonDecl.sourceFile}): ${commonDecl.supertypes}\n" +
+                                "  mingw (${mingwDecl.sourceFile}): ${mingwDecl.supertypes}"
+                        )
+                    }
+                }
+            }
+            if (fqName !in webTypealiases) {
+                val webDecl = webDecls[fqName]
+                if (webDecl == null) {
+                    errors.add("Missing actual declaration in nonJvmMain/webMain/jsMain/wasmJsMain for expect ${commonDecl.kind} $fqName (${commonDecl.sourceFile})")
+                } else {
+                    if (expectedSourceFile != null) {
+                        val baseName = expectedSourceFile.removeSuffix(".kt")
+                        val validWebFiles = setOf("$baseName.nonJvm.kt", "$baseName.web.kt", "$baseName.js.kt", "$baseName.wasmJs.kt")
+                        if (webDecl.sourceFile !in validWebFiles) {
+                            errors.add("File organization mismatch for nonJvmMain/webMain $fqName: expected one of $validWebFiles, found ${webDecl.sourceFile}")
+                        }
+                    }
+                    if (commonDecl.supertypes != webDecl.supertypes) {
+                        errors.add(
+                            "Supertype mismatch for $fqName (Web):\n" +
+                                "  commonMain (${commonDecl.sourceFile}): ${commonDecl.supertypes}\n" +
+                                "  web (${webDecl.sourceFile}): ${webDecl.supertypes}"
+                        )
+                    }
+                }
             }
         }
 
         if (errors.isNotEmpty()) {
-            fail("Found ${errors.size} commonMain vs nativeMain parity error(s):\n" + errors.joinToString("\n"))
+            fail("Found ${errors.size} commonMain vs nonJvmMain/nativeMain/posixMain/mingwMain/webMain parity error(s):\n" + errors.joinToString("\n"))
         }
     }
 

@@ -52,6 +52,6 @@ class CalendarTest {
         val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
         cal.set(2026, Calendar.AUGUST, 11, 16, 40, 0)
         val date = cal.getTime()
-        assert(date.time > 0L)
+        assertTrue(date.time > 0L)
     }
 }

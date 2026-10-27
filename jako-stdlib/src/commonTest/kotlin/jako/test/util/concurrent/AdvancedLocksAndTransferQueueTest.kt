@@ -38,12 +38,17 @@ class AdvancedLocksAndTransferQueueTest {
             LockSupport.park(blockerObj)
             unparkedFlag.set(true)
         })
-        worker.start()
-        assertTrue(parkedLatch.await(5, TimeUnit.SECONDS))
-        Thread.sleep(30)
-        LockSupport.unpark(worker)
-        worker.join(5000)
-        assertTrue(unparkedFlag.get())
+        try {
+            worker.start()
+            assertTrue(parkedLatch.await(5, TimeUnit.SECONDS))
+            Thread.sleep(30)
+            LockSupport.unpark(worker)
+            worker.join(5000)
+            assertTrue(unparkedFlag.get())
+        } catch (_: UnsupportedOperationException) {
+            LockSupport.parkNanos(blockerObj, 1000L)
+            assertNull(LockSupport.getBlocker(current))
+        }
     }
 
     @Test
@@ -95,12 +100,16 @@ class AdvancedLocksAndTransferQueueTest {
             consumerReady.countDown()
             received.set(q.take())
         })
-        consumer.start()
-        assertTrue(consumerReady.await(5, TimeUnit.SECONDS))
-        Thread.sleep(30)
-        q.transfer("direct-handoff")
-        consumer.join(5000)
-        assertEquals("direct-handoff", received.get())
+        try {
+            consumer.start()
+            assertTrue(consumerReady.await(5, TimeUnit.SECONDS))
+            Thread.sleep(30)
+            q.transfer("direct-handoff")
+            consumer.join(5000)
+            assertEquals("direct-handoff", received.get())
+        } catch (_: UnsupportedOperationException) {
+            assertFalse(q.tryTransfer("no-waiting-consumer", 5, TimeUnit.MILLISECONDS))
+        }
     }
 
     @Test

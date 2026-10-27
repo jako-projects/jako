@@ -78,5 +78,30 @@ class ProcessAndRuntimeTest {
         assertFailsWith<IOException> {
             ProcessBuilder("/nonexistent_dir_xyz/nonexistent_bin_xyz").start()
         }
+
+        // 6. ProcessBuilder when open file descriptors exceed single-digit range (fd >= 10, e.g. dash on Ubuntu)
+        val tempFiles = mutableListOf<File>()
+        val openStreams = mutableListOf<java.io.FileInputStream>()
+        try {
+            repeat(12) { idx ->
+                val f = File.createTempFile("jako_fd_pad_${idx}_", ".tmp")
+                tempFiles.add(f)
+                openStreams.add(java.io.FileInputStream(f))
+            }
+            val highFdCat = ProcessBuilder("/bin/cat").start()
+            highFdCat.outputStream.write("high-fd-stdin-ok\n".encodeToByteArray())
+            highFdCat.outputStream.close()
+            val highFdOut = BufferedReader(InputStreamReader(highFdCat.inputStream)).use { it.readLine() }
+            assertEquals(0, highFdCat.waitFor())
+            assertEquals("high-fd-stdin-ok", highFdOut)
+        } finally {
+            openStreams.forEach {
+                try {
+                    it.close()
+                } catch (_: Throwable) {
+                }
+            }
+            tempFiles.forEach { it.delete() }
+        }
     }
 }

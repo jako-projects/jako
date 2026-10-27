@@ -464,6 +464,9 @@ private class LoopbackTls12Server(
     private val serverSocket = ServerSocket(0)
     val port: Int get() = serverSocket.getLocalPort()
     private var serverThread: Thread? = null
+    private var closed = false
+
+    private var unregisterPolling: (() -> Unit)? = null
 
     fun start() {
         val t = Thread {
@@ -475,14 +478,155 @@ private class LoopbackTls12Server(
             }
         }
         serverThread = t
-        t.start()
+        try {
+            t.start()
+        } catch (_: UnsupportedOperationException) {
+            startCooperativeLoopbackServer()
+        }
     }
 
     fun close() {
+        closed = true
         try {
             serverSocket.close()
         } catch (_: Exception) {
         }
+    }
+
+    private fun startCooperativeLoopbackServer() {
+        var acceptedSocket: Socket? = null
+        var stage = 0
+        val transcript = ByteArrayOutputStream()
+        val random = SecureRandom()
+        var clientRandom = ByteArray(0)
+        var serverRandom = ByteArray(0)
+        var masterSecret = ByteArray(0)
+        var clientWriteMacKey = ByteArray(0)
+        var serverWriteMacKey = ByteArray(0)
+        var clientWriteKey = ByteArray(0)
+        var serverWriteKey = ByteArray(0)
+        var clientSeqNum = 0L
+        var serverSeqNum = 0L
+
+        val poller = object : java.lang.Runnable {
+            override fun run() {
+                if (closed || stage >= 3) {
+                    return
+                }
+                try {
+                    if (acceptedSocket == null) {
+                        serverSocket.setSoTimeout(1)
+                        try {
+                            acceptedSocket = serverSocket.accept()
+                        } catch (_: Exception) {
+                        }
+                    }
+                    val s = acceptedSocket
+                    if (s != null && !s.isClosed()) {
+                        val inp = s.getInputStream()
+                        val out = s.getOutputStream()
+                        if (stage == 0 && inp.available() >= 5) {
+                            val (recType, chRecord) = readRecord(inp)
+                            if (recType == 22) {
+                                transcript.write(chRecord)
+                                clientRandom = chRecord.copyOfRange(6, 38)
+                                serverRandom = ByteArray(32).also { random.nextBytes(it) }
+                                for (i in 24 until 32) serverRandom[i] = 0x00
+                                val shBody = ByteArrayOutputStream().apply {
+                                    write(0x03); write(0x03)
+                                    write(serverRandom)
+                                    write(0x00)
+                                    write(0x00); write(0x3C)
+                                    write(0x00)
+                                    write(0x00); write(0x05)
+                                    write(0xFF); write(0x01)
+                                    write(0x00); write(0x01)
+                                    write(0x00)
+                                }.toByteArray()
+                                val shMsg = wrapHandshake(2, shBody)
+                                transcript.write(shMsg)
+                                writeRecord(out, 22, shMsg)
+
+                                val certDer = TestTlsCredentials.certificateDer
+                                val certListLen = 3 + certDer.size
+                                val certBody = ByteArrayOutputStream().apply {
+                                    write((certListLen ushr 16) and 0xFF)
+                                    write((certListLen ushr 8) and 0xFF)
+                                    write(certListLen and 0xFF)
+                                    write((certDer.size ushr 16) and 0xFF)
+                                    write((certDer.size ushr 8) and 0xFF)
+                                    write(certDer.size and 0xFF)
+                                    write(certDer)
+                                }.toByteArray()
+                                val certMsg = wrapHandshake(11, certBody)
+                                transcript.write(certMsg)
+                                writeRecord(out, 22, certMsg)
+
+                                val shdMsg = wrapHandshake(14, ByteArray(0))
+                                transcript.write(shdMsg)
+                                writeRecord(out, 22, shdMsg)
+                                stage = 1
+                            }
+                        }
+                        if (stage == 1 && inp.available() >= 5) {
+                            val (ckeRecType, ckeRecord) = readRecord(inp)
+                            if (ckeRecType == 22) {
+                                transcript.write(ckeRecord)
+                                val encPmsLen = ((ckeRecord[4].toInt() and 0xFF) shl 8) or (ckeRecord[5].toInt() and 0xFF)
+                                val encPms = ckeRecord.copyOfRange(6, 6 + encPmsLen)
+                                val rsaCipher = Cipher.getInstance("RSA/ECB/PKCS1Padding")
+                                rsaCipher.init(Cipher.DECRYPT_MODE, TestTlsCredentials.privateKey)
+                                val preMasterSecret = rsaCipher.doFinal(encPms)
+
+                                masterSecret = prf(preMasterSecret, "master secret", clientRandom + serverRandom, 48)
+                                val keyBlock = prf(masterSecret, "key expansion", serverRandom + clientRandom, 128)
+                                clientWriteMacKey = keyBlock.copyOfRange(0, 32)
+                                serverWriteMacKey = keyBlock.copyOfRange(32, 64)
+                                clientWriteKey = keyBlock.copyOfRange(64, 80)
+                                serverWriteKey = keyBlock.copyOfRange(80, 96)
+
+                                val (ccsType, _) = readRecord(inp)
+                                val (finType, encClientFin) = readRecord(inp)
+                                if (ccsType == 20 && finType == 22) {
+                                    val clientFinMsg = decryptCbcRecord(clientSeqNum++, 22, encClientFin, clientWriteKey, clientWriteMacKey)
+                                    transcript.write(clientFinMsg)
+
+                                    writeRecord(out, 20, byteArrayOf(0x01))
+                                    val srvHash = MessageDigest.getInstance("SHA-256").digest(transcript.toByteArray())
+                                    val srvVerify = prf(masterSecret, "server finished", srvHash, 12)
+                                    val srvFinMsg = wrapHandshake(20, srvVerify)
+                                    val encSrvFin = encryptCbcRecord(serverSeqNum++, 22, srvFinMsg, serverWriteKey, serverWriteMacKey, random)
+                                    writeRecord(out, 22, encSrvFin)
+                                    stage = 2
+                                }
+                            } else {
+                                stage = 3
+                                s.close()
+                            }
+                        }
+                        if (stage == 2 && inp.available() >= 5) {
+                            val (appType, encApp) = readRecord(inp)
+                            val plain = decryptCbcRecord(clientSeqNum++, appType, encApp, clientWriteKey, clientWriteMacKey)
+                            if (appType == 23 && plain.isNotEmpty()) {
+                                val reply = handler(plain)
+                                val encReply = encryptCbcRecord(serverSeqNum++, 23, reply, serverWriteKey, serverWriteMacKey, random)
+                                writeRecord(out, 23, encReply)
+                                val closeAlert = encryptCbcRecord(serverSeqNum++, 21, byteArrayOf(1, 0), serverWriteKey, serverWriteMacKey, random)
+                                writeRecord(out, 21, closeAlert)
+                            }
+                            stage = 3
+                            s.close()
+                        }
+                    }
+                } catch (_: Throwable) {
+                    stage = 3
+                }
+                if (!closed && stage < 3) {
+                    java.util.concurrent.ForkJoinPool.commonPool().execute(this)
+                }
+            }
+        }
+        java.util.concurrent.ForkJoinPool.commonPool().execute(poller)
     }
 
     private fun handleClient(socket: Socket) {

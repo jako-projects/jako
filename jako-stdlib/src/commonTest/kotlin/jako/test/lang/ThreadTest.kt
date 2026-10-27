@@ -15,6 +15,21 @@ import kotlin.test.assertTrue
 
 class ThreadTest {
 
+    private fun startOrVerifyUnsupportedOnWeb(thread: Thread): Boolean {
+        return try {
+            thread.start()
+            true
+        } catch (e: UnsupportedOperationException) {
+            val msg = e.message ?: ""
+            assertTrue(
+                msg.contains("API 'java.lang.Thread.start()' is not supported on target 'JS/Wasm'"),
+                "Unexpected UnsupportedOperationException message: $msg"
+            )
+            assertTrue(msg.contains("Recommended alternative:"), "Expected Recommended alternative in message: $msg")
+            false
+        }
+    }
+
     @Test
     fun testCurrentThreadIdentity() {
         val first = Thread.currentThread()
@@ -37,7 +52,7 @@ class ThreadTest {
         }
 
         assertFalse(thread.isAlive)
-        thread.start()
+        if (!startOrVerifyUnsupportedOnWeb(thread)) return
         waitUntil(2_000) { started.get() == 1 }
         assertTrue(thread.isAlive)
         assertEquals(thread.id, ranOnId.get())
@@ -55,7 +70,7 @@ class ThreadTest {
             Thread.sleep(50)
             counter.set(42)
         }
-        thread.start()
+        if (!startOrVerifyUnsupportedOnWeb(thread)) return
         thread.join()
         assertEquals(42, counter.get())
         assertFalse(thread.isAlive)
@@ -67,7 +82,7 @@ class ThreadTest {
         val thread = Thread {
             waitUntil(2_000) { release.get() == 1 }
         }
-        thread.start()
+        if (!startOrVerifyUnsupportedOnWeb(thread)) return
         waitUntil(2_000) { thread.isAlive }
         thread.join(30)
         assertTrue(thread.isAlive)
@@ -88,7 +103,7 @@ class ThreadTest {
                 sawInterrupt.set(1)
             }
         }
-        thread.start()
+        if (!startOrVerifyUnsupportedOnWeb(thread)) return
         waitUntil(2_000) { entered.get() == 1 }
         thread.interrupt()
         thread.join(2_000)
@@ -115,7 +130,7 @@ class ThreadTest {
     @Test
     fun testStartTwiceThrows() {
         val thread = Thread {}
-        thread.start()
+        if (!startOrVerifyUnsupportedOnWeb(thread)) return
         thread.join(2_000)
         assertFailsWith<IllegalThreadStateException> {
             thread.start()
@@ -156,7 +171,12 @@ class ThreadTest {
             local.set("child")
             assertEquals("child", local.get())
         }
-        thread.start()
+        if (!startOrVerifyUnsupportedOnWeb(thread)) {
+            assertEquals("main", local.get())
+            local.remove()
+            assertEquals("default", local.get())
+            return
+        }
         thread.join(2_000)
 
         assertEquals(1, childSawDefault.get())

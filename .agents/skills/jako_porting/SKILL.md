@@ -42,12 +42,17 @@ This Skill documents the rules, workflow, nullability decision guidelines, behav
    - **CRITICAL RULE**: Every ported public type or extension function MUST be placed in a source file whose directory and filename strictly align with the upstream JVM (`jdk` / `kotlin-stdlib`) or Android (`AOSP`) declaration file (`SourceFile` attribute in bytecode). **Never bundle unrelated types into a single file** (e.g., never create catch-all files like `IO.kt`, `Net.kt`, `Graphics.kt`, or `OsShims.kt`).
    - **Java & Android Classes (1 Top-Level Public Type Per File)**:
      - `commonMain`: `<package>/<ClassName>.kt` (e.g., `Socket.java` -> `commonMain/kotlin/java/net/Socket.kt`; `Handler.java` -> `commonMain/kotlin/android/os/Handler.kt`).
-     - `nativeMain` / `posixMain` / `mingwMain` / `appleMain` / `linuxMain`: `<package>/<ClassName>.<target>.kt` (e.g., `nativeMain/kotlin/java/net/Socket.native.kt`, `posixMain/kotlin/java/net/Socket.posix.kt`, `mingwMain/kotlin/java/net/Socket.mingw.kt`).
+     - `nonJvmMain` / `nativeMain` / `posixMain` / `mingwMain` / `appleMain` / `linuxMain` / `webMain` / `jsMain` / `wasmJsMain`: `<package>/<ClassName>.<target>.kt` (e.g., `nonJvmMain/kotlin/java/util/ArrayList.nonJvm.kt`, `nativeMain/kotlin/java/lang/Thread.native.kt`, `posixMain/kotlin/java/net/Socket.posix.kt`, `mingwMain/kotlin/java/net/Socket.mingw.kt`, `webMain/kotlin/java/lang/Thread.web.kt`).
      - `jvmMain` (desktop JVM Android shims in `jako-android`): `<package>/<ClassName>.kt` (e.g., `jvmMain/kotlin/android/os/Handler.kt`).
      - Nested/inner types (e.g., `Uri.Builder`, `SharedPreferences.Editor`) must remain inside their enclosing class's file.
    - **Kotlin Stdlib Extensions (`kotlin.*` packages)**:
      - Must match the exact source file name from `kotlin-stdlib` (`JvmMultifileClass` / `SourceFile` metadata), such as `kotlin/io/FileReadWrite.kt`, `kotlin/io/FilePathComponents.kt`, `kotlin/io/FileTreeWalk.kt`, `kotlin/io/Utils.kt`, `kotlin/io/IOStreams.kt`, `kotlin/io/ReadWrite.kt`, `kotlin/text/StringsJVM.kt`, `kotlin/text/RegexExtensionsJVM.kt`, `kotlin/concurrent/Locks.kt`, `kotlin/jvm/optionals/Optionals.kt`, `kotlin/BigIntegers.kt`, `kotlin/BigDecimals.kt`.
-   - **Automated Guard**: `JdkSignatureParityTest` and `AndroidSignatureParityTest` automatically verify `SourceFile` parity across `commonMain`, `nativeMain`, `posixMain`, `mingwMain`, and `jvmMain`.
+   - **Automated Guard**: `JdkSignatureParityTest` and `AndroidSignatureParityTest` automatically verify `SourceFile` parity across `commonMain`, `nonJvmMain`, `nativeMain`, `posixMain`, `mingwMain`, `webMain`, `jsMain`, `wasmJsMain`, and `jvmMain`.
+10. **Standardized Exception for Target-Unsupported APIs (目标平台不支持 API 的标准化异常原则)**:
+   - **CRITICAL RULE**: When a method on a supported class in `commonMain` cannot be supported on a specific target runtime due to fundamental platform constraints (for example, preemptive shared-memory `java.lang.Thread.start()` on single-threaded JS/Wasm runtimes), **NEVER silently no-op or fake broken semantics**.
+   - Always call `com.bennyhuo.jako.unsupportedOnTarget(api, target, reason, alternative)` to throw a standardized `UnsupportedOperationException` with the diagnostic format:
+     `[jako] API '<ClassName>.<methodName>(...)' is not supported on target '<Target>': <Reason>. Recommended alternative: <Alternative>.`
+   - Every target-unsupported method MUST be documented in `UNSUPPORTED_APIS.md` (Section 4.2) and verified with an explicit unit test in `commonTest`.
 
 ---
 
@@ -189,13 +194,16 @@ flowchart TD
 ### D. Source Set Hierarchy & Target Roadmap
 ```
 commonMain                                       (Public declarations for ALL targets)
-├── jvmMain                                      (compileKotlinJvm has empty source -> empty jvmJar)
-├── nativeMain                                   (Step 1: Native target implementations)
-│   ├── posixMain                                (macOS / Linux / iOS POSIX)
-│   │   ├── appleMain
-│   │   └── linuxMain
-│   └── mingwMain                                (Windows Win32)
-└── jsMain / nodeJsMain                          (Step 2: Node.js target implementations)
+├── jvmMain                                      (Empty for stdlib; desktop shims for android)
+└── nonJvmMain                                   (Shared pure-Kotlin actual implementations)
+    ├── nativeMain                               (Step 1: Native target implementations)
+    │   ├── posixMain                            (macOS / Linux / iOS POSIX)
+    │   │   ├── appleMain
+    │   │   └── linuxMain
+    │   └── mingwMain                            (Windows Win32)
+    └── webMain                                  (Step 2: Shared JS & Wasm implementations)
+        ├── jsMain                               (Node.js IR target)
+        └── wasmJsMain                           (WebAssembly Node.js target)
 ```
 
 ### E. Property Synthesis & Idiomatic Kotlin API Access

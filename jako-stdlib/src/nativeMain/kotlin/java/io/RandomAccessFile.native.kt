@@ -9,7 +9,7 @@ actual open class RandomAccessFile : DataOutput, DataInput, Closeable {
     private val filePath: String
     private val modeStr: String
     actual val fd: FileDescriptor
-    internal var associatedChannel: java.nio.channels.FileChannelImpl? = null
+    internal var associatedChannelField: java.nio.channels.FileChannelImpl? = null
 
     actual constructor(file: File, mode: String) : this(file.getPath(), mode)
 
@@ -34,12 +34,12 @@ actual open class RandomAccessFile : DataOutput, DataInput, Closeable {
         this.fd = FileDescriptor(fileno(ptr))
     }
 
-    internal fun isOpenInternal(): Boolean = filePtr != null
+    internal fun checkOpenInternal(): Boolean = filePtr != null
 
     actual fun getFD(): FileDescriptor = fd
 
     actual open fun getChannel(): java.nio.channels.FileChannel {
-        val existing = associatedChannel
+        val existing = associatedChannelField
         if (existing != null) return existing
         val ch = java.nio.channels.FileChannelImpl(
             raf = this,
@@ -49,7 +49,7 @@ actual open class RandomAccessFile : DataOutput, DataInput, Closeable {
             append = false,
             deleteOnClose = false
         )
-        associatedChannel = ch
+        associatedChannelField = ch
         return ch
     }
 
@@ -355,7 +355,7 @@ actual open class RandomAccessFile : DataOutput, DataInput, Closeable {
         }
     }
 
-    internal fun flushToDisk() {
+    internal fun flushToDiskImpl() {
         val ptr = ensureOpen()
         fflush(ptr)
     }
@@ -365,8 +365,21 @@ actual open class RandomAccessFile : DataOutput, DataInput, Closeable {
         if (ptr != null) {
             filePtr = null
             fd.fd = -1
-            associatedChannel?.markClosedFromRaf()
+            associatedChannelField?.markClosedFromRaf()
             fclose(ptr)
         }
     }
 }
+
+internal actual var RandomAccessFile.associatedChannel: java.nio.channels.FileChannelImpl?
+    get() = this.associatedChannelField
+    set(value) {
+        this.associatedChannelField = value
+    }
+
+internal actual fun RandomAccessFile.isOpenInternal(): Boolean = this.checkOpenInternal()
+
+internal actual fun RandomAccessFile.flushToDisk() {
+    this.flushToDiskImpl()
+}
+

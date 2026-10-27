@@ -55,10 +55,15 @@ class SynchronizedTest {
             }
         }
 
-        t1.start()
-        t2.start()
-        t1.join()
-        t2.join()
+        try {
+            t1.start()
+            t2.start()
+            t1.join()
+            t2.join()
+        } catch (_: UnsupportedOperationException) {
+            t1.run()
+            t2.run()
+        }
 
         assertEquals(iterations * 2, counter)
     }

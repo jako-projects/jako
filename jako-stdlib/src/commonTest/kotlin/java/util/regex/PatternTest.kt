@@ -46,4 +46,29 @@ class PatternTest {
 
         assertFalse(matcher.find())
     }
+
+    @Test
+    fun testPatternQuoteAndSpecialEscapes() {
+        val rawSpecial = "(a+b*c?)[d]\\E^$"
+        val quoted = Pattern.quote(rawSpecial)
+        val p = Pattern.compile("(\\w+):" + quoted + ":(\\d+)")
+        val m = p.matcher("key:(a+b*c?)[d]\\E^\$:42")
+        assertTrue(m.matches())
+        assertEquals(2, m.groupCount())
+        assertEquals("key", m.group(1))
+        assertEquals("42", m.group(2))
+
+        val charClassQuote = Pattern.compile("[\\Q+-*/()\\E]+")
+        assertTrue(charClassQuote.matcher("+-*/()").matches())
+        assertEquals(0, charClassQuote.matcher("+-*/()").groupCount())
+
+        val literalFlag = Pattern.compile("(a+b)\\E[c]", Pattern.LITERAL)
+        assertTrue(literalFlag.matcher("(a+b)\\E[c]").matches())
+        assertEquals(0, literalFlag.matcher("(a+b)\\E[c]").groupCount())
+
+        val anchorsAndBellEsc = Pattern.compile("\\A\\a\\ehello\\Z")
+        assertTrue(anchorsAndBellEsc.matcher("\u0007\u001Bhello\n").find())
+        assertTrue(Pattern.compile("\\Aexact\\z").matcher("exact").matches())
+        assertFalse(Pattern.compile("\\Aexact\\z").matcher("exact\n").matches())
+    }
 }

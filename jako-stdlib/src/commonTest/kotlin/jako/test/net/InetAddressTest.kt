@@ -78,4 +78,18 @@ class InetAddressTest {
         assertTrue(addr is Inet6Address)
         assertTrue(addr.isLoopbackAddress())
     }
+
+    @Test
+    fun testLocalHostAndUnknownHost() {
+        val local = InetAddress.getLocalHost()
+        assertNotNull(local)
+        assertTrue(local.getAddress().isNotEmpty())
+
+        val allLocal = InetAddress.getAllByName("localhost")
+        assertTrue(allLocal.isNotEmpty())
+
+        assertFailsWith<UnknownHostException> {
+            InetAddress.getByName("nonexistent.invalid.domain.jako.test")
+        }
+    }
 }

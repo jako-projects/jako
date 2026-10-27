@@ -8,7 +8,8 @@ import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.nio.charset.StandardCharsets
-import kotlin.concurrent.thread
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 object NetworkDemo {
 
@@ -16,32 +17,37 @@ object NetworkDemo {
         ServerSocket(0, 50, InetAddress.getByName("127.0.0.1")).use { server ->
             val port = server.localPort
             var serverError: Throwable? = null
+            val executor = Executors.newSingleThreadExecutor()
 
-            val acceptThread = thread(start = true, name = "jako-sample-echo-server") {
-                try {
-                    server.accept().use { client ->
-                        val reader = BufferedReader(InputStreamReader(client.getInputStream(), StandardCharsets.UTF_8))
-                        val writer = PrintWriter(OutputStreamWriter(client.getOutputStream(), StandardCharsets.UTF_8))
-                        val line = reader.readLine()
-                        writer.println("ECHO:$line")
-                        writer.flush()
+            try {
+                val acceptFuture = executor.submit {
+                    try {
+                        server.accept().use { client ->
+                            val reader = BufferedReader(InputStreamReader(client.getInputStream(), StandardCharsets.UTF_8))
+                            val writer = PrintWriter(OutputStreamWriter(client.getOutputStream(), StandardCharsets.UTF_8))
+                            val line = reader.readLine()
+                            writer.println("ECHO:$line")
+                            writer.flush()
+                        }
+                    } catch (t: Throwable) {
+                        serverError = t
                     }
-                } catch (t: Throwable) {
-                    serverError = t
                 }
-            }
 
-            val response = Socket("127.0.0.1", port).use { socket ->
-                val writer = PrintWriter(OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8))
-                val reader = BufferedReader(InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8))
-                writer.println(message)
-                writer.flush()
-                reader.readLine()
-            }
+                val response = Socket("127.0.0.1", port).use { socket ->
+                    val writer = PrintWriter(OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8))
+                    val reader = BufferedReader(InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8))
+                    writer.println(message)
+                    writer.flush()
+                    reader.readLine()
+                }
 
-            acceptThread.join()
-            serverError?.let { throw it }
-            return response ?: ""
+                acceptFuture.get(10, TimeUnit.SECONDS)
+                serverError?.let { throw it }
+                return response ?: ""
+            } finally {
+                executor.shutdown()
+            }
         }
     }
 }

@@ -70,4 +70,88 @@ class DatagramSocketTest {
             assertTrue(receiver.isClosed)
         }
     }
+
+    @Test
+    fun testRealOsCrossProcessUdpSocket() {
+        val nodeBin = findNodeExecutable()
+        kotlin.test.assertNotNull(nodeBin, "Expected node executable to be available for cross-process UDP verification")
+
+        DatagramSocket(0, InetAddress.getByName("127.0.0.1")).use { receiver ->
+            receiver.soTimeout = 5000
+            val port = receiver.localPort
+            assertTrue(port > 0)
+
+            val expectedPayload = "REAL_OS_UDP_FROM_CHILD_PROCESS_$port"
+            val jsScript = "const dgram=require('dgram');" +
+                "const s=dgram.createSocket('udp4');" +
+                "const msg=Buffer.from('$expectedPayload');" +
+                "s.send(msg,0,msg.length,$port,'127.0.0.1',function(err){" +
+                "s.close();" +
+                "if(err)process.exit(2);" +
+                "});"
+
+            val proc = ProcessBuilder(nodeBin, "-e", jsScript).start()
+            val exitCode = proc.waitFor()
+            val errOut = proc.errorStream.use { it.readBytes().decodeToString() }
+            proc.inputStream.close()
+            assertEquals(0, exitCode, "Child node UDP sender should exit with 0 (stderr: $errOut)")
+
+            val recvBuf = ByteArray(128)
+            val recvPacket = DatagramPacket(recvBuf, recvBuf.size)
+            receiver.receive(recvPacket)
+            val received = recvBuf.decodeToString(0, recvPacket.length)
+            assertEquals(expectedPayload, received)
+            assertTrue(recvPacket.port > 0)
+        }
+    }
+
+    private fun findNodeExecutable(): String? {
+        val candidates = mutableListOf<String>()
+        val pathEnv = java.lang.System.getenv("PATH") ?: ""
+        val sep = java.lang.System.getProperty("path.separator") ?: ":"
+        val fileSep = java.lang.System.getProperty("file.separator") ?: "/"
+        for (dir in pathEnv.split(sep)) {
+            if (dir.isNotEmpty()) {
+                candidates.add("$dir${fileSep}node")
+                candidates.add("$dir${fileSep}node.exe")
+            }
+        }
+        candidates.addAll(
+            listOf(
+                "/opt/homebrew/bin/node",
+                "/usr/local/bin/node",
+                "/usr/bin/node"
+            )
+        )
+        val home = java.lang.System.getProperty("user.home") ?: java.lang.System.getenv("HOME") ?: ""
+        if (home.isNotEmpty()) {
+            val gradleNodeDir = java.io.File("$home/.gradle/nodejs")
+            if (gradleNodeDir.exists() && gradleNodeDir.isDirectory()) {
+                gradleNodeDir.listFiles()?.forEach { sub ->
+                    val binNode = java.io.File(sub, "bin/node")
+                    if (binNode.exists()) candidates.add(binNode.absolutePath)
+                    val winNode = java.io.File(sub, "node.exe")
+                    if (winNode.exists()) candidates.add(winNode.absolutePath)
+                }
+            }
+        }
+        candidates.add("node")
+        for (c in candidates) {
+            if (c == "node") {
+                try {
+                    val p = ProcessBuilder("node", "-v").start()
+                    val code = p.waitFor()
+                    p.inputStream.close()
+                    p.errorStream.close()
+                    p.outputStream.close()
+                    if (code == 0) return "node"
+                } catch (_: Throwable) {
+                }
+            } else {
+                val f = java.io.File(c)
+                if (f.exists() && f.isFile()) return f.absolutePath
+            }
+        }
+        return null
+    }
 }

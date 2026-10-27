@@ -375,6 +375,158 @@ class ZipTest {
         }
     }
 
+    @Test
+    fun testDeflaterSyncFlushAndFinishWithSmallBufferAndLargeChunkedStream() {
+        // 1. Calling finish() while non-final SYNC_FLUSH output is still buffered in Deflater
+        val part1 = "First sync-flushed segment with repeating pattern ABCDEFG ".repeat(15).encodeToByteArray()
+        val part2 = "Second segment before finish ".repeat(10).encodeToByteArray()
+        val def = Deflater()
+        val compressedSmallBuf = ByteArrayOutputStream()
+        try {
+            def.setInput(part1)
+            val tiny = ByteArray(7)
+            // Read only 1 chunk of 7 bytes with SYNC_FLUSH, leaving rest of SYNC_FLUSH block buffered
+            val firstN = def.deflate(tiny, 0, tiny.size, Deflater.SYNC_FLUSH)
+            assertTrue(firstN > 0)
+            compressedSmallBuf.write(tiny, 0, firstN)
+
+            // Feed part2 and immediately request finish() while outQueue still has bytes from SYNC_FLUSH
+            def.setInput(part2)
+            def.finish()
+            while (!def.finished()) {
+                val n = def.deflate(tiny)
+                assertTrue(n > 0)
+                compressedSmallBuf.write(tiny, 0, n)
+            }
+        } finally {
+            def.end()
+        }
+
+        val inf = Inflater()
+        try {
+            assertTrue(inf.needsInput())
+            val deflatedBytes = compressedSmallBuf.toByteArray()
+            inf.setInput(deflatedBytes)
+            assertFalse(inf.needsInput())
+
+            val out = ByteArrayOutputStream()
+            val buf = ByteArray(19)
+            while (!inf.finished()) {
+                val n = inf.inflate(buf)
+                if (n > 0) out.write(buf, 0, n)
+                if (n == 0 && inf.needsInput()) break
+            }
+            assertTrue(inf.finished())
+            assertContentEquals(part1 + part2, out.toByteArray())
+        } finally {
+            inf.end()
+        }
+
+        // 2. Multi-chunk streaming over >80KB input with small input chunks to Inflater
+        val largePayload = ByteArray(85_000) { i -> ((i * 31 + (i / 17)) and 0xFF).toByte() }
+        val defLarge = Deflater(Deflater.BEST_SPEED)
+        val compressedLarge = ByteArrayOutputStream()
+        try {
+            val outBuf = ByteArray(1024)
+            var offset = 0
+            while (offset < largePayload.size) {
+                val chunk = minOf(20_000, largePayload.size - offset)
+                defLarge.setInput(largePayload, offset, chunk)
+                offset += chunk
+                val flushMode = if (offset < largePayload.size) Deflater.SYNC_FLUSH else Deflater.NO_FLUSH
+                while (true) {
+                    val n = defLarge.deflate(outBuf, 0, outBuf.size, flushMode)
+                    if (n > 0) compressedLarge.write(outBuf, 0, n) else break
+                }
+            }
+            defLarge.finish()
+            while (!defLarge.finished()) {
+                val n = defLarge.deflate(outBuf)
+                if (n > 0) compressedLarge.write(outBuf, 0, n)
+            }
+        } finally {
+            defLarge.end()
+        }
+
+        val infLarge = Inflater()
+        try {
+            val allCompressed = compressedLarge.toByteArray()
+            val decompressedLarge = ByteArrayOutputStream()
+            val outBuf = ByteArray(512)
+            var inPos = 0
+            while (!infLarge.finished()) {
+                val n = infLarge.inflate(outBuf)
+                if (n > 0) {
+                    decompressedLarge.write(outBuf, 0, n)
+                } else if (infLarge.needsInput()) {
+                    assertTrue(inPos < allCompressed.size)
+                    val feed = minOf(257, allCompressed.size - inPos)
+                    infLarge.setInput(allCompressed, inPos, feed)
+                    assertFalse(infLarge.needsInput())
+                    inPos += feed
+                }
+            }
+            assertContentEquals(largePayload, decompressedLarge.toByteArray())
+        } finally {
+            infLarge.end()
+        }
+    }
+
+    @Test
+    fun testDeflaterInflaterPresetDictionary() {
+        val dict = "preset-dictionary-header-token:alpha-beta-gamma-delta-epsilon-zeta".encodeToByteArray()
+        val payload = "Message using preset-dictionary-header-token:alpha-beta-gamma-delta-epsilon-zeta and more alpha-beta-gamma!".encodeToByteArray()
+
+        val expectedDictAdler = Adler32().apply { update(dict) }.getValue().toInt()
+        val def = Deflater()
+        val compressedBytes: ByteArray
+        try {
+            def.setDictionary(dict)
+            assertEquals(expectedDictAdler, def.adler)
+            def.setInput(payload)
+            def.finish()
+            val baos = ByteArrayOutputStream()
+            val buf = ByteArray(64)
+            while (!def.finished()) {
+                val n = def.deflate(buf)
+                if (n > 0) baos.write(buf, 0, n)
+            }
+            compressedBytes = baos.toByteArray()
+        } finally {
+            def.end()
+        }
+
+        val inf = Inflater()
+        try {
+            inf.setInput(compressedBytes)
+            val outBuf = ByteArray(128)
+            assertEquals(0, inf.inflate(outBuf))
+            assertTrue(inf.needsDictionary())
+            assertEquals(expectedDictAdler, inf.adler)
+            // Calling inflate again before setDictionary must still return 0 and keep needsDictionary() == true
+            assertEquals(0, inf.inflate(outBuf))
+            assertTrue(inf.needsDictionary())
+
+            // Wrong dictionary must throw IllegalArgumentException
+            assertFailsWith<IllegalArgumentException> {
+                inf.setDictionary("wrong-dict".encodeToByteArray())
+            }
+
+            inf.setDictionary(dict)
+            assertFalse(inf.needsDictionary())
+            val out = ByteArrayOutputStream()
+            while (!inf.finished()) {
+                val n = inf.inflate(outBuf)
+                if (n > 0) out.write(outBuf, 0, n)
+                if (n == 0 && inf.needsInput()) break
+            }
+            assertTrue(inf.finished())
+            assertContentEquals(payload, out.toByteArray())
+        } finally {
+            inf.end()
+        }
+    }
+
     private fun readAll(input: java.io.InputStream): ByteArray {
         val out = ByteArrayOutputStream()
         val buf = ByteArray(64)

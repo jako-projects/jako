@@ -94,9 +94,9 @@ class AdvancedCollectionsAndConcurrentTest {
 
     @Test
     fun testIdentityHashMap() {
-        val map = IdentityHashMap<String?, Int?>()
-        val k1 = StringBuilder("key").toString()
-        val k2 = StringBuilder("key").toString()
+        val map = IdentityHashMap<List<String>?, Int?>()
+        val k1 = ArrayList(listOf("key"))
+        val k2 = ArrayList(listOf("key"))
         assertEquals(k1, k2)
 
         map[k1] = 100
@@ -308,7 +308,15 @@ class AdvancedCollectionsAndConcurrentTest {
             phaser.arriveAndAwaitAdvance()
             phaser.arriveAndDeregister()
         })
-        worker.start()
+        try {
+            worker.start()
+        } catch (_: UnsupportedOperationException) {
+            phaser.arriveAndDeregister()
+            assertEquals(1, phaser.getRegisteredParties())
+            phaser.arriveAndDeregister()
+            assertTrue(phaser.isTerminated())
+            return
+        }
 
         val nextPhase = phaser.arriveAndAwaitAdvance()
         assertEquals(1, nextPhase)

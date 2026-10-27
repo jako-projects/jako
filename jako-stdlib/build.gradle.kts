@@ -54,6 +54,27 @@ kotlin {
     // Windows Target
     mingwX64()
 
+    // Web / Node.js Targets
+    js(IR) {
+        nodejs {
+            testTask {
+                useMocha {
+                    timeout = "30s"
+                }
+            }
+        }
+    }
+    @OptIn(org.jetbrains.kotlin.gradle.ExperimentalWasmDsl::class)
+    wasmJs {
+        nodejs {
+            testTask {
+                useMocha {
+                    timeout = "30s"
+                }
+            }
+        }
+    }
+
     sourceSets {
         all {
             languageSettings.optIn("kotlinx.cinterop.ExperimentalForeignApi")
@@ -74,10 +95,25 @@ kotlin {
             implementation(kotlin("test-junit5"))
         }
 
+        val commonMain = getByName("commonMain")
+        val nonJvmMain by creating {
+            dependsOn(commonMain)
+        }
+
+        val nativeMain = getByName("nativeMain").apply {
+            dependsOn(nonJvmMain)
+        }
+
+        val webMain = getByName("webMain").apply {
+            dependsOn(nonJvmMain)
+        }
+
+        getByName("wasmJsMain").apply {
+            languageSettings.optIn("kotlin.js.ExperimentalWasmJsInterop")
+        }
+
         val appleMain = getByName("appleMain")
         val linuxMain = getByName("linuxMain")
-
-        val nativeMain = getByName("nativeMain")
 
         val posixMain by creating {
             dependsOn(nativeMain)
@@ -88,14 +124,24 @@ kotlin {
     }
 }
 
+@OptIn(org.jetbrains.kotlin.gradle.InternalKotlinGradlePluginApi::class)
 tasks.withType<KotlinCompile>().configureEach {
     compilerOptions {
         freeCompilerArgs.add("-Xno-check-actual")
     }
+    multiplatformStructure.fragments.set(emptyList())
+    multiplatformStructure.refinesEdges.set(emptyList())
+}
+
+tasks.withType<JavaCompile>().configureEach {
+    sourceCompatibility = "1.8"
+    targetCompatibility = "1.8"
 }
 
 tasks.named<KotlinCompile>("compileKotlinJvm") {
-    setSource(emptyList<File>())
+    setSource(
+        fileTree("src/commonMain/kotlin/com/bennyhuo/jako")
+    )
 }
 
 tasks.withType<KotlinNativeCompile>().configureEach {
@@ -116,14 +162,22 @@ val hostNativeTarget = when {
     else -> ""
 }
 val hostNativeTestTask = hostNativeTarget.replaceFirstChar { it.lowercase() } + "Test"
+val enabledTestTasks = setOf(
+    "jvmTest",
+    hostNativeTestTask,
+    "jsTest",
+    "jsNodeTest",
+    "wasmJsTest",
+    "wasmJsNodeTest"
+)
 tasks.withType<KotlinNativeSimulatorTest>().configureEach {
     enabled = false
 }
 tasks.matching {
     when {
         it.name.startsWith("linkDebugTest") -> !it.name.endsWith(hostNativeTarget)
-        it.name.startsWith("compileTestKotlin") -> !it.name.endsWith("Jvm") && !it.name.endsWith(hostNativeTarget)
-        it.name.endsWith("Test") && it.name != "jvmTest" && it.name != hostNativeTestTask -> true
+        it.name.startsWith("compileTestKotlin") -> !it.name.endsWith("Jvm") && !it.name.endsWith(hostNativeTarget) && !it.name.endsWith("Js") && !it.name.endsWith("WasmJs")
+        it.name.endsWith("Test") && it.name !in enabledTestTasks -> true
         else -> false
     }
 }.configureEach {

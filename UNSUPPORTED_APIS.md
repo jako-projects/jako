@@ -566,9 +566,17 @@
 
 ---
 
-## 4. 已支持类中的不支持方法 (Unsupported Methods on Supported Classes)
+## 4. 已支持类中的不支持方法与目标平台特定限制 (Unsupported Methods on Supported Classes & Target-Specific Limitations)
 
-部分已支持的重点类（如 `java.lang.Class`、`java.lang.System`、`java.lang.Thread`、`java.nio.channels.FileChannel`）受限于 Native 运行时机制，仅提供核心跨平台方法，不包含以下重度依赖 JVM 的方法：
+> **运行时标准化异常约定**：
+> 对于在已支持类中因特定目标平台运行时架构限制而无法完整提供的方法（例如在 `commonMain` 声明但在 `JS/Wasm` 单线程模型下无法执行的 API），`jako` **严禁采用静默空实现（No-op）或伪造错误语义**，而是在调用时统一抛出带标准化诊断前缀的 `UnsupportedOperationException`：
+> ```text
+> [jako] API '<ClassName>.<methodName>(...)' is not supported on target '<Target>': <Reason>. Recommended alternative: <Alternative>.
+> ```
+
+### 4.1 全非 JVM 平台（Native & JS/Wasm）均不包含的重度 JVM 耦合方法
+
+部分已支持的重点类（如 `java.lang.Class`、`java.lang.System`、`java.lang.Thread`、`java.nio.channels.FileChannel`）受限于非 JVM 运行时机制，仅提供核心跨平台方法，不包含以下重度依赖 JVM 字节码/类加载器的方法：
 
 | 所属类 | 不支持的方法 | 原因与替代说明 |
 | :--- | :--- | :--- |
@@ -576,6 +584,14 @@
 | `java.lang.System` | `getSecurityManager()`、`setSecurityManager()`、`load(filename)`、`loadLibrary(libname)`、`runFinalization()`、`inheritedChannel()` | Native 无 JVM `SecurityManager` 与 Finalizer 线程；C 库链接在 Kotlin Native 编译期通过 `cinterop` 完成。 |
 | `java.lang.Thread` | `getContextClassLoader()`、`setContextClassLoader()`、`getThreadGroup()`、`stop()`、`suspend()`、`resume()`、`countStackFrames()` | Native 无 `ClassLoader` 与 `ThreadGroup`，且 `stop`/`suspend`/`resume` 为 JDK 已废弃的不安全方法。 |
 | `java.nio.channels.FileChannel` | `map(MapMode, position, size): MappedByteBuffer` | 依赖 `MappedByteBuffer` 虚拟内存映射与 JVM DirectBuffer Cleaner 机制；请使用 `FileChannel.read(ByteBuffer, position)` / `write(ByteBuffer, position)`。 |
+
+### 4.2 `JS` / `WasmJs` 单线程平台特定不支持的方法 (Single-Threaded Web Target Limitations)
+
+JavaScript (`jsMain`) 与 WebAssembly (`wasmJsMain`) 运行时采用单线程事件循环与无共享内存对象模型（Web Workers 仅支持 `SharedArrayBuffer` 原始字节共享，不支持共享 Kotlin 对象图）。因此以下依赖抢占式共享内存多线程的方法在 `JS/Wasm` 目标上调用时会通过 `unsupportedOnTarget(...)` 抛出标准化 `UnsupportedOperationException`：
+
+| 所属类 | 目标平台不支持的方法 | 抛出异常信息与推荐跨平台替代方案 |
+| :--- | :--- | :--- |
+| `java.lang.Thread` | `start()` | `[jako] API 'java.lang.Thread.start()' is not supported on target 'JS/Wasm': JavaScript and WebAssembly runtimes are single-threaded and do not support preemptive shared-memory threads. Recommended alternative: kotlinx.coroutines or java.util.concurrent.Executors / HandlerThread.`（注：`Thread.currentThread()`、`Thread.sleep()`、`ThreadLocal`、可重入 `synchronized` / `ReentrantLock`、同线程内 `ExecutorService` / `ScheduledExecutorService` / `ForkJoinPool` / `Timer` / `android.os.HandlerThread` 均已在 `webMain` 支持。） |
 
 ---
 

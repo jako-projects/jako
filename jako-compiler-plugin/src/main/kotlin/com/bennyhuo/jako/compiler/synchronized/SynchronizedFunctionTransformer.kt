@@ -12,19 +12,50 @@ import org.jetbrains.kotlin.ir.builders.irReturn
 import org.jetbrains.kotlin.ir.builders.irTemporary
 import org.jetbrains.kotlin.ir.declarations.IrSimpleFunction
 import org.jetbrains.kotlin.ir.expressions.IrBlockBody
+import org.jetbrains.kotlin.ir.expressions.IrCall
+import org.jetbrains.kotlin.ir.expressions.IrExpression
 import org.jetbrains.kotlin.ir.expressions.IrExpressionBody
+import org.jetbrains.kotlin.ir.expressions.impl.IrCallImpl
 import org.jetbrains.kotlin.ir.expressions.impl.IrTryImpl
 import org.jetbrains.kotlin.ir.symbols.IrSimpleFunctionSymbol
 import org.jetbrains.kotlin.ir.types.classFqName
 import org.jetbrains.kotlin.ir.util.hasAnnotation
+import org.jetbrains.kotlin.ir.util.kotlinFqName
 import org.jetbrains.kotlin.ir.visitors.IrElementTransformerVoid
 import org.jetbrains.kotlin.name.FqName
 
 internal class SynchronizedFunctionTransformer(
     private val pluginContext: IrPluginContext,
     private val lockSymbol: IrSimpleFunctionSymbol,
-    private val unlockSymbol: IrSimpleFunctionSymbol
+    private val unlockSymbol: IrSimpleFunctionSymbol,
+    private val jakoSynchronizedSymbol: IrSimpleFunctionSymbol? = null
 ) : IrElementTransformerVoid() {
+
+    override fun visitCall(expression: IrCall): IrExpression {
+        val result = super.visitCall(expression) as IrCall
+        val targetSync = jakoSynchronizedSymbol ?: return result
+        val owner = result.symbol.owner
+        if (result.symbol != targetSync &&
+            owner.name.asString() == "synchronized" &&
+            owner.parent.kotlinFqName == KOTLIN_PACKAGE &&
+            result.arguments.size == 2 &&
+            result.typeArguments.size == 1
+        ) {
+            return IrCallImpl(
+                startOffset = result.startOffset,
+                endOffset = result.endOffset,
+                type = result.type,
+                symbol = targetSync,
+                typeArgumentsCount = result.typeArguments.size,
+                origin = result.origin
+            ).apply {
+                typeArguments[0] = result.typeArguments[0]
+                arguments[0] = result.arguments[0]
+                arguments[1] = result.arguments[1]
+            }
+        }
+        return result
+    }
 
     override fun visitSimpleFunction(declaration: IrSimpleFunction): IrStatement {
         val result = super.visitSimpleFunction(declaration) as IrSimpleFunction
@@ -84,5 +115,7 @@ internal class SynchronizedFunctionTransformer(
 
     companion object {
         private val SYNCHRONIZED_FQ_NAME = FqName("kotlin.jvm.Synchronized")
+        private val KOTLIN_PACKAGE = FqName("kotlin")
     }
 }
+

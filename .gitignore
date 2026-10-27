@@ -5,4 +5,5 @@
 *.hprof
 .DS_Store
 **/.kotlin/
+**/kotlin-js-store/
 

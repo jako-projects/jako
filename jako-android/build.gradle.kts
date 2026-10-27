@@ -50,6 +50,21 @@ kotlin {
     // Windows Target
     mingwX64()
 
+    // Web / Node.js Targets
+    js(IR) {
+        nodejs {
+            testTask {
+                useMocha {
+                    timeout = "30s"
+                }
+            }
+        }
+    }
+    @OptIn(org.jetbrains.kotlin.gradle.ExperimentalWasmDsl::class)
+    wasmJs {
+        nodejs()
+    }
+
     sourceSets {
         all {
             languageSettings.optIn("kotlinx.cinterop.ExperimentalForeignApi")
@@ -73,6 +88,21 @@ kotlin {
         jvmTest.dependencies {
             implementation(kotlin("test-junit5"))
             implementation("org.robolectric:android-all:10-robolectric-5803371")
+        }
+
+        val commonMain = getByName("commonMain")
+        val nonJvmMain by creating {
+            dependsOn(commonMain)
+        }
+
+        getByName("nativeMain").dependsOn(nonJvmMain)
+
+        val webMain = getByName("webMain").apply {
+            dependsOn(nonJvmMain)
+        }
+
+        getByName("wasmJsMain").apply {
+            languageSettings.optIn("kotlin.js.ExperimentalWasmJsInterop")
         }
     }
 }
@@ -116,14 +146,22 @@ val hostNativeTarget = when {
     else -> ""
 }
 val hostNativeTestTask = hostNativeTarget.replaceFirstChar { it.lowercase() } + "Test"
+val enabledTestTasks = setOf(
+    "jvmTest",
+    hostNativeTestTask,
+    "jsTest",
+    "jsNodeTest",
+    "wasmJsTest",
+    "wasmJsNodeTest"
+)
 tasks.withType<KotlinNativeSimulatorTest>().configureEach {
     enabled = false
 }
 tasks.matching {
     when {
         it.name.startsWith("linkDebugTest") -> !it.name.endsWith(hostNativeTarget)
-        it.name.startsWith("compileTestKotlin") -> !it.name.endsWith("Jvm") && !it.name.endsWith(hostNativeTarget)
-        it.name.endsWith("Test") && it.name != "jvmTest" && it.name != hostNativeTestTask -> true
+        it.name.startsWith("compileTestKotlin") -> !it.name.endsWith("Jvm") && !it.name.endsWith(hostNativeTarget) && !it.name.endsWith("Js") && !it.name.endsWith("WasmJs")
+        it.name.endsWith("Test") && it.name !in enabledTestTasks -> true
         else -> false
     }
 }.configureEach {

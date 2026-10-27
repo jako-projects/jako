@@ -63,7 +63,7 @@ actual open class Thread : Runnable {
     private val completionLock = ReentrantLock()
     private val completionCondition: Condition = completionLock.newCondition()
     private val joiningOn = AtomicReference<Thread?>(null)
-    internal val threadLocalValues: MutableMap<ThreadLocal<*>, Any?> = HashMap()
+    internal val threadLocalMap: MutableMap<ThreadLocal<*>, Any?> = HashMap()
 
     actual constructor() : this(null, nextDefaultName())
 
@@ -79,9 +79,9 @@ actual open class Thread : Runnable {
         this.daemon = parent?.daemon ?: false
         this.threadPriority = parent?.threadPriority ?: NORM_PRIORITY
         if (parent != null) {
-            for ((tl, v) in parent.threadLocalValues) {
+            for ((tl, v) in parent.threadLocalMap) {
                 if (tl is InheritableThreadLocal<*>) {
-                    threadLocalValues[tl] = tl.copyForChild(v)
+                    threadLocalMap[tl] = tl.copyForChild(v)
                 }
             }
         }
@@ -420,3 +420,21 @@ private fun attachCurrentNativeThread(): Thread {
     thread.markAttachedAndRunning()
     return thread
 }
+
+internal actual val Thread.threadLocalValues: MutableMap<ThreadLocal<*>, Any?>
+    get() = this.threadLocalMap
+
+internal actual var Thread.parkBlockerValue: Any?
+    get() = this.parkBlocker.value
+    set(value) {
+        this.parkBlocker.value = value
+    }
+
+internal actual fun Thread.unparkInternal() {
+    this.unpark()
+}
+
+internal actual fun Thread.lockSupportParkInternal(isAbsolute: Boolean, time: Long) {
+    this.lockSupportPark(isAbsolute, time)
+}
+

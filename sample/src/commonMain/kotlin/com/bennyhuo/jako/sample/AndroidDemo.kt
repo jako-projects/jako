@@ -54,11 +54,19 @@ object AndroidDemo {
     )
 
     private fun resolveSampleDir(subPath: String): File {
-        val candidates = listOf(
+        val candidates = mutableListOf(
             File(subPath),
             File("sample", subPath),
             File("../sample", subPath)
         )
+        var dir: File? = File(".").absoluteFile
+        repeat(8) {
+            if (dir != null) {
+                candidates.add(File(File(dir, "sample"), subPath))
+                candidates.add(File(dir, subPath))
+                dir = dir.parentFile
+            }
+        }
         return candidates.firstOrNull { it.isDirectory } ?: File(subPath)
     }
 

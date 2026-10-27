@@ -163,10 +163,18 @@ class SynchronizedTest {
             })
         }
 
-        threads.forEach { it.start() }
         startLatch.countDown()
+        for (t in threads) {
+            try {
+                t.start()
+            } catch (_: UnsupportedOperationException) {
+                t.run()
+            }
+        }
         assertTrue(doneLatch.await(10, TimeUnit.SECONDS), "Worker threads timed out")
-        threads.forEach { it.join() }
+        for (t in threads) {
+            if (t.isAlive) t.join()
+        }
 
         assertFalse(failed.get(), "A worker thread encountered an error")
         assertFalse(holder.overlapDetected, "Critical section overlap detected in @Synchronized")
