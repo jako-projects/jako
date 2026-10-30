@@ -1,5 +1,7 @@
 package kotlin.io
 
+import com.bennyhuo.jako.annotations.WebRuntime
+import com.bennyhuo.jako.annotations.WebSupport
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileNotFoundException
@@ -13,6 +15,7 @@ public enum class OnErrorAction {
     TERMINATE
 }
 
+@WebSupport(WebRuntime.NODE_JS, WebRuntime.WASI, reason = "Browser sandbox does not allow synchronous local file system access")
 public fun File.copyTo(target: File, overwrite: Boolean = false, bufferSize: Int = 8192): File {
     if (!this.exists()) {
         throw FileNotFoundException("The source file $this doesn't exist.")
@@ -49,6 +52,7 @@ public fun File.copyTo(target: File, overwrite: Boolean = false, bufferSize: Int
     return target
 }
 
+@WebSupport(WebRuntime.NODE_JS, WebRuntime.WASI, reason = "Browser sandbox does not allow synchronous local file system access")
 public fun File.deleteRecursively(): Boolean {
     val files = listFiles()
     if (files != null) {
@@ -70,6 +74,7 @@ public val File.nameWithoutExtension: String
 public val File.invariantSeparatorsPath: String
     get() = if (File.separatorChar != '/') getPath().replace(File.separatorChar, '/') else getPath()
 
+@WebSupport(WebRuntime.NODE_JS, WebRuntime.WASI, reason = "Browser sandbox does not allow synchronous local file system access")
 public fun File.copyRecursively(
     target: File,
     overwrite: Boolean = false,

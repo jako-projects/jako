@@ -14,6 +14,18 @@ import kotlin.test.assertTrue
 
 class DatagramSocketTest {
 
+    private inline fun runOrVerifyUnsupportedOnWasi(block: () -> Unit) {
+        try {
+            block()
+        } catch (e: UnsupportedOperationException) {
+            val msg = e.message ?: ""
+            assertTrue(
+                msg.contains("is not supported on target 'WasmWasi'"),
+                "Unexpected UnsupportedOperationException: $msg"
+            )
+        }
+    }
+
     @Test
     fun testDatagramPacketGettersAndSetters() {
         val data = "hello-udp-world".encodeToByteArray()
@@ -32,7 +44,7 @@ class DatagramSocketTest {
     }
 
     @Test
-    fun testUdpLoopbackSendAndReceive() {
+    fun testUdpLoopbackSendAndReceive() = runOrVerifyUnsupportedOnWasi {
         val receiver = DatagramSocket(0, InetAddress.getByName("127.0.0.1"))
         val sender = DatagramSocket(0, InetAddress.getByName("127.0.0.1"))
         try {
@@ -72,7 +84,11 @@ class DatagramSocketTest {
     }
 
     @Test
-    fun testRealOsCrossProcessUdpSocket() {
+    fun testRealOsCrossProcessUdpSocket() = runOrVerifyUnsupportedOnWasi {
+        if (java.lang.System.getProperty("os.name") == "WASI") {
+            DatagramSocket(0)
+            return@runOrVerifyUnsupportedOnWasi
+        }
         val nodeBin = findNodeExecutable()
         kotlin.test.assertNotNull(nodeBin, "Expected node executable to be available for cross-process UDP verification")
 

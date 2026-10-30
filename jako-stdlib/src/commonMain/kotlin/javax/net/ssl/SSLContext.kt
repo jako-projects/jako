@@ -2,6 +2,10 @@
 
 package javax.net.ssl
 
+import com.bennyhuo.jako.annotations.WebRuntime
+import com.bennyhuo.jako.annotations.WebSupport
+
+@WebSupport(WebRuntime.NODE_JS, reason = "Blocking SSL/TLS sockets require Node.js worker_threads and net module")
 expect open class SSLContext {
     protected constructor()
     open fun init(km: Array<KeyManager>?, tm: Array<TrustManager>?, sr: Any?)

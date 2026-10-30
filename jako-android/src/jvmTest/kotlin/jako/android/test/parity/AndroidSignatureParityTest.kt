@@ -80,6 +80,7 @@ class AndroidSignatureParityTest {
         webDecls.putAll(parseSourceTree(File(moduleDir, "src/webMain/kotlin"), isExpect = false))
         webDecls.putAll(parseSourceTree(File(moduleDir, "src/jsMain/kotlin"), isExpect = false))
         webDecls.putAll(parseSourceTree(File(moduleDir, "src/wasmJsMain/kotlin"), isExpect = false))
+        webDecls.putAll(parseSourceTree(File(moduleDir, "src/wasmWasiMain/kotlin"), isExpect = false))
 
         val nonJvmTypealiases = parseActualTypealiases(File(moduleDir, "src/nonJvmMain/kotlin"))
         val nativeSharedTypealiases = nonJvmTypealiases + parseActualTypealiases(File(moduleDir, "src/nativeMain/kotlin"))
@@ -88,7 +89,8 @@ class AndroidSignatureParityTest {
         val webTypealiases = nonJvmTypealiases +
             parseActualTypealiases(File(moduleDir, "src/webMain/kotlin")) +
             parseActualTypealiases(File(moduleDir, "src/jsMain/kotlin")) +
-            parseActualTypealiases(File(moduleDir, "src/wasmJsMain/kotlin"))
+            parseActualTypealiases(File(moduleDir, "src/wasmJsMain/kotlin")) +
+            parseActualTypealiases(File(moduleDir, "src/wasmWasiMain/kotlin"))
 
         val errors = mutableListOf<String>()
 
@@ -99,7 +101,8 @@ class AndroidSignatureParityTest {
             "mingwMain" to ".mingw.kt",
             "webMain" to ".web.kt",
             "jsMain" to ".js.kt",
-            "wasmJsMain" to ".wasmJs.kt"
+            "wasmJsMain" to ".wasmJs.kt",
+            "wasmWasiMain" to ".wasmWasi.kt"
         )
         for ((sourceSetName, requiredSuffix) in sourceSetSuffixRules) {
             val dir = File(moduleDir, "src/$sourceSetName/kotlin")
@@ -171,7 +174,7 @@ class AndroidSignatureParityTest {
                 } else {
                     if (expectedSourceFile != null) {
                         val baseName = expectedSourceFile.removeSuffix(".kt")
-                        val validWebFiles = setOf("$baseName.nonJvm.kt", "$baseName.web.kt", "$baseName.js.kt", "$baseName.wasmJs.kt")
+                        val validWebFiles = setOf("$baseName.nonJvm.kt", "$baseName.web.kt", "$baseName.js.kt", "$baseName.wasmJs.kt", "$baseName.wasmWasi.kt")
                         if (webDecl.sourceFile !in validWebFiles) {
                             errors.add("File organization mismatch for nonJvmMain/webMain $fqName: expected one of $validWebFiles, found ${webDecl.sourceFile}")
                         }

@@ -1,8 +1,15 @@
 package java.io
 
 import com.bennyhuo.jako.NodeBridge
+import com.bennyhuo.jako.annotations.WebRuntime
+import com.bennyhuo.jako.annotations.WebSupport
+import com.bennyhuo.jako.requireWebSupport
 import com.bennyhuo.jako.toLatin1String
 
+private const val FOS_UNSUPPORTED_REASON =
+    "Browser sandbox does not allow synchronous local file system access"
+
+@WebSupport(WebRuntime.NODE_JS, WebRuntime.WASI, reason = FOS_UNSUPPORTED_REASON)
 actual open class FileOutputStream : OutputStream {
     actual val fd: FileDescriptor
     private var closed = false
@@ -10,6 +17,7 @@ actual open class FileOutputStream : OutputStream {
     actual constructor(name: String) : this(name, false)
 
     actual constructor(name: String, append: Boolean) {
+        requireWebSupport("java.io.FileOutputStream.<init>(String, Boolean)", WebRuntime.NODE_JS, WebRuntime.WASI, reason = FOS_UNSUPPORTED_REASON)
         val mode = if (append) "a" else "w"
         val handle = NodeBridge.open(name, mode)
         if (handle < 0) {
@@ -23,6 +31,7 @@ actual open class FileOutputStream : OutputStream {
     actual constructor(file: File, append: Boolean) : this(file.getPath(), append)
 
     actual constructor(fd: FileDescriptor) {
+        requireWebSupport("java.io.FileOutputStream.<init>(FileDescriptor)", WebRuntime.NODE_JS, WebRuntime.WASI, reason = FOS_UNSUPPORTED_REASON)
         this.fd = fd
     }
 

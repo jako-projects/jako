@@ -2,10 +2,13 @@
 
 package java.nio.channels
 
+import com.bennyhuo.jako.annotations.WebRuntime
+import com.bennyhuo.jako.annotations.WebSupport
 import java.nio.ByteBuffer
 import java.nio.file.OpenOption
 import java.nio.file.Path
 
+@WebSupport(WebRuntime.NODE_JS, WebRuntime.WASI, reason = "Browser sandbox does not allow synchronous local file system access")
 expect abstract class FileChannel : SeekableByteChannel, GatheringByteChannel, ScatteringByteChannel, ByteChannel, InterruptibleChannel {
     protected constructor()
 

@@ -2,6 +2,8 @@
 
 package java.nio.file
 
+import com.bennyhuo.jako.annotations.WebRuntime
+import com.bennyhuo.jako.annotations.WebSupport
 import java.io.BufferedReader
 import java.io.BufferedWriter
 import java.io.InputStream
@@ -10,6 +12,7 @@ import java.nio.charset.Charset
 import java.nio.file.attribute.FileAttribute
 import java.nio.file.attribute.FileTime
 
+@WebSupport(WebRuntime.NODE_JS, WebRuntime.WASI, reason = "Browser sandbox does not allow synchronous local file system access")
 expect class Files {
     companion object {
         fun exists(path: Path, vararg options: LinkOption): Boolean

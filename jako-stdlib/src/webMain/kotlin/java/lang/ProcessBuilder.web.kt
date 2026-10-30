@@ -1,6 +1,9 @@
 package java.lang
 
 import com.bennyhuo.jako.NodeBridge
+import com.bennyhuo.jako.annotations.WebRuntime
+import com.bennyhuo.jako.annotations.WebSupport
+import com.bennyhuo.jako.requireWebSupport
 import com.bennyhuo.jako.toLatin1ByteArray
 import com.bennyhuo.jako.toLatin1String
 import java.io.ByteArrayOutputStream
@@ -10,6 +13,7 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.util.concurrent.TimeUnit
 
+@WebSupport(WebRuntime.NODE_JS, reason = "Spawning OS child processes requires Node.js child_process.spawnSync")
 actual class ProcessBuilder {
     private var cmdList: MutableList<String>
     private val envMap: MutableMap<String, String> = LinkedHashMap()
@@ -75,6 +79,11 @@ actual class ProcessBuilder {
     }
 
     actual fun start(): Process {
+        requireWebSupport(
+            api = "java.lang.ProcessBuilder.start()",
+            WebRuntime.NODE_JS,
+            reason = "Spawning OS child processes requires Node.js child_process.spawnSync"
+        )
         if (cmdList.isEmpty()) {
             throw IndexOutOfBoundsException("Empty command")
         }

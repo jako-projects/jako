@@ -7,6 +7,17 @@ import java.io.OutputStream
 import kotlinx.cinterop.*
 import platform.posix.*
 
+private val sigPipeIgnored: Boolean = run {
+    signal(SIGPIPE, SIG_IGN)
+    true
+}
+
+internal fun ensureSigPipeIgnored() {
+    if (!sigPipeIgnored) {
+        signal(SIGPIPE, SIG_IGN)
+    }
+}
+
 internal class SocketInputStream(
     private val socket: Socket,
     private val fdGetter: () -> Int
@@ -97,6 +108,7 @@ internal class SocketOutputStream(
         if (len == 0) return
         val fd = fdGetter()
         if (fd < 0 || socket.isClosed()) throw SocketException("Socket is closed")
+        ensureSigPipeIgnored()
 
         var totalSent = 0
         b.usePinned { pinned ->

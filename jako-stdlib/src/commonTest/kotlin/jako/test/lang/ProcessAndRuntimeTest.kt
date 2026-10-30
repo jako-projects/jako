@@ -29,6 +29,13 @@ class ProcessAndRuntimeTest {
     fun testProcessBuilderEchoAndEnvAndErrorStream() {
         val isWin = System.getProperty("file.separator") == "\\"
         if (isWin) return
+        if (System.getProperty("os.name") == "WASI") {
+            val ex = assertFailsWith<UnsupportedOperationException> {
+                ProcessBuilder("/bin/sh", "-c", "echo ok").start()
+            }
+            assertTrue(ex.message!!.contains("is not supported on target 'WasmWasi'"))
+            return
+        }
 
         // 1. Standard stdout + custom environment variable + exit code
         val pb = ProcessBuilder("/bin/sh", "-c", "echo \"Hello \$JAKO_TEST_VAR\"; echo \"err_line\" >&2; exit 7")

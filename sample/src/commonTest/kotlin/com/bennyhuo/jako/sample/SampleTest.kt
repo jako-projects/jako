@@ -34,9 +34,14 @@ class SampleTest {
     }
 
     @Test
+    @Suppress("UNSUPPORTED_WEB_API")
     fun testNetworkDemo() {
-        val reply = NetworkDemo.runEcho("ping-jako")
-        assertEquals("ECHO:ping-jako", reply)
+        try {
+            val reply = NetworkDemo.runEcho("ping-jako")
+            assertEquals("ECHO:ping-jako", reply)
+        } catch (e: UnsupportedOperationException) {
+            assertTrue(e.message!!.contains("is not supported on target 'WasmWasi'"))
+        }
     }
 
     @Test

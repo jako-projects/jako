@@ -2,24 +2,121 @@
 
 package com.bennyhuo.jako
 
-@JsModule("module")
-private external object JsNodeModule {
-    fun createRequire(filename: String): JsAny
-}
-
-@JsFun("() => (globalThis.process && typeof globalThis.process.cwd === 'function') ? (globalThis.process.cwd() + '/index.js') : 'file:///index.js'")
-private external fun jsDummyRequirePath(): String
+import com.bennyhuo.jako.annotations.WebRuntime
 
 @JsFun(
-    """(reqFn) => {
+    """() => {
         if (!globalThis.__jakoNodeBridge) {
-            const req = reqFn;
+            const isNode = typeof process !== 'undefined' && process !== null && process.versions != null && process.versions.node != null;
+            const req = isNode ? (typeof process.getBuiltinModule === 'function' ? process.getBuiltinModule.bind(process) : (typeof require !== 'undefined' ? require : null)) : null;
+            const sleepBuf = typeof SharedArrayBuffer !== 'undefined' ? new Int32Array(new SharedArrayBuffer(4)) : null;
+            if (!isNode || !req) {
+                const perfStart = (typeof performance !== 'undefined' && typeof performance.now === 'function') ? performance.now() : Date.now();
+                globalThis.__jakoNodeBridge = {
+                    isNodeJs() { return false; },
+                    currentTimeMillis() { return Date.now(); },
+                    nanoTime() {
+                        const now = (typeof performance !== 'undefined' && typeof performance.now === 'function')
+                            ? (performance.now() - perfStart)
+                            : Date.now();
+                        return Math.floor(now * 1000000);
+                    },
+                    sleepMillis(ms) {
+                        if (ms <= 0) return;
+                        if (sleepBuf && typeof Atomics !== 'undefined' && typeof Atomics.wait === 'function') {
+                            try {
+                                Atomics.wait(sleepBuf, 0, 0, ms);
+                                return;
+                            } catch (_) {}
+                        }
+                        const end = Date.now() + ms;
+                        while (Date.now() < end) {}
+                    },
+                    pid() { return 1; },
+                    uid() { return 1000; },
+                    availableProcessors() {
+                        return (typeof navigator !== 'undefined' && navigator.hardwareConcurrency > 0) ? navigator.hardwareConcurrency : 1;
+                    },
+                    osName() { return "Browser"; },
+                    osArch() { return "wasm32"; },
+                    osVersion() { return (typeof navigator !== 'undefined' && navigator.userAgent) ? String(navigator.userAgent) : ""; },
+                    fileSeparator() { return "/"; },
+                    pathSeparator() { return ":"; },
+                    lineSeparator() { return "\n"; },
+                    userDir() { return "/"; },
+                    userHome() { return "/"; },
+                    userName() { return "browser"; },
+                    tmpDir() { return "/tmp"; },
+                    hostname() { return (typeof location !== 'undefined' && location.hostname) ? String(location.hostname) : "localhost"; },
+                    getenv(name) { return null; },
+                    getenvAll() { return ""; },
+                    writeStdout(latin1) { if (typeof console !== 'undefined' && typeof console.log === 'function') console.log(latin1); },
+                    writeStderr(latin1) { if (typeof console !== 'undefined' && typeof console.error === 'function') console.error(latin1); },
+                    exit(status) {},
+                    randomBytesLatin1(len) {
+                        if (len <= 0) return "";
+                        if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+                            const arr = new Uint8Array(len);
+                            crypto.getRandomValues(arr);
+                            let s = "";
+                            for (let i = 0; i < len; i++) s += String.fromCharCode(arr[i]);
+                            return s;
+                        }
+                        let s = "";
+                        for (let i = 0; i < len; i++) s += String.fromCharCode(Math.floor(Math.random() * 256));
+                        return s;
+                    },
+                    stat(p, followSymlinks) { return ""; },
+                    access(p, mode) { return false; },
+                    chmod(p, mode) { return false; },
+                    utimes(p, atimeMs, mtimeMs) { return false; },
+                    mkdir(p) { return false; },
+                    mkdirOrError(p) { return "ENOSYS|Not supported in Browser"; },
+                    readdir(p) { return "ERR|ENOSYS|Not supported in Browser"; },
+                    unlinkOrRmdir(p) { return false; },
+                    deleteOrError(p) { return "ENOSYS|Not supported in Browser"; },
+                    rename(src, dst) { return false; },
+                    renameOrError(src, dst) { return "ENOSYS|Not supported in Browser"; },
+                    copyFileOrError(src, dst, overwrite) { return "ENOSYS|Not supported in Browser"; },
+                    symlinkOrError(target, link) { return "ENOSYS|Not supported in Browser"; },
+                    readlinkOrError(p) { return "ERR|ENOSYS|Not supported in Browser"; },
+                    realpath(p) { return p; },
+                    diskSpace(p, kind) { return 0.0; },
+                    open(p, mode) { return -1; },
+                    lastError() { return "ENOSYS|Not supported in Browser"; },
+                    close(fd) { return -1; },
+                    read(fd, length, position) { return "EENOSYS|Not supported in Browser"; },
+                    write(fd, latin1, position) { return -1; },
+                    lseek(fd, offset, whence) { return -1.0; },
+                    fstatSize(fd) { return -1.0; },
+                    ftruncate(fd, len) { return false; },
+                    fsync(fd, meta) { return false; },
+                    canResolveExecutable(cmd, cwd, pathEnv) { return false; },
+                    spawnSync(cmd, argsJoined, cwd, envJoined, stdinLatin1, redirectErrorStream, timeoutMs) { return "ERR|ENOSYS|Not supported in Browser"; },
+                    dnsLookupAll(host) { return "ERR|ENOSYS|Not supported in Browser"; },
+                    tcpBindServer(host, port, backlog, reuseAddress) { return "ERR|ENOSYS|Not supported in Browser"; },
+                    tcpAccept(handle, timeoutMs) { return "ERR|ENOSYS|Not supported in Browser"; },
+                    tcpConnect(host, port, timeoutMs, localHost, localPort) { return "ERR|ENOSYS|Not supported in Browser"; },
+                    tcpRead(handle, maxBytes, timeoutMs) { return "ERR|ENOSYS|Not supported in Browser"; },
+                    tcpWrite(handle, latin1) { return -1; },
+                    tcpAvailable(handle) { return 0; },
+                    tcpShutdown(handle, how) { return false; },
+                    tcpSetOption(handle, option, intVal, boolVal) { return false; },
+                    tcpClose(handle) { return false; },
+                    udpBind(host, port, reuseAddress) { return "ERR|ENOSYS|Not supported in Browser"; },
+                    udpSend(handle, latin1, host, port) { return -1; },
+                    udpReceive(handle, maxBytes, timeoutMs) { return "ERR|ENOSYS|Not supported in Browser"; },
+                    udpSetBroadcast(handle, on) { return false; },
+                    udpClose(handle) { return false; },
+                    pollHandle(handle, interestOps) { return 0; },
+                    selectorWait(packedEntries, timeoutMs) { return false; }
+                };
+            } else {
             const fs = req('fs');
             const os = req('os');
             const path = req('path');
             const crypto = req('crypto');
             const child_process = req('child_process');
-            const sleepBuf = typeof SharedArrayBuffer !== 'undefined' ? new Int32Array(new SharedArrayBuffer(4)) : null;
             const fdTable = new Map();
             const hrStart = process.hrtime.bigint() - BigInt(1000000000);
             let lastErrStr = "";
@@ -32,6 +129,7 @@ private external fun jsDummyRequirePath(): String
             }
 
             globalThis.__jakoNodeBridge = {
+                isNodeJs() { return true; },
                 currentTimeMillis() { return Date.now(); },
                 nanoTime() { return Number(process.hrtime.bigint() - hrStart); },
                 sleepMillis(ms) {
@@ -1094,10 +1192,14 @@ private external fun jsDummyRequirePath(): String
             b.udpClose = (handle) => netCall('udpClose', { handle });
             b.pollHandle = (handle, interestOps) => netCall('pollHandle', { handle, interestOps });
             b.selectorWait = (packedEntries, timeoutMs) => netCall('selectorWait', { packedEntries, timeoutMs });
+            }
         }
     }"""
 )
-private external fun jsInitBridge(reqFn: JsAny)
+private external fun jsInitBridge()
+
+@JsFun("() => globalThis.__jakoNodeBridge.isNodeJs()")
+private external fun jsIsNodeJs(): Boolean
 
 @JsFun("() => globalThis.__jakoNodeBridge.currentTimeMillis()")
 private external fun jsCurrentTimeMillis(): Double
@@ -1310,8 +1412,10 @@ private external fun jsSelectorWait(packedEntries: String, timeoutMs: Int): Bool
 
 internal actual object NodeBridge {
     init {
-        jsInitBridge(JsNodeModule.createRequire(jsDummyRequirePath()))
+        jsInitBridge()
     }
+
+    actual fun hostRuntime(): WebRuntime = if (jsIsNodeJs()) WebRuntime.NODE_JS else WebRuntime.BROWSER
 
     actual fun currentTimeMillis(): Double = jsCurrentTimeMillis()
     actual fun nanoTime(): Double = jsNanoTime()

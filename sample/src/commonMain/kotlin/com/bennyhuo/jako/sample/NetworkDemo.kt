@@ -1,5 +1,7 @@
 package com.bennyhuo.jako.sample
 
+import com.bennyhuo.jako.annotations.WebRuntime
+import com.bennyhuo.jako.annotations.WebSupport
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
@@ -11,6 +13,7 @@ import java.nio.charset.StandardCharsets
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
+@WebSupport(WebRuntime.NODE_JS, reason = "Loopback TCP echo server requires Node.js socket support")
 object NetworkDemo {
 
     fun runEcho(message: String): String {

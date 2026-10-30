@@ -24,6 +24,7 @@ kotlin {
     compilerOptions {
         freeCompilerArgs.add("-Xexpect-actual-classes")
         freeCompilerArgs.add("-Xno-check-actual")
+        freeCompilerArgs.add("-Xwarning-level=ACTUAL_ANNOTATIONS_NOT_MATCH_EXPECT:disabled")
     }
 
     // Apple / macOS / iOS / tvOS / watchOS Targets
@@ -62,6 +63,10 @@ kotlin {
     }
     @OptIn(org.jetbrains.kotlin.gradle.ExperimentalWasmDsl::class)
     wasmJs {
+        nodejs()
+    }
+    @OptIn(org.jetbrains.kotlin.gradle.ExperimentalWasmDsl::class)
+    wasmWasi {
         nodejs()
     }
 
@@ -103,6 +108,10 @@ kotlin {
 
         getByName("wasmJsMain").apply {
             languageSettings.optIn("kotlin.js.ExperimentalWasmJsInterop")
+        }
+
+        getByName("wasmWasiMain").apply {
+            dependsOn(webMain)
         }
     }
 }
@@ -152,7 +161,9 @@ val enabledTestTasks = setOf(
     "jsTest",
     "jsNodeTest",
     "wasmJsTest",
-    "wasmJsNodeTest"
+    "wasmJsNodeTest",
+    "wasmWasiTest",
+    "wasmWasiNodeTest"
 )
 tasks.withType<KotlinNativeSimulatorTest>().configureEach {
     enabled = false
@@ -160,7 +171,7 @@ tasks.withType<KotlinNativeSimulatorTest>().configureEach {
 tasks.matching {
     when {
         it.name.startsWith("linkDebugTest") -> !it.name.endsWith(hostNativeTarget)
-        it.name.startsWith("compileTestKotlin") -> !it.name.endsWith("Jvm") && !it.name.endsWith(hostNativeTarget) && !it.name.endsWith("Js") && !it.name.endsWith("WasmJs")
+        it.name.startsWith("compileTestKotlin") -> !it.name.endsWith("Jvm") && !it.name.endsWith(hostNativeTarget) && !it.name.endsWith("Js") && !it.name.endsWith("WasmJs") && !it.name.endsWith("WasmWasi")
         it.name.endsWith("Test") && it.name !in enabledTestTasks -> true
         else -> false
     }

@@ -2,11 +2,14 @@
 
 package java.util.zip
 
+import com.bennyhuo.jako.annotations.WebRuntime
+import com.bennyhuo.jako.annotations.WebSupport
 import java.io.Closeable
 import java.io.File
 import java.io.InputStream
 import java.util.Enumeration
 
+@WebSupport(WebRuntime.NODE_JS, WebRuntime.WASI, reason = "Browser sandbox does not allow synchronous local file system access")
 expect open class ZipFile : Closeable {
     constructor(name: String)
     constructor(file: File)

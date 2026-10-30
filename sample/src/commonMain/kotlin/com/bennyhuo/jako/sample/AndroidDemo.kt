@@ -17,6 +17,7 @@ import com.bennyhuo.jako.init
 import java.io.File
 import java.io.StringReader
 import java.util.UUID
+import kotlin.io.writeText
 import kotlinx.parcelize.IgnoredOnParcel
 import kotlinx.parcelize.Parcelize
 import kotlinx.parcelize.parcelableCreator
@@ -70,9 +71,47 @@ object AndroidDemo {
         return candidates.firstOrNull { it.isDirectory } ?: File(subPath)
     }
 
+    private fun ensureSampleDirs(tempRoot: File): Pair<File, File> {
+        val diskAssets = resolveSampleDir("assets")
+        val diskRes = resolveSampleDir("res")
+        if (diskAssets.isDirectory && diskRes.isDirectory) {
+            return diskAssets to diskRes
+        }
+        val fallbackAssets = File(tempRoot, "assets")
+        val fallbackRes = File(tempRoot, "res")
+        fallbackAssets.mkdirs()
+        File(fallbackAssets, "app_manifest.json").writeText(
+            """{"appId":"com.bennyhuo.jako.sample","engine":"jako-multiplatform","modules":["jako-stdlib","jako-android"]}"""
+        )
+        val valuesDir = File(fallbackRes, "values").apply { mkdirs() }
+        File(valuesDir, "strings.xml").writeText(
+            """
+            <?xml version="1.0" encoding="utf-8"?>
+            <resources>
+                <string name="app_title">Jako Cross-Platform Sample</string>
+                <string name="status_banner">Running %1${'$'}s v%2${'$'}s on %3${'$'}d DPI</string>
+                <integer name="max_worker_threads">8</integer>
+                <bool name="enable_disk_cache">true</bool>
+                <color name="primary_brand">#FF1E88E5</color>
+                <dimen name="content_padding">16dp</dimen>
+                <string-array name="supported_layers">
+                    <item>jako-stdlib</item>
+                    <item>jako-android</item>
+                </string-array>
+            </resources>
+            """.trimIndent()
+        )
+        val rawDir = File(fallbackRes, "raw").apply { mkdirs() }
+        File(rawDir, "welcome_banner.txt").writeText(
+            "Welcome to Jako Multiplatform!\nAssets and Android XML resources are loaded seamlessly on PC & Native.\n"
+        )
+        return fallbackAssets to fallbackRes
+    }
+
     fun run(): AndroidReport {
         val tempRoot = File(System.getProperty("java.io.tmpdir") ?: "/tmp", "jako-sample-android-${UUID.randomUUID()}")
         try {
+            val (resolvedAssetsDir, resolvedResDir) = ensureSampleDirs(tempRoot)
             // 1. Initialize JakoApplication with sample assets/, res/, metadata, and custom directories
             val app = JakoApplication.init {
                 packageName = "com.bennyhuo.jako.sample"
@@ -81,8 +120,8 @@ object AndroidDemo {
                 dataDir = File(tempRoot, "data")
                 cacheDir = File(tempRoot, "cache")
                 externalStorageDir = File(tempRoot, "sdcard")
-                assetsDir = resolveSampleDir("assets")
-                resourcesDir = resolveSampleDir("res")
+                assetsDir = resolvedAssetsDir
+                resourcesDir = resolvedResDir
                 densityDpi = DisplayMetrics.DENSITY_XHIGH // 320 dpi (2.0x density)
                 putMetaData("release_channel", "multiplatform-desktop")
                 registerStringResource(0x7f010099, "custom_tag", "JakoRuntimeReady")

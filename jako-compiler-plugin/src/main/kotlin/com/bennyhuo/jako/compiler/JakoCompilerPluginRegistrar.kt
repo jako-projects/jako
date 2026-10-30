@@ -14,10 +14,18 @@ class JakoCompilerPluginRegistrar : CompilerPluginRegistrar() {
     override val supportsK2: Boolean = true
 
     override fun ExtensionStorage.registerExtensions(configuration: CompilerConfiguration) {
+        val configuredWebRuntimes = configuration.get(KEY_WEB_RUNTIMES)
+        val webSupportSeverity = configuration.get(KEY_WEB_SUPPORT_SEVERITY) ?: "warning"
+
         FirExtensionRegistrarAdapter.registerExtension(
             FirParcelizeExtensionRegistrar(ParcelizeNames.PARCELIZE_CLASS_FQ_NAMES)
         )
-        FirExtensionRegistrarAdapter.registerExtension(JakoFirExtensionRegistrar())
+        FirExtensionRegistrarAdapter.registerExtension(
+            JakoFirExtensionRegistrar(
+                configuredWebRuntimes = configuredWebRuntimes,
+                webSupportSeverity = webSupportSeverity
+            )
+        )
         IrGenerationExtension.registerExtension(JakoSynchronizedIrGenerationExtension())
         IrGenerationExtension.registerExtension(JakoParcelizeIrGenerationExtension())
     }

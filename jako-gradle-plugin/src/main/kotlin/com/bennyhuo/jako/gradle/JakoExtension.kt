@@ -5,6 +5,7 @@ import javax.inject.Inject
 import org.gradle.api.Project
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.provider.Property
+import org.gradle.api.provider.SetProperty
 
 /**
  * DSL extension for configuring `com.bennyhuo.jako` Gradle plugin:
@@ -13,6 +14,8 @@ import org.gradle.api.provider.Property
  * jako {
  *     packageName.set("com.example.app")
  *     resDir.set(file("res"))
+ *     webRuntimes.set(setOf("NODE_JS", "BROWSER"))
+ *     webSupportSeverity.set("warning")
  * }
  * ```
  */
@@ -31,10 +34,21 @@ abstract class JakoExtension @Inject constructor(
     abstract val resDir: DirectoryProperty
 
     /**
-     * Whether to enable the Jako Kotlin Compiler Plugin (e.g., cross-platform `@Synchronized` support).
+     * Whether to enable the Jako Kotlin Compiler Plugin (e.g., cross-platform `@Synchronized`, `@Parcelize`, and `@WebSupport` checks).
      * Defaults to `true`.
      */
     abstract val compilerPluginEnabled: Property<Boolean>
+
+    /**
+     * Explicit override for target WebRuntime names (`NODE_JS`, `WASI`, `BROWSER`) to validate against `@WebSupport` on JS/Wasm targets.
+     * When empty, runtimes are inferred automatically from the Kotlin target configuration (`nodejs()`, `browser()`, `wasmWasi()`).
+     */
+    abstract val webRuntimes: SetProperty<String>
+
+    /**
+     * Diagnostic severity for `@WebSupport` violations: `"warning"` (default), `"error"`, or `"none"`.
+     */
+    abstract val webSupportSeverity: Property<String>
 
     init {
         val defaultRes = project.file("res")
@@ -45,6 +59,8 @@ abstract class JakoExtension @Inject constructor(
             )
         )
         compilerPluginEnabled.convention(true)
+        webRuntimes.convention(emptySet())
+        webSupportSeverity.convention("warning")
     }
 
     fun packageName(value: String) {
@@ -61,5 +77,13 @@ abstract class JakoExtension @Inject constructor(
 
     fun compilerPluginEnabled(enabled: Boolean) {
         compilerPluginEnabled.set(enabled)
+    }
+
+    fun webRuntimes(vararg runtimes: String) {
+        webRuntimes.set(runtimes.toSet())
+    }
+
+    fun webSupportSeverity(severity: String) {
+        webSupportSeverity.set(severity)
     }
 }

@@ -44,6 +44,7 @@ actual open class Socket : java.io.Closeable {
     }
 
     internal constructor(fd: Int, remoteAddr: SocketAddress, localAddr: SocketAddress) {
+        ensureSigPipeIgnored()
         this.fd = fd
         this.remoteAddress = remoteAddr
         this._localSocketAddress = localAddr
@@ -65,6 +66,7 @@ actual open class Socket : java.io.Closeable {
         val bytes = inetAddr.getAddress()
 
         memScoped {
+            ensureSigPipeIgnored()
             val socketFd = socket(AF_INET, SOCK_STREAM, 0)
             if (socketFd < 0) {
                 throw SocketException("Failed to create socket: errno $errno")

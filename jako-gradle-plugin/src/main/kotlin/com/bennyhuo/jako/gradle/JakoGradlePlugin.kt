@@ -6,12 +6,15 @@ import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
 import org.jetbrains.kotlin.gradle.dsl.KotlinProjectExtension
 import org.jetbrains.kotlin.gradle.plugin.KotlinCompilation
 import org.jetbrains.kotlin.gradle.plugin.KotlinCompilerPluginSupportPlugin
+import org.jetbrains.kotlin.gradle.plugin.KotlinPlatformType
 import org.jetbrains.kotlin.gradle.plugin.SubpluginArtifact
 import org.jetbrains.kotlin.gradle.plugin.SubpluginOption
+import org.jetbrains.kotlin.gradle.targets.js.KotlinWasmTargetType
+import org.jetbrains.kotlin.gradle.targets.js.ir.KotlinJsIrTarget
 
 /**
  * Gradle plugin (`id("com.bennyhuo.jako")`) that:
- * 1. Configures the Jako Kotlin Compiler Plugin (`jako-compiler-plugin`) for cross-platform `@Synchronized` and `@Parcelize` support.
+ * 1. Configures the Jako Kotlin Compiler Plugin (`jako-compiler-plugin`) for cross-platform `@Synchronized`, `@Parcelize`, and `@WebSupport` support.
  * 2. Generates compile-time `R.kt` resource constants from `res/` directories (`res/values/` XML files and `res/raw/` files)
  *    and wires the generated source directory into `commonMain` (for Kotlin Multiplatform) or `main` (for Kotlin/JVM).
  */
@@ -62,6 +65,36 @@ class JakoGradlePlugin : KotlinCompilerPluginSupportPlugin {
     override fun applyToCompilation(
         kotlinCompilation: KotlinCompilation<*>
     ): Provider<List<SubpluginOption>> {
-        return kotlinCompilation.target.project.provider { emptyList() }
+        val project = kotlinCompilation.target.project
+        val ext = project.extensions.findByType(JakoExtension::class.java)
+        return project.provider {
+            val options = mutableListOf<SubpluginOption>()
+            val severity = ext?.webSupportSeverity?.orNull ?: "warning"
+            options.add(SubpluginOption("webSupportSeverity", severity))
+
+            val explicitRuntimes = ext?.webRuntimes?.orNull.orEmpty()
+            val target = kotlinCompilation.target
+            if (target.platformType == KotlinPlatformType.js || target.platformType == KotlinPlatformType.wasm) {
+                val detectedRuntimes = if (explicitRuntimes.isNotEmpty()) {
+                    explicitRuntimes
+                } else if (target is KotlinJsIrTarget) {
+                    if (target.wasmTargetType == KotlinWasmTargetType.WASI) {
+                        setOf("WASI")
+                    } else {
+                        val set = linkedSetOf<String>()
+                        if (target.isNodejsConfigured) set.add("NODE_JS")
+                        if (target.isBrowserConfigured) set.add("BROWSER")
+                        if (set.isEmpty()) set.add("NODE_JS")
+                        set
+                    }
+                } else {
+                    emptySet()
+                }
+                if (detectedRuntimes.isNotEmpty()) {
+                    options.add(SubpluginOption("webRuntimes", detectedRuntimes.joinToString(",")))
+                }
+            }
+            options
+        }
     }
 }

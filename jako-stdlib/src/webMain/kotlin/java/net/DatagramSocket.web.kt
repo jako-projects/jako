@@ -2,10 +2,17 @@ package java.net
 
 import com.bennyhuo.jako.NodeBridge
 import com.bennyhuo.jako.WebTaskScheduler
+import com.bennyhuo.jako.annotations.WebRuntime
+import com.bennyhuo.jako.annotations.WebSupport
+import com.bennyhuo.jako.requireWebSupport
 import com.bennyhuo.jako.toLatin1ByteArray
 import com.bennyhuo.jako.toLatin1String
 import java.io.Closeable
 
+private const val DATAGRAM_SOCKET_UNSUPPORTED_REASON =
+    "Blocking UDP sockets require Node.js worker_threads and dgram module"
+
+@WebSupport(WebRuntime.NODE_JS, reason = DATAGRAM_SOCKET_UNSUPPORTED_REASON)
 actual open class DatagramSocket : Closeable {
     internal var handle: Int = -1
     private var bound: Boolean = false
@@ -44,6 +51,7 @@ actual open class DatagramSocket : Closeable {
     }
 
     actual open fun bind(addr: SocketAddress?) {
+        requireWebSupport("java.net.DatagramSocket.bind(SocketAddress?)", WebRuntime.NODE_JS, reason = DATAGRAM_SOCKET_UNSUPPORTED_REASON)
         checkOpen()
         if (bound) throw SocketException("already bound")
         val target = (addr as? InetSocketAddress)

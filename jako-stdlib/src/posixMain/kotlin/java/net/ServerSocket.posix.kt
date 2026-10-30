@@ -37,6 +37,7 @@ actual open class ServerSocket : java.io.Closeable {
         val bytes = addr.getAddress()
 
         memScoped {
+            ensureSigPipeIgnored()
             val socketFd = socket(AF_INET, SOCK_STREAM, 0)
             if (socketFd < 0) throw SocketException("Failed to create server socket: errno $errno")
 

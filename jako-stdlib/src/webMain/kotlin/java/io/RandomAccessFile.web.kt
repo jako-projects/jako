@@ -1,8 +1,15 @@
 package java.io
 
 import com.bennyhuo.jako.NodeBridge
+import com.bennyhuo.jako.annotations.WebRuntime
+import com.bennyhuo.jako.annotations.WebSupport
+import com.bennyhuo.jako.requireWebSupport
 import com.bennyhuo.jako.toLatin1String
 
+private const val RAF_UNSUPPORTED_REASON =
+    "Browser sandbox does not allow synchronous local file system access"
+
+@WebSupport(WebRuntime.NODE_JS, WebRuntime.WASI, reason = RAF_UNSUPPORTED_REASON)
 actual open class RandomAccessFile : DataOutput, DataInput, Closeable {
     private val filePath: String
     private val modeStr: String
@@ -13,6 +20,7 @@ actual open class RandomAccessFile : DataOutput, DataInput, Closeable {
     actual constructor(file: File, mode: String) : this(file.getPath(), mode)
 
     actual constructor(name: String, mode: String) {
+        requireWebSupport("java.io.RandomAccessFile.<init>(String, String)", WebRuntime.NODE_JS, WebRuntime.WASI, reason = RAF_UNSUPPORTED_REASON)
         this.filePath = name
         this.modeStr = mode
         if (mode != "r" && mode != "rw" && mode != "rws" && mode != "rwd") {

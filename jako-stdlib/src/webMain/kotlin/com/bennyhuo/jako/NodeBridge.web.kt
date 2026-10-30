@@ -1,13 +1,48 @@
 package com.bennyhuo.jako
 
+import com.bennyhuo.jako.annotations.WebRuntime
+
 /**
- * Internal bridge to Node.js runtime APIs (`fs`, `os`, `path`, `process`, `crypto`, `child_process`)
- * shared across `jsMain` and `wasmJsMain`.
+ * Returns the active [WebRuntime] on Web/Wasm targets, honoring [simulatedWebRuntime] when set in tests.
+ */
+internal fun currentWebRuntime(): WebRuntime = simulatedWebRuntime ?: NodeBridge.hostRuntime()
+
+/**
+ * Verifies that the current Web/Wasm runtime is in [supported]; otherwise throws a standardized
+ * [UnsupportedOperationException] via [unsupportedOnTarget].
+ */
+internal fun requireWebSupport(
+    api: String,
+    vararg supported: WebRuntime,
+    reason: String,
+    alternative: String? = null
+) {
+    val current = currentWebRuntime()
+    if (current !in supported) {
+        val targetName = when (current) {
+            WebRuntime.BROWSER -> "JS/Wasm Browser"
+            WebRuntime.WASI -> "WasmWasi"
+            WebRuntime.NODE_JS -> "JS/Wasm"
+        }
+        unsupportedOnTarget(
+            api = api,
+            target = targetName,
+            reason = reason,
+            alternative = alternative
+        )
+    }
+}
+
+/**
+ * Internal bridge to host runtime APIs (`Node.js`, `Browser`, or `WASI Preview 1`)
+ * shared across `jsMain`, `wasmJsMain`, and `wasmWasiMain`.
  *
  * Binary payloads are transferred as Latin-1 strings (1 char code unit `0x00..0xFF` per byte)
- * so both Kotlin/JS and Kotlin/WasmJs `@JsFun` interop work with zero external dependencies.
+ * so Kotlin/JS, Kotlin/WasmJs, and Kotlin/WasmWasi interop work with zero external dependencies.
  */
 internal expect object NodeBridge {
+    fun hostRuntime(): WebRuntime
+
     fun currentTimeMillis(): Double
     fun nanoTime(): Double
     fun sleepMillis(ms: Int)

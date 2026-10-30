@@ -1,6 +1,8 @@
 package java.lang
 
 import com.bennyhuo.jako.NodeBridge
+import com.bennyhuo.jako.annotations.WebRuntime
+import com.bennyhuo.jako.requireWebSupport
 import java.io.File
 import java.util.StringTokenizer
 
@@ -48,10 +50,22 @@ actual class Runtime private constructor() {
     actual fun gc() {}
 
     actual fun exit(status: Int) {
+        requireWebSupport(
+            api = "java.lang.Runtime.exit(Int)",
+            WebRuntime.NODE_JS,
+            WebRuntime.WASI,
+            reason = "Browser sandbox does not support terminating the host process"
+        )
         NodeBridge.exit(status)
     }
 
     actual fun halt(status: Int) {
+        requireWebSupport(
+            api = "java.lang.Runtime.halt(Int)",
+            WebRuntime.NODE_JS,
+            WebRuntime.WASI,
+            reason = "Browser sandbox does not support terminating the host process"
+        )
         NodeBridge.exit(status)
     }
 

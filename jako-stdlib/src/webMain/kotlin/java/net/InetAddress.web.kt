@@ -1,6 +1,11 @@
 package java.net
 
 import com.bennyhuo.jako.NodeBridge
+import com.bennyhuo.jako.annotations.WebRuntime
+import com.bennyhuo.jako.requireWebSupport
+
+private const val DNS_UNSUPPORTED_REASON =
+    "Synchronous DNS resolution requires Node.js worker_threads and dns module"
 
 internal actual fun getByNameNative(host: String?): InetAddress {
     val all = getAllByNameNative(host)
@@ -23,6 +28,7 @@ internal actual fun getAllByNameNative(host: String?): Array<InetAddress> {
         return arrayOf(Inet6Address(host, ipv6Bytes))
     }
 
+    requireWebSupport("java.net.InetAddress.getAllByName(String?)", WebRuntime.NODE_JS, reason = DNS_UNSUPPORTED_REASON)
     val lookupRes = NodeBridge.dnsLookupAll(host)
     if (lookupRes.startsWith("OK|")) {
         val addrStrings = lookupRes.substring(3).split('|')
@@ -53,6 +59,7 @@ internal actual fun getAllByNameNative(host: String?): Array<InetAddress> {
 }
 
 internal actual fun getLocalHostNative(): InetAddress {
+    requireWebSupport("java.net.InetAddress.getLocalHost()", WebRuntime.NODE_JS, reason = DNS_UNSUPPORTED_REASON)
     val name = NodeBridge.hostname().ifEmpty { "localhost" }
     val lookupRes = NodeBridge.dnsLookupAll(name)
     if (lookupRes.startsWith("OK|")) {

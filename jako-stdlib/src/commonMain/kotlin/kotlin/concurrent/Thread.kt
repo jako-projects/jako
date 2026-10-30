@@ -1,5 +1,11 @@
 package kotlin.concurrent
 
+import com.bennyhuo.jako.annotations.WebSupport
+
+@WebSupport(
+    reason = "JavaScript and WebAssembly runtimes are single-threaded and do not support preemptive shared-memory threads",
+    alternative = "kotlinx.coroutines or java.util.concurrent.Executors / HandlerThread"
+)
 public fun thread(
     start: Boolean = true,
     isDaemon: Boolean = false,

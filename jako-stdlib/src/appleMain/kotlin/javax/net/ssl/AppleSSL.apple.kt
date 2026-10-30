@@ -57,6 +57,7 @@ internal class AppleSSLSocket(
 
     private fun initSSLIfNeeded(): SSLContextRef {
         contextRef?.let { return it }
+        signal(SIGPIPE, SIG_IGN)
         ensureUnderlyingConnected()
 
         val side = if (clientMode) SSLProtocolSide.kSSLClientSide else SSLProtocolSide.kSSLServerSide

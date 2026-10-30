@@ -24,6 +24,14 @@ class SocketFactoryTest {
         val serverFactory = ServerSocketFactory.getDefault()
         assertNotNull(serverFactory)
 
+        if (java.lang.System.getProperty("os.name") == "WASI") {
+            val ex = assertFailsWith<UnsupportedOperationException> {
+                serverFactory.createServerSocket(0)
+            }
+            assertTrue(ex.message!!.contains("is not supported on target 'WasmWasi'"))
+            return
+        }
+
         val serverSocket = serverFactory.createServerSocket(0)
         assertNotNull(serverSocket)
         assertTrue(serverSocket.isBound())

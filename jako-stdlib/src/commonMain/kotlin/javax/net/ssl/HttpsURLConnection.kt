@@ -2,11 +2,14 @@
 
 package javax.net.ssl
 
+import com.bennyhuo.jako.annotations.WebRuntime
+import com.bennyhuo.jako.annotations.WebSupport
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.Principal
 import java.security.cert.Certificate
 
+@WebSupport(WebRuntime.NODE_JS, reason = "Blocking HTTPS connections over Socket require Node.js worker_threads and net module")
 expect abstract class HttpsURLConnection : HttpURLConnection {
     protected constructor(url: URL?)
     abstract fun getCipherSuite(): String

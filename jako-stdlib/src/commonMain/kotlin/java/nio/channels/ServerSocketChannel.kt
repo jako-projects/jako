@@ -2,9 +2,13 @@
 
 package java.nio.channels
 
+import com.bennyhuo.jako.annotations.WebRuntime
+import com.bennyhuo.jako.annotations.WebSupport
+
 /**
  * [Nullability Decision] accept() returns SocketChannel? (null when in non-blocking mode and no connection is available).
  */
+@WebSupport(WebRuntime.NODE_JS, reason = "ServerSocketChannel requires Node.js worker_threads and net module")
 expect abstract class ServerSocketChannel : SelectableChannel, NetworkChannel {
     protected constructor()
 

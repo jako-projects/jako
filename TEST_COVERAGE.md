@@ -6,9 +6,9 @@
 
 | 模块 (Module) | 公开类型总数 | 已有直接测试 | 待补测核心类 (Actionable) | 豁免基础接口/标记接口 | 未显式引用异常类 | 核心类覆盖率 |
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `jako-stdlib` | 630 | 522 | **0** | 54 | 54 | 100% (522/522) |
+| `jako-stdlib` | 631 | 523 | **0** | 54 | 54 | 100% (523/523) |
 | `jako-android` | 90 | 90 | **0** | 0 | 0 | 100% (90/90) |
-| **合计 (Total)** | **720** | **612** | **0** | **54** | **54** | **100% (612/612)** |
+| **合计 (Total)** | **721** | **613** | **0** | **54** | **54** | **100% (613/613)** |
 
 ## 2. 按包分类统计 (Coverage by Package)
 
@@ -30,6 +30,7 @@
 | `jako-android` | `kotlinx.parcelize` | 1 | 1 | 0 | ✅ 全部覆盖 |
 | `jako-android` | `org.json` | 5 | 5 | 0 | ✅ 全部覆盖 |
 | `jako-android` | `org.xmlpull.v1` | 4 | 4 | 0 | ✅ 全部覆盖 |
+| `jako-stdlib` | `com.bennyhuo.jako.annotations` | 1 | 1 | 0 | ✅ 全部覆盖 |
 | `jako-stdlib` | `java.io` | 69 | 65 | 0 | ✅ 全部覆盖 |
 | `jako-stdlib` | `java.lang` | 29 | 26 | 0 | ✅ 全部覆盖 |
 | `jako-stdlib` | `java.lang.ref` | 5 | 5 | 0 | ✅ 全部覆盖 |

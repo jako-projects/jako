@@ -1,5 +1,6 @@
 package com.bennyhuo.jako
 
+import com.bennyhuo.jako.annotations.WebRuntime
 import java.lang.Thread
 
 internal actual fun isMultiThreadingSupported(): Boolean = false
@@ -11,10 +12,11 @@ internal actual fun platformSleepSliceMillis(ms: Int) {
 }
 
 /**
- * Cross-module bridge for `jako-android` (`webMain`) to access Node.js process metadata
+ * Cross-module bridge for `jako-android` (`webMain`) to access host runtime metadata
  * and cooperative `HandlerThread` thread-context switching.
  */
 object WebPlatform {
+    fun currentRuntime(): WebRuntime = currentWebRuntime()
     fun pid(): Int = NodeBridge.pid()
     fun uid(): Int = NodeBridge.uid()
 

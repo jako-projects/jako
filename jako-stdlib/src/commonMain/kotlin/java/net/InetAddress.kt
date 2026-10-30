@@ -2,6 +2,8 @@
 
 package java.net
 
+import com.bennyhuo.jako.annotations.WebRuntime
+import com.bennyhuo.jako.annotations.WebSupport
 import java.io.Serializable
 
 expect open class InetAddress : Serializable {
@@ -14,10 +16,13 @@ expect open class InetAddress : Serializable {
     open val address: ByteArray
 
     companion object {
+        @WebSupport(WebRuntime.NODE_JS, reason = "Synchronous DNS resolution requires Node.js worker_threads and dns module")
         fun getByName(host: String?): InetAddress
+        @WebSupport(WebRuntime.NODE_JS, reason = "Synchronous DNS resolution requires Node.js worker_threads and dns module")
         fun getAllByName(host: String?): Array<InetAddress>
         fun getByAddress(addr: ByteArray): InetAddress
         fun getByAddress(host: String?, addr: ByteArray): InetAddress
+        @WebSupport(WebRuntime.NODE_JS, reason = "Synchronous DNS resolution requires Node.js worker_threads and dns module")
         fun getLocalHost(): InetAddress
     }
 }

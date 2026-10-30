@@ -2,6 +2,7 @@
 
 package java.lang
 
+import com.bennyhuo.jako.annotations.WebSupport
 import kotlin.Long
 import kotlin.Int
 
@@ -33,6 +34,10 @@ expect open class Thread : Runnable {
     open val state: State
     open var uncaughtExceptionHandler: UncaughtExceptionHandler?
 
+    @WebSupport(
+        reason = "JavaScript and WebAssembly runtimes are single-threaded and do not support preemptive shared-memory threads",
+        alternative = "kotlinx.coroutines or java.util.concurrent.Executors / HandlerThread"
+    )
     open fun start()
     override fun run()
     open fun interrupt()

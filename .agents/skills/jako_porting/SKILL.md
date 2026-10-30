@@ -202,8 +202,9 @@ commonMain                                       (Public declarations for ALL ta
     │   │   └── linuxMain
     │   └── mingwMain                            (Windows Win32)
     └── webMain                                  (Step 2: Shared JS & Wasm implementations)
-        ├── jsMain                               (Node.js IR target)
-        └── wasmJsMain                           (WebAssembly Node.js target)
+        ├── jsMain                               (Node.js & Browser IR target)
+        ├── wasmJsMain                           (WebAssembly Node.js & Browser target)
+        └── wasmWasiMain                         (WebAssembly WASI Preview 1 target)
 ```
 
 ### E. Property Synthesis & Idiomatic Kotlin API Access

@@ -2,8 +2,11 @@
 
 package java.net
 
+import com.bennyhuo.jako.annotations.WebRuntime
+import com.bennyhuo.jako.annotations.WebSupport
 import java.io.InputStream
 
+@WebSupport(WebRuntime.NODE_JS, reason = "Blocking HTTP connections over Socket require Node.js worker_threads and net module")
 expect abstract class HttpURLConnection : URLConnection {
     protected constructor(url: URL?)
     abstract fun disconnect()

@@ -275,6 +275,7 @@ class JdkSignatureParityTest {
         webDecls.putAll(parseSourceTree(File(stdlibDir, "src/webMain/kotlin"), isExpect = false))
         webDecls.putAll(parseSourceTree(File(stdlibDir, "src/jsMain/kotlin"), isExpect = false))
         webDecls.putAll(parseSourceTree(File(stdlibDir, "src/wasmJsMain/kotlin"), isExpect = false))
+        webDecls.putAll(parseSourceTree(File(stdlibDir, "src/wasmWasiMain/kotlin"), isExpect = false))
 
         val nonJvmTypealiases = parseActualTypealiases(File(stdlibDir, "src/nonJvmMain/kotlin"))
         val nativeSharedTypealiases = nonJvmTypealiases + parseActualTypealiases(File(stdlibDir, "src/nativeMain/kotlin"))
@@ -283,7 +284,8 @@ class JdkSignatureParityTest {
         val webTypealiases = nonJvmTypealiases +
             parseActualTypealiases(File(stdlibDir, "src/webMain/kotlin")) +
             parseActualTypealiases(File(stdlibDir, "src/jsMain/kotlin")) +
-            parseActualTypealiases(File(stdlibDir, "src/wasmJsMain/kotlin"))
+            parseActualTypealiases(File(stdlibDir, "src/wasmJsMain/kotlin")) +
+            parseActualTypealiases(File(stdlibDir, "src/wasmWasiMain/kotlin"))
 
         val errors = mutableListOf<String>()
 
@@ -294,7 +296,8 @@ class JdkSignatureParityTest {
             "mingwMain" to ".mingw.kt",
             "webMain" to ".web.kt",
             "jsMain" to ".js.kt",
-            "wasmJsMain" to ".wasmJs.kt"
+            "wasmJsMain" to ".wasmJs.kt",
+            "wasmWasiMain" to ".wasmWasi.kt"
         )
         for ((sourceSetName, requiredSuffix) in sourceSetSuffixRules) {
             val dir = File(stdlibDir, "src/$sourceSetName/kotlin")
@@ -365,7 +368,7 @@ class JdkSignatureParityTest {
                 } else {
                     if (expectedSourceFile != null) {
                         val baseName = expectedSourceFile.removeSuffix(".kt")
-                        val validWebFiles = setOf("$baseName.nonJvm.kt", "$baseName.web.kt", "$baseName.js.kt", "$baseName.wasmJs.kt")
+                        val validWebFiles = setOf("$baseName.nonJvm.kt", "$baseName.web.kt", "$baseName.js.kt", "$baseName.wasmJs.kt", "$baseName.wasmWasi.kt")
                         if (webDecl.sourceFile !in validWebFiles) {
                             errors.add("File organization mismatch for nonJvmMain/webMain $fqName: expected one of $validWebFiles, found ${webDecl.sourceFile}")
                         }
@@ -632,6 +635,35 @@ class JdkSignatureParityTest {
                 "Found ${errors.size} JDK $release coverage / documentation sync error(s):\n" +
                     errors.joinToString("\n")
             )
+        }
+    }
+
+    @Test
+    fun testWebSupportAnnotationsSyncWithDocumentation() {
+        val repoRoot = findRepoRoot()
+        val unsupportedText = File(repoRoot, "UNSUPPORTED_APIS.md").readText()
+        val section42 = unsupportedText.substringAfter("### 4.2", "").substringBefore("## 5.")
+        check(section42.isNotEmpty()) { "Missing Section 4.2 in UNSUPPORTED_APIS.md" }
+
+        val roots = listOf(
+            File(repoRoot, "jako-stdlib/src/commonMain/kotlin"),
+            File(repoRoot, "jako-android/src/commonMain/kotlin")
+        )
+        val missingInDoc = mutableListOf<String>()
+        for (root in roots) {
+            if (!root.isDirectory) continue
+            root.walkTopDown().filter { it.isFile && it.extension == "kt" }.forEach { file ->
+                val text = file.readText()
+                if ("@WebSupport(" in text && file.name != "WebSupport.kt") {
+                    val baseName = file.name.removeSuffix(".kt")
+                    if (baseName !in section42) {
+                        missingInDoc.add("${file.relativeTo(repoRoot)} (expected '$baseName' to be mentioned in UNSUPPORTED_APIS.md Section 4.2)")
+                    }
+                }
+            }
+        }
+        if (missingInDoc.isNotEmpty()) {
+            fail("Found @WebSupport-annotated file(s) not documented in UNSUPPORTED_APIS.md Section 4.2:\n" + missingInDoc.joinToString("\n"))
         }
     }
 

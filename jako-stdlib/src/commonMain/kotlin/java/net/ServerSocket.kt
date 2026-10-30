@@ -2,8 +2,11 @@
 
 package java.net
 
+import com.bennyhuo.jako.annotations.WebRuntime
+import com.bennyhuo.jako.annotations.WebSupport
 import java.io.Closeable
 
+@WebSupport(WebRuntime.NODE_JS, reason = "Blocking TCP server sockets require Node.js worker_threads and net module")
 expect open class ServerSocket : Closeable {
     constructor()
     constructor(port: Int)

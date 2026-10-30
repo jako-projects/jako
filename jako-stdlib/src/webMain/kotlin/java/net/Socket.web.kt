@@ -2,12 +2,19 @@ package java.net
 
 import com.bennyhuo.jako.NodeBridge
 import com.bennyhuo.jako.WebTaskScheduler
+import com.bennyhuo.jako.annotations.WebRuntime
+import com.bennyhuo.jako.annotations.WebSupport
+import com.bennyhuo.jako.requireWebSupport
 import com.bennyhuo.jako.toLatin1ByteArray
 import com.bennyhuo.jako.toLatin1String
 import java.io.Closeable
 import java.io.InputStream
 import java.io.OutputStream
 
+private const val SOCKET_UNSUPPORTED_REASON =
+    "Blocking TCP sockets require Node.js worker_threads and net module"
+
+@WebSupport(WebRuntime.NODE_JS, reason = SOCKET_UNSUPPORTED_REASON)
 actual open class Socket : Closeable {
     internal var handle: Int = -1
     private var proxy: Proxy? = null
@@ -154,6 +161,7 @@ actual open class Socket : Closeable {
     }
 
     actual open fun connect(endpoint: SocketAddress, timeout: Int) {
+        requireWebSupport("java.net.Socket.connect(SocketAddress, Int)", WebRuntime.NODE_JS, reason = SOCKET_UNSUPPORTED_REASON)
         if (closed) throw SocketException("Socket is closed")
         if (connected) throw SocketException("Already connected")
         if (timeout < 0) throw IllegalArgumentException("connect: timeout can't be negative")
@@ -197,6 +205,7 @@ actual open class Socket : Closeable {
     }
 
     actual open fun bind(bindpoint: SocketAddress?) {
+        requireWebSupport("java.net.Socket.bind(SocketAddress?)", WebRuntime.NODE_JS, reason = SOCKET_UNSUPPORTED_REASON)
         if (closed) throw SocketException("Socket is closed")
         if (bound) throw SocketException("Already bound")
         if (bindpoint != null && bindpoint !is InetSocketAddress) {

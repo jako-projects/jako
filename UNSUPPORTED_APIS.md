@@ -585,13 +585,26 @@
 | `java.lang.Thread` | `getContextClassLoader()`、`setContextClassLoader()`、`getThreadGroup()`、`stop()`、`suspend()`、`resume()`、`countStackFrames()` | Native 无 `ClassLoader` 与 `ThreadGroup`，且 `stop`/`suspend`/`resume` 为 JDK 已废弃的不安全方法。 |
 | `java.nio.channels.FileChannel` | `map(MapMode, position, size): MappedByteBuffer` | 依赖 `MappedByteBuffer` 虚拟内存映射与 JVM DirectBuffer Cleaner 机制；请使用 `FileChannel.read(ByteBuffer, position)` / `write(ByteBuffer, position)`。 |
 
-### 4.2 `JS` / `WasmJs` 单线程平台特定不支持的方法 (Single-Threaded Web Target Limitations)
+### 4.2 `JS` / `WasmJs` / `WasmWasi` 平台与细分运行时支持边界 (`@WebSupport` & `WebRuntime`)
 
-JavaScript (`jsMain`) 与 WebAssembly (`wasmJsMain`) 运行时采用单线程事件循环与无共享内存对象模型（Web Workers 仅支持 `SharedArrayBuffer` 原始字节共享，不支持共享 Kotlin 对象图）。因此以下依赖抢占式共享内存多线程的方法在 `JS/Wasm` 目标上调用时会通过 `unsupportedOnTarget(...)` 抛出标准化 `UnsupportedOperationException`：
+在 Web 与 WebAssembly 平台（`jsMain`、`wasmJsMain`、`wasmWasiMain`）上，`jako` 通过 [`@WebSupport(vararg val runtimes: WebRuntime)`](jako-stdlib/src/commonMain/kotlin/com/bennyhuo/jako/annotations/WebSupport.kt) 注解与 `jako-compiler-plugin` 的 `JakoWebSupportFirChecker` 对不同宿主运行时的能力边界进行编译期静态检查与运行时标准化异常拦截：
+
+1. **全 Web/Wasm 运行时通用（未标注 `@WebSupport`，`NODE_JS` + `WASI` + `BROWSER` 均支持）**：
+   - 纯内存计算、集合/并发容器、时间日期 (`java.time.*`)、加解密 (`java.security.*`、`javax.crypto.*`)、压缩流 (`Deflater`、`Inflater`、`GZIP*`、`ZipInputStream`、`ZipOutputStream`)、缓冲区 (`ByteBuffer`、`Pipe`)、`org.json.*`、`org.xmlpull.*`、`Parcel` / `@Parcelize`、`Looper` / `Handler` / `HandlerThread`。
+   - 纯路径计算（不访问本地磁盘）：`File.getName()`、`getParent()`、`getPath()`、`isAbsolute()`、`getAbsolutePath()`、`toURI()`、`toPath()`、`Paths.get()`、`Path` 路径拼接与解析。
+   - 基础宿主能力：`System.currentTimeMillis()`、`System.nanoTime()`、`SecureRandom`、`System.out` / `System.err`、`android.util.Log`。
+2. **需要本地文件系统访问（`@WebSupport(WebRuntime.NODE_JS, WebRuntime.WASI)`，仅 `BROWSER` 不支持）**：
+   - 浏览器沙箱禁止同步访问本地磁盘，以下 API 在 `JS/Wasm Browser` 下调用会触发编译期告警/错误并在运行时抛出标准化 `UnsupportedOperationException`：
+   - `java.io.File`（磁盘操作方法：`exists`、`isDirectory`、`isFile`、`length`、`delete`、`deleteOnExit`、`mkdir`、`mkdirs`、`list`、`listFiles`、`lastModified`、`setLastModified`、`renameTo`、`setReadOnly`、`setWritable`、`setReadable`、`setExecutable`、`canRead`、`canWrite`、`canExecute`、`getCanonicalPath`、`getCanonicalFile`、`createNewFile`、`getTotalSpace`、`getFreeSpace`、`getUsableSpace`、`createTempFile`）、`FileInputStream`、`FileOutputStream`、`RandomAccessFile`、`FileReader`、`FileWriter`、`PrintStream(File/String)`、`PrintWriter(File/String)`、`Scanner(File/Path)`、`FileChannel`、`Files`、`ZipFile`、`JarFile`、`StatFs` 以及 `kotlin.io` / `kotlin.io.path` 中的文件读写扩展函数（`FileTreeWalk`、`FileReadWrite`、`Utils`、`PathReadWrite`、`PathUtils`）。
+3. **需要阻塞网络 Socket、同步 DNS 或 OS 子进程（`@WebSupport(WebRuntime.NODE_JS)`，`BROWSER` 与 `WASI` 均不支持）**：
+   - 阻塞式 TCP/UDP 套接字与同步 DNS 依赖 Node.js 的 `worker_threads` + `net`/`dgram`/`dns` 模块；子进程依赖 Node.js `child_process.spawnSync`。在 `Browser` 与 `WasmWasi` 下不支持：
+   - 网络通信：`java.net.Socket`、`ServerSocket`、`DatagramSocket`、`HttpURLConnection`、`InetAddress`（`getByName`、`getAllByName`、`getLocalHost`）、`SocketFactory`、`ServerSocketFactory`、`SSLSocket`、`SSLSocketFactory`、`SSLContext`、`HttpsURLConnection`、`SocketChannel`、`ServerSocketChannel`、`DatagramChannel`。
+   - 进程管理：`java.lang.ProcessBuilder`、`Runtime.exec(...)`。
+4. **需要抢占式共享内存多线程（`@WebSupport()`，所有 `JS` / `Wasm` 运行时均不支持）**：
 
 | 所属类 | 目标平台不支持的方法 | 抛出异常信息与推荐跨平台替代方案 |
 | :--- | :--- | :--- |
-| `java.lang.Thread` | `start()` | `[jako] API 'java.lang.Thread.start()' is not supported on target 'JS/Wasm': JavaScript and WebAssembly runtimes are single-threaded and do not support preemptive shared-memory threads. Recommended alternative: kotlinx.coroutines or java.util.concurrent.Executors / HandlerThread.`（注：`Thread.currentThread()`、`Thread.sleep()`、`ThreadLocal`、可重入 `synchronized` / `ReentrantLock`、同线程内 `ExecutorService` / `ScheduledExecutorService` / `ForkJoinPool` / `Timer` / `android.os.HandlerThread` 均已在 `webMain` 支持。） |
+| `java.lang.Thread` / `kotlin.concurrent.thread` | `start()` / `thread(...)` | `[jako] API 'java.lang.Thread.start()' is not supported on target 'JS/Wasm': JavaScript and WebAssembly runtimes are single-threaded and do not support preemptive shared-memory threads. Recommended alternative: kotlinx.coroutines or java.util.concurrent.Executors / HandlerThread.`（注：`Thread.currentThread()`、`Thread.sleep()`、`ThreadLocal`、可重入 `synchronized` / `ReentrantLock`、同线程内 `ExecutorService` / `ScheduledExecutorService` / `ForkJoinPool` / `Timer` / `android.os.HandlerThread` 均已在 `webMain` 支持。） |
 
 ---
 

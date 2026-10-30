@@ -2,6 +2,8 @@
 
 package java.util
 
+import com.bennyhuo.jako.annotations.WebRuntime
+import com.bennyhuo.jako.annotations.WebSupport
 import java.io.Closeable
 import java.io.File
 import java.io.InputStream
@@ -13,9 +15,13 @@ expect open class Scanner : Iterator<String>, Closeable {
     constructor(source: String)
     constructor(source: InputStream)
     constructor(source: InputStream, charsetName: String)
+    @WebSupport(WebRuntime.NODE_JS, WebRuntime.WASI, reason = "Browser sandbox does not allow synchronous local file system access")
     constructor(source: File)
+    @WebSupport(WebRuntime.NODE_JS, WebRuntime.WASI, reason = "Browser sandbox does not allow synchronous local file system access")
     constructor(source: File, charsetName: String)
+    @WebSupport(WebRuntime.NODE_JS, WebRuntime.WASI, reason = "Browser sandbox does not allow synchronous local file system access")
     constructor(source: Path)
+    @WebSupport(WebRuntime.NODE_JS, WebRuntime.WASI, reason = "Browser sandbox does not allow synchronous local file system access")
     constructor(source: Path, charsetName: String)
 
     override fun hasNext(): Boolean

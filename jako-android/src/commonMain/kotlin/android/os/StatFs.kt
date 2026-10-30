@@ -2,9 +2,13 @@
 
 package android.os
 
+import com.bennyhuo.jako.annotations.WebRuntime
+import com.bennyhuo.jako.annotations.WebSupport
+
 /**
  * Retrieve overall information about the space on a filesystem.
  */
+@WebSupport(WebRuntime.NODE_JS, WebRuntime.WASI, reason = "Browser sandbox does not allow synchronous local file system access")
 expect open class StatFs(path: String?) {
     val blockSize: Int
     val blockSizeLong: Long

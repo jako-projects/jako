@@ -1,6 +1,7 @@
 package java.lang
 
 import com.bennyhuo.jako.WebTaskScheduler
+import com.bennyhuo.jako.annotations.WebSupport
 import com.bennyhuo.jako.unsupportedOnTarget
 import java.util.concurrent.atomic.AtomicReference
 
@@ -102,6 +103,10 @@ actual open class Thread : Runnable {
             setUncaughtExceptionHandler(value)
         }
 
+    @WebSupport(
+        reason = "JavaScript and WebAssembly runtimes are single-threaded and do not support preemptive shared-memory threads",
+        alternative = "kotlinx.coroutines or java.util.concurrent.Executors / HandlerThread"
+    )
     actual open fun start() {
         if (rawState != NEW_STATE) {
             throw IllegalThreadStateException("Thread already started")

@@ -1,6 +1,8 @@
 package java.lang
 
 import com.bennyhuo.jako.NodeBridge
+import com.bennyhuo.jako.annotations.WebRuntime
+import com.bennyhuo.jako.currentWebRuntime
 import com.bennyhuo.jako.toLatin1String
 import java.io.ByteArrayInputStream
 import java.io.InputStream
@@ -12,7 +14,10 @@ actual object System {
     private var stdOut: PrintStream = PrintStream(NodeStdOutputStream(isErr = false), true)
     private var stdErr: PrintStream = PrintStream(NodeStdOutputStream(isErr = true), true)
 
-    actual fun getenv(name: String): String? = NodeBridge.getenv(name)
+    actual fun getenv(name: String): String? {
+        if (currentWebRuntime() == WebRuntime.BROWSER) return null
+        return NodeBridge.getenv(name)
+    }
 
     actual fun currentTimeMillis(): Long = NodeBridge.currentTimeMillis().toLong()
 
@@ -20,20 +25,39 @@ actual object System {
 
     actual fun identityHashCode(x: Any?): Int = x?.hashCode() ?: 0
 
-    actual fun getProperty(key: String): String? = when (key) {
-        "line.separator" -> NodeBridge.lineSeparator()
-        "file.separator" -> NodeBridge.fileSeparator()
-        "path.separator" -> NodeBridge.pathSeparator()
-        "os.name" -> NodeBridge.osName()
-        "os.arch" -> NodeBridge.osArch()
-        "os.version" -> NodeBridge.osVersion()
-        "user.name" -> NodeBridge.userName()
-        "user.home" -> NodeBridge.userHome()
-        "user.dir" -> NodeBridge.userDir()
-        "java.io.tmpdir" -> NodeBridge.tmpDir()
-        "jako.process.pid" -> NodeBridge.pid().toString()
-        "jako.process.uid" -> NodeBridge.uid().toString()
-        else -> null
+    actual fun getProperty(key: String): String? {
+        if (currentWebRuntime() == WebRuntime.BROWSER) {
+            return when (key) {
+                "line.separator" -> "\n"
+                "file.separator" -> "/"
+                "path.separator" -> ":"
+                "os.name" -> "Browser"
+                "os.arch" -> "wasm32"
+                "os.version" -> ""
+                "user.name" -> "browser"
+                "user.home" -> "/"
+                "user.dir" -> "/"
+                "java.io.tmpdir" -> "/tmp"
+                "jako.process.pid" -> "1"
+                "jako.process.uid" -> "1000"
+                else -> null
+            }
+        }
+        return when (key) {
+            "line.separator" -> NodeBridge.lineSeparator()
+            "file.separator" -> NodeBridge.fileSeparator()
+            "path.separator" -> NodeBridge.pathSeparator()
+            "os.name" -> NodeBridge.osName()
+            "os.arch" -> NodeBridge.osArch()
+            "os.version" -> NodeBridge.osVersion()
+            "user.name" -> NodeBridge.userName()
+            "user.home" -> NodeBridge.userHome()
+            "user.dir" -> NodeBridge.userDir()
+            "java.io.tmpdir" -> NodeBridge.tmpDir()
+            "jako.process.pid" -> NodeBridge.pid().toString()
+            "jako.process.uid" -> NodeBridge.uid().toString()
+            else -> null
+        }
     }
 
     actual fun getProperty(key: String, default: String): String = getProperty(key) ?: default

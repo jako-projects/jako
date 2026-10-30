@@ -2,8 +2,11 @@
 
 package javax.net.ssl
 
+import com.bennyhuo.jako.annotations.WebRuntime
+import com.bennyhuo.jako.annotations.WebSupport
 import java.net.Socket
 
+@WebSupport(WebRuntime.NODE_JS, reason = "Blocking SSL/TLS sockets require Node.js worker_threads and net module")
 expect abstract class SSLSocket : Socket {
     protected constructor()
 

@@ -6,8 +6,20 @@ import kotlin.test.*
 
 class SocketTest {
 
+    private inline fun runOrVerifyUnsupportedOnWasi(block: () -> Unit) {
+        try {
+            block()
+        } catch (e: UnsupportedOperationException) {
+            val msg = e.message ?: ""
+            assertTrue(
+                msg.contains("is not supported on target 'WasmWasi'"),
+                "Unexpected UnsupportedOperationException: $msg"
+            )
+        }
+    }
+
     @Test
-    fun testClientServerCommunication() {
+    fun testClientServerCommunication() = runOrVerifyUnsupportedOnWasi {
         val serverSocket = ServerSocket(0)
         assertTrue(serverSocket.isBound())
         val localPort = serverSocket.getLocalPort()
@@ -73,7 +85,11 @@ class SocketTest {
     }
 
     @Test
-    fun testRealOsCrossProcessTcpSocket() {
+    fun testRealOsCrossProcessTcpSocket() = runOrVerifyUnsupportedOnWasi {
+        if (java.lang.System.getProperty("os.name") == "WASI") {
+            ServerSocket(0)
+            return@runOrVerifyUnsupportedOnWasi
+        }
         val nodeBin = findNodeExecutable()
         assertNotNull(nodeBin, "Expected node executable to be available for cross-process TCP verification")
 
@@ -104,7 +120,7 @@ class SocketTest {
     }
 
     @Test
-    fun testHalfClosedSocketAndMultiChunkStreaming() {
+    fun testHalfClosedSocketAndMultiChunkStreaming() = runOrVerifyUnsupportedOnWasi {
         ServerSocket(0, 50, InetAddress.getByName("127.0.0.1")).use { serverSocket ->
             serverSocket.setSoTimeout(5000)
             val port = serverSocket.getLocalPort()

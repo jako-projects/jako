@@ -2,6 +2,8 @@ package java.nio.channels
 
 import com.bennyhuo.jako.NodeBridge
 import com.bennyhuo.jako.WebTaskScheduler
+import com.bennyhuo.jako.annotations.WebRuntime
+import com.bennyhuo.jako.requireWebSupport
 import java.net.DatagramSocket
 import java.net.ServerSocket
 import java.net.Socket
@@ -17,6 +19,11 @@ internal actual fun getDatagramSocketNativeHandle(datagramSocket: DatagramSocket
 
 internal actual fun pollNativeSocketHandle(handle: Long, interestOps: Int): Int {
     if (handle < 0L || interestOps == 0) return 0
+    requireWebSupport(
+        api = "java.nio.channels.Selector",
+        WebRuntime.NODE_JS,
+        reason = "Socket channel readiness polling requires Node.js worker_threads"
+    )
     if (WebTaskScheduler.hasPendingWork()) {
         WebTaskScheduler.runAllAvailable(8)
     }
@@ -34,6 +41,26 @@ internal actual class NativeSelectorMux actual constructor() {
             awakened = false
             return true
         }
+        if (count == 0) {
+            if (timeoutMs != 0) {
+                val effectiveWait = if (timeoutMs < 0) 1000 else timeoutMs
+                val sliceMs = if (WebTaskScheduler.hasPendingWork()) {
+                    effectiveWait.coerceAtMost(10)
+                } else {
+                    effectiveWait.coerceAtMost(50)
+                }
+                NodeBridge.sleepMillis(sliceMs)
+                if (WebTaskScheduler.hasPendingWork()) {
+                    WebTaskScheduler.runAllAvailable(16)
+                }
+            }
+            return awakened.also { awakened = false }
+        }
+        requireWebSupport(
+            api = "java.nio.channels.Selector",
+            WebRuntime.NODE_JS,
+            reason = "Socket channel readiness polling requires Node.js worker_threads"
+        )
         val packed = buildString {
             for (i in 0 until count) {
                 if (i > 0) append(',')

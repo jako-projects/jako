@@ -15,8 +15,20 @@ import kotlin.test.assertTrue
 
 class NetworkChannelsAndSelectorTest {
 
+    private inline fun runOrVerifyUnsupportedOnWasi(block: () -> Unit) {
+        try {
+            block()
+        } catch (e: UnsupportedOperationException) {
+            val msg = e.message ?: ""
+            assertTrue(
+                msg.contains("is not supported on target 'WasmWasi'"),
+                "Unexpected UnsupportedOperationException: $msg"
+            )
+        }
+    }
+
     @Test
-    fun testSocketChannelAndServerSocketChannelBlocking() {
+    fun testSocketChannelAndServerSocketChannelBlocking() = runOrVerifyUnsupportedOnWasi {
         ServerSocketChannel.open().use { server ->
             assertTrue(server.isOpen())
             assertTrue(server.isBlocking())
@@ -74,7 +86,7 @@ class NetworkChannelsAndSelectorTest {
     }
 
     @Test
-    fun testNonBlockingAcceptAndExceptions() {
+    fun testNonBlockingAcceptAndExceptions() = runOrVerifyUnsupportedOnWasi {
         ServerSocketChannel.open().use { unmarkedServer ->
             assertFailsWith<NotYetBoundException> {
                 unmarkedServer.accept()
@@ -100,7 +112,7 @@ class NetworkChannelsAndSelectorTest {
     }
 
     @Test
-    fun testDatagramChannelSendReceiveAndConnectedMode() {
+    fun testDatagramChannelSendReceiveAndConnectedMode() = runOrVerifyUnsupportedOnWasi {
         DatagramChannel.open().use { receiver ->
             receiver.bind(InetSocketAddress("127.0.0.1", 0))
             val recvAddr = receiver.getLocalAddress() as InetSocketAddress
@@ -136,7 +148,7 @@ class NetworkChannelsAndSelectorTest {
     }
 
     @Test
-    fun testSelectorWithPipeAndSocketChannels() {
+    fun testSelectorWithPipeAndSocketChannels() = runOrVerifyUnsupportedOnWasi {
         Selector.open().use { selector ->
             assertTrue(selector.isOpen())
 
@@ -220,7 +232,7 @@ class NetworkChannelsAndSelectorTest {
     }
 
     @Test
-    fun testCrossThreadSelectorWakeupAndMultiplexing() {
+    fun testCrossThreadSelectorWakeupAndMultiplexing() = runOrVerifyUnsupportedOnWasi {
         Selector.open().use { selector ->
             ServerSocketChannel.open().use { server ->
                 server.bind(InetSocketAddress("127.0.0.1", 0))
@@ -251,7 +263,7 @@ class NetworkChannelsAndSelectorTest {
                     } finally {
                         scheduler.shutdown()
                     }
-                    return
+                    return@runOrVerifyUnsupportedOnWasi
                 }
                 val n = selector.select(5000L)
                 val elapsed = java.lang.System.currentTimeMillis() - t0
@@ -297,7 +309,7 @@ class NetworkChannelsAndSelectorTest {
     }
 
     @Test
-    fun testDatagramChannelSelectorAndNonBlocking() {
+    fun testDatagramChannelSelectorAndNonBlocking() = runOrVerifyUnsupportedOnWasi {
         Selector.open().use { selector ->
             DatagramChannel.open().use { receiver ->
                 receiver.bind(InetSocketAddress("127.0.0.1", 0))

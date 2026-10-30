@@ -2,11 +2,14 @@
 
 package java.nio.channels
 
+import com.bennyhuo.jako.annotations.WebRuntime
+import com.bennyhuo.jako.annotations.WebSupport
 import java.nio.ByteBuffer
 
 /**
  * [Nullability Decision] getRemoteAddress and getLocalAddress return SocketAddress? (null when unconnected/unbound).
  */
+@WebSupport(WebRuntime.NODE_JS, reason = "SocketChannel requires Node.js worker_threads and net module")
 expect abstract class SocketChannel : SelectableChannel, ByteChannel, ScatteringByteChannel, GatheringByteChannel, NetworkChannel {
     protected constructor()
 

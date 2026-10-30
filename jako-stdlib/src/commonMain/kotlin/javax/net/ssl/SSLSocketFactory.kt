@@ -2,9 +2,12 @@
 
 package javax.net.ssl
 
+import com.bennyhuo.jako.annotations.WebRuntime
+import com.bennyhuo.jako.annotations.WebSupport
 import java.net.Socket
 import javax.net.SocketFactory
 
+@WebSupport(WebRuntime.NODE_JS, reason = "Blocking SSL/TLS sockets require Node.js worker_threads and net module")
 expect abstract class SSLSocketFactory : SocketFactory {
     constructor()
     abstract fun getDefaultCipherSuites(): Array<String>

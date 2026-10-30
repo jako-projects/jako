@@ -2,9 +2,12 @@
 
 package javax.net
 
+import com.bennyhuo.jako.annotations.WebRuntime
+import com.bennyhuo.jako.annotations.WebSupport
 import java.net.Socket
 import java.net.InetAddress
 
+@WebSupport(WebRuntime.NODE_JS, reason = "Blocking TCP sockets require Node.js worker_threads and net module")
 expect abstract class SocketFactory {
     protected constructor()
     open fun createSocket(): Socket

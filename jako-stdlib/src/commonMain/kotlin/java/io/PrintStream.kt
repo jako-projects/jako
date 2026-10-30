@@ -2,10 +2,15 @@
 
 package java.io
 
+import com.bennyhuo.jako.annotations.WebRuntime
+import com.bennyhuo.jako.annotations.WebSupport
+
 expect open class PrintStream : FilterOutputStream, Appendable, Closeable {
     constructor(out: OutputStream)
     constructor(out: OutputStream, autoFlush: Boolean)
+    @WebSupport(WebRuntime.NODE_JS, WebRuntime.WASI, reason = "Browser sandbox does not allow synchronous local file system access")
     constructor(file: File)
+    @WebSupport(WebRuntime.NODE_JS, WebRuntime.WASI, reason = "Browser sandbox does not allow synchronous local file system access")
     constructor(fileName: String)
     fun print(s: String?)
     fun println(s: String?)

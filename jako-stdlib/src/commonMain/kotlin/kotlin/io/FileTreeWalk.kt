@@ -1,5 +1,7 @@
 package kotlin.io
 
+import com.bennyhuo.jako.annotations.WebRuntime
+import com.bennyhuo.jako.annotations.WebSupport
 import java.io.File
 import java.io.IOException
 
@@ -8,6 +10,7 @@ public enum class FileWalkDirection {
     BOTTOM_UP
 }
 
+@WebSupport(WebRuntime.NODE_JS, WebRuntime.WASI, reason = "Browser sandbox does not allow synchronous local file system access")
 public class FileTreeWalk private constructor(
     private val start: File,
     private val direction: FileWalkDirection = FileWalkDirection.TOP_DOWN,
@@ -87,9 +90,12 @@ public class FileTreeWalk private constructor(
     }
 }
 
+@WebSupport(WebRuntime.NODE_JS, WebRuntime.WASI, reason = "Browser sandbox does not allow synchronous local file system access")
 public fun File.walk(direction: FileWalkDirection = FileWalkDirection.TOP_DOWN): FileTreeWalk =
     FileTreeWalk(this, direction)
 
+@WebSupport(WebRuntime.NODE_JS, WebRuntime.WASI, reason = "Browser sandbox does not allow synchronous local file system access")
 public fun File.walkTopDown(): FileTreeWalk = walk(FileWalkDirection.TOP_DOWN)
 
+@WebSupport(WebRuntime.NODE_JS, WebRuntime.WASI, reason = "Browser sandbox does not allow synchronous local file system access")
 public fun File.walkBottomUp(): FileTreeWalk = walk(FileWalkDirection.BOTTOM_UP)

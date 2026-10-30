@@ -2,11 +2,14 @@
 
 package java.nio.channels
 
+import com.bennyhuo.jako.annotations.WebRuntime
+import com.bennyhuo.jako.annotations.WebSupport
 import java.nio.ByteBuffer
 
 /**
  * [Nullability Decision] receive() returns SocketAddress? (null when in non-blocking mode and no datagram is available).
  */
+@WebSupport(WebRuntime.NODE_JS, reason = "DatagramChannel requires Node.js worker_threads and dgram module")
 expect abstract class DatagramChannel : SelectableChannel, ByteChannel, ScatteringByteChannel, GatheringByteChannel, NetworkChannel {
     protected constructor()
 

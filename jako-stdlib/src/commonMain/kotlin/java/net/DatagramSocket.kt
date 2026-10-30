@@ -2,11 +2,14 @@
 
 package java.net
 
+import com.bennyhuo.jako.annotations.WebRuntime
+import com.bennyhuo.jako.annotations.WebSupport
 import java.io.Closeable
 
 /**
  * [Nullability Decision] DatagramSocket remote/local addresses may be null when unbound or disconnected.
  */
+@WebSupport(WebRuntime.NODE_JS, reason = "Blocking UDP sockets require Node.js worker_threads and dgram module")
 expect open class DatagramSocket : Closeable {
     constructor()
     constructor(bindaddr: SocketAddress?)

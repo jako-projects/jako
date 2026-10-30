@@ -81,12 +81,20 @@ class InetAddressTest {
 
     @Test
     fun testLocalHostAndUnknownHost() {
+        val allLocal = InetAddress.getAllByName("localhost")
+        assertTrue(allLocal.isNotEmpty())
+
+        if (java.lang.System.getProperty("os.name") == "WASI") {
+            val ex = assertFailsWith<UnsupportedOperationException> {
+                InetAddress.getLocalHost()
+            }
+            assertTrue(ex.message!!.contains("is not supported on target 'WasmWasi'"))
+            return
+        }
+
         val local = InetAddress.getLocalHost()
         assertNotNull(local)
         assertTrue(local.getAddress().isNotEmpty())
-
-        val allLocal = InetAddress.getAllByName("localhost")
-        assertTrue(allLocal.isNotEmpty())
 
         assertFailsWith<UnknownHostException> {
             InetAddress.getByName("nonexistent.invalid.domain.jako.test")

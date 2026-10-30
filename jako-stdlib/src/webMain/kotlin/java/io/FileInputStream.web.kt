@@ -1,12 +1,20 @@
 package java.io
 
 import com.bennyhuo.jako.NodeBridge
+import com.bennyhuo.jako.annotations.WebRuntime
+import com.bennyhuo.jako.annotations.WebSupport
+import com.bennyhuo.jako.requireWebSupport
 
+private const val FIS_UNSUPPORTED_REASON =
+    "Browser sandbox does not allow synchronous local file system access"
+
+@WebSupport(WebRuntime.NODE_JS, WebRuntime.WASI, reason = FIS_UNSUPPORTED_REASON)
 actual open class FileInputStream : InputStream {
     actual val fd: FileDescriptor
     private var closed = false
 
     actual constructor(name: String) {
+        requireWebSupport("java.io.FileInputStream.<init>(String)", WebRuntime.NODE_JS, WebRuntime.WASI, reason = FIS_UNSUPPORTED_REASON)
         val handle = NodeBridge.open(name, "r")
         if (handle < 0) {
             throw FileNotFoundException("File not found: $name (${NodeBridge.lastError()})")
@@ -17,6 +25,7 @@ actual open class FileInputStream : InputStream {
     actual constructor(file: File) : this(file.getPath())
 
     actual constructor(fd: FileDescriptor) {
+        requireWebSupport("java.io.FileInputStream.<init>(FileDescriptor)", WebRuntime.NODE_JS, WebRuntime.WASI, reason = FIS_UNSUPPORTED_REASON)
         this.fd = fd
     }
 

@@ -2,8 +2,15 @@ package java.net
 
 import com.bennyhuo.jako.NodeBridge
 import com.bennyhuo.jako.WebTaskScheduler
+import com.bennyhuo.jako.annotations.WebRuntime
+import com.bennyhuo.jako.annotations.WebSupport
+import com.bennyhuo.jako.requireWebSupport
 import java.io.Closeable
 
+private const val SERVER_SOCKET_UNSUPPORTED_REASON =
+    "Blocking TCP server sockets require Node.js worker_threads and net module"
+
+@WebSupport(WebRuntime.NODE_JS, reason = SERVER_SOCKET_UNSUPPORTED_REASON)
 actual open class ServerSocket : Closeable {
     internal var handle: Int = -1
     private var bound: Boolean = false
@@ -28,6 +35,7 @@ actual open class ServerSocket : Closeable {
     }
 
     actual open fun bind(endpoint: SocketAddress?, backlog: Int) {
+        requireWebSupport("java.net.ServerSocket.bind(SocketAddress?, Int)", WebRuntime.NODE_JS, reason = SERVER_SOCKET_UNSUPPORTED_REASON)
         if (closed) throw SocketException("ServerSocket is closed")
         if (bound) throw SocketException("Already bound")
         if (endpoint != null && endpoint !is InetSocketAddress) {
@@ -62,6 +70,7 @@ actual open class ServerSocket : Closeable {
     actual open fun getLocalSocketAddress(): SocketAddress? = localAddress
 
     actual open fun accept(): Socket {
+        requireWebSupport("java.net.ServerSocket.accept()", WebRuntime.NODE_JS, reason = SERVER_SOCKET_UNSUPPORTED_REASON)
         if (closed) throw SocketException("ServerSocket is closed")
         if (!bound || handle < 0) throw SocketException("ServerSocket is not bound")
 

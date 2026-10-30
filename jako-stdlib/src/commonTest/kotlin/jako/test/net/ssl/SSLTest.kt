@@ -28,6 +28,18 @@ import kotlin.test.*
 
 class SSLTest {
 
+    private inline fun runOrVerifyUnsupportedOnWasi(block: () -> Unit) {
+        try {
+            block()
+        } catch (e: UnsupportedOperationException) {
+            val msg = e.message ?: ""
+            assertTrue(
+                msg.contains("is not supported on target 'WasmWasi'"),
+                "Unexpected UnsupportedOperationException: $msg"
+            )
+        }
+    }
+
     @Test
     fun testSSLContextAndDefaultFactory() {
         val context = SSLContext.getInstance("TLS")
@@ -122,7 +134,7 @@ class SSLTest {
     }
 
     @Test
-    fun testRealTls12HandshakeAndEncryptedCommunication() {
+    fun testRealTls12HandshakeAndEncryptedCommunication() = runOrVerifyUnsupportedOnWasi {
         val server = LoopbackTls12Server { clientPlaintext ->
             val msg = clientPlaintext.decodeToString()
             "TLS-ACK:$msg".encodeToByteArray()
@@ -175,7 +187,7 @@ class SSLTest {
     }
 
     @Test
-    fun testUntrustedServerCertificateFailsHandshake() {
+    fun testUntrustedServerCertificateFailsHandshake() = runOrVerifyUnsupportedOnWasi {
         val server = LoopbackTls12Server { "unreachable".encodeToByteArray() }
         server.start()
         try {
@@ -203,7 +215,7 @@ class SSLTest {
     }
 
     @Test
-    fun testHttpsURLConnectionOverLoopbackTls() {
+    fun testHttpsURLConnectionOverLoopbackTls() = runOrVerifyUnsupportedOnWasi {
         val server = LoopbackTls12Server { requestBytes ->
             val reqText = requestBytes.decodeToString()
             val body = if (reqText.startsWith("POST")) "HTTPS-POST-OK" else "HTTPS-GET-OK"
@@ -288,7 +300,7 @@ class SSLTest {
     }
 
     @Test
-    fun testExtendedSSLSessionContract() {
+    fun testExtendedSSLSessionContract() = runOrVerifyUnsupportedOnWasi {
         val server = LoopbackTls12Server { "OK".encodeToByteArray() }
         server.start()
         try {
@@ -489,6 +501,10 @@ private class LoopbackTls12Server(
         closed = true
         try {
             serverSocket.close()
+        } catch (_: Exception) {
+        }
+        try {
+            serverThread?.join(1000)
         } catch (_: Exception) {
         }
     }
@@ -830,16 +846,14 @@ private class LoopbackTls12Server(
     }
 
     private fun writeRecord(out: OutputStream, type: Int, payload: ByteArray) {
-        out.write(
-            byteArrayOf(
-                type.toByte(),
-                0x03,
-                0x03,
-                ((payload.size ushr 8) and 0xFF).toByte(),
-                (payload.size and 0xFF).toByte()
-            )
-        )
-        out.write(payload)
+        val frame = ByteArray(5 + payload.size)
+        frame[0] = type.toByte()
+        frame[1] = 0x03
+        frame[2] = 0x03
+        frame[3] = ((payload.size ushr 8) and 0xFF).toByte()
+        frame[4] = (payload.size and 0xFF).toByte()
+        payload.copyInto(frame, 5)
+        out.write(frame)
         out.flush()
     }
 

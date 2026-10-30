@@ -1,5 +1,6 @@
 package com.bennyhuo.jako.sample
 
+@Suppress("UNSUPPORTED_WEB_API")
 fun main() {
     println("=== jako KMP Sample ===")
 
@@ -23,7 +24,11 @@ fun main() {
     println("    sha256 (base64)   = ${utility.sha256Base64}")
     println("    optional value    = ${utility.optionalValue}")
 
-    val echo = NetworkDemo.runEcho("Hello from jako socket!")
+    val echo = try {
+        NetworkDemo.runEcho("Hello from jako socket!")
+    } catch (e: UnsupportedOperationException) {
+        "UNSUPPORTED (${e.message})"
+    }
     println("[4] Loopback TCP Socket Demo:")
     println("    server response   = $echo")
 
