@@ -1,34 +1,130 @@
 name: Publish
 
+# Pushing a tag publishes that exact version:
+#   v1.0.0-rc-1  on release or release/*
+#   v1.0.0       on release or release/*
+#   v1.0.0-dev-N on main or master
+# workflow_dispatch on a release branch still publishes the next rc or final
+# and pushes the tag itself. Tags created by this token do not start another run.
 on:
   push:
     tags:
-      - 'v*'
-
-  # Allows you to run this workflow manually from the Actions tab
+      - "v*"
   workflow_dispatch:
+    inputs:
+      type:
+        description: "rc publishes VERSION_NAME-rc-N; final publishes VERSION_NAME"
+        type: choice
+        required: true
+        default: rc
+        options:
+          - rc
+          - final
+
+concurrency:
+  group: maven-central-publish
+  cancel-in-progress: false
 
 jobs:
   publish:
+    name: ${{ github.event_name == 'push' && format('Publish {0}', github.ref_name) || format('Publish {0}', inputs.type) }}
+    if: github.repository == 'jako-projects/jako' || github.event_name == 'workflow_dispatch'
     runs-on: macos-latest
+    permissions:
+      contents: write
     steps:
       - name: Check out
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Require release branch
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          case "${GITHUB_REF_NAME}" in
+            release|release/*) ;;
+            *)
+              echo "RC and final versions are published from a release branch (release or release/*)."
+              echo "Current branch: ${GITHUB_REF_NAME}"
+              exit 1
+              ;;
+          esac
+
+      - name: Resolve version
+        id: version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TYPE: ${{ github.event_name == 'workflow_dispatch' && inputs.type || '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "push" ]; then
+            git fetch --force origin '+refs/heads/*:refs/remotes/origin/*' '+refs/tags/*:refs/tags/*'
+            version="$(bash .github/scripts/validate-tag-version.sh "$GITHUB_REF_NAME")"
+            if printf '%s' "$version" | grep -Eq -- '-dev-[0-9]+$'; then
+              if ! git branch -r --contains HEAD | grep -Eq 'origin/(main|master)$'; then
+                echo "Dev tags must point at a commit on main or master."
+                exit 1
+              fi
+            else
+              if ! git branch -r --contains HEAD | grep -Eq 'origin/release($|/)'; then
+                echo "RC and final tags must point at a commit on release or release/*."
+                exit 1
+              fi
+            fi
+            echo "create_tag=false" >> "$GITHUB_OUTPUT"
+          else
+            case "$RELEASE_TYPE" in
+              rc|final) ;;
+              *)
+                echo "type must be rc or final, got: ${RELEASE_TYPE}"
+                exit 1
+                ;;
+            esac
+            git fetch --force origin '+refs/tags/*:refs/tags/*'
+            version="$(bash .github/scripts/resolve-version.sh "$RELEASE_TYPE")"
+            echo "create_tag=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "::notice::Publishing ${version}"
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: temurin
+          java-version: "17"
 
       - name: Setup Gradle Cache
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Build & Publish to Maven Central
-        run: chmod +x .github/scripts/publish.sh && .github/scripts/publish.sh
+      - name: Publish to Maven Central
         env:
+          PUBLISH_VERSION: ${{ steps.version.outputs.version }}
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_IN_MEMORY_KEY }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.SIGNING_IN_MEMORY_KEY_ID }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_IN_MEMORY_KEY_PASSWORD }}
+        run: bash .github/scripts/publish.sh "$PUBLISH_VERSION"
+
+      - name: Tag version
+        if: steps.version.outputs.create_tag == 'true'
+        env:
+          PUBLISH_VERSION: ${{ steps.version.outputs.version }}
+        run: bash .github/scripts/tag-version.sh "$PUBLISH_VERSION"
+
+      - name: Create GitHub Release
+        if: steps.version.outputs.create_tag == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          tag="v${VERSION}"
+          if printf '%s' "$VERSION" | grep -Eq -- '-rc-[0-9]+$'; then
+            gh release create "$tag" --title "$tag" --prerelease --generate-notes
+          else
+            gh release create "$tag" --title "$tag" --latest --generate-notes
+          fi || echo "::warning::Published ${VERSION} to Maven Central, but creating the GitHub Release failed."

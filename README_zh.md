@@ -95,34 +95,36 @@ jako {
 }
 ```
 
-### 使用 Snapshot 快照版本（每日构建）
+### dev、rc 与正式版本
 
-`jako` 每天自动构建并向 Maven Central Portal 快照仓库发布最新 Snapshot 版本。如需使用 `-SNAPSHOT` 版本，请在 `settings.gradle.kts`（或 `build.gradle.kts`）中添加快照仓库：
+`gradle.properties` 里的 `VERSION_NAME` 是这条发布线的版本号（当前为 `1.0.0`）。发出去的包都是 Maven Central 上的正式构件，不是 snapshot，同一个版本号不能再次覆盖。Gradle 的比较顺序是 `1.0.0-dev-N` < `1.0.0-rc-N` < `1.0.0`。
 
-```kotlin
-repositories {
-    mavenCentral()
-    maven("https://central.sonatype.com/repository/maven-snapshots/") {
-        mavenContent {
-            snapshotsOnly()
-        }
-    }
-}
-```
+| 时机 | 版本号 | 怎么发 |
+|---|---|---|
+| `main` 上 CI 通过 | `1.0.0-dev-1`、`1.0.0-dev-2`…… | 自动。每次发布取下一个序号。 |
+| `release` 或 `release/*` 分支 | `1.0.0-rc-1`，然后 `1.0.0` | 推 tag `v1.0.0-rc-1` 或 `v1.0.0`。 |
 
-随后在 `build.gradle.kts` 中引入 `-SNAPSHOT` 依赖：
+`main` 的 CI 通过后会自动发一个 dev 版本。如果 `main` 上已经有更新的提交，较早的那次发布会跳过，所以连续推多次只给最新提交发一个版本。也可以在 `main` 上手动运行 **Publish Dev**。
+
+在 release 分支上推 `v1.0.0-rc-1` 或 `v1.0.0`，就会按 tag 上的版本号发布。tag 里的 `X.Y.Z` 必须和该提交的 `VERSION_NAME` 一致，并且这个提交要在 `release` 或 `release/*` 上。打在 `main` 上的 `v1.0.0-dev-N` 也会按这个版本号发布。自动 dev 发布自己推上去的 tag 不会再触发一次发布。在 release 分支上手动运行 **Publish** 也可以，它会自己取下一个 rc 或正式版序号并推 tag。
+
+直接用 `mavenCentral()` 即可，不需要再加 snapshot 仓库。
 
 ```kotlin
 kotlin {
     sourceSets {
         commonMain.dependencies {
-            implementation("com.bennyhuo.jako:jako-stdlib:1.0.0-SNAPSHOT")
-            // 可选：Android Framework 核心 API 支持
-            implementation("com.bennyhuo.jako:jako-android:1.0.0-SNAPSHOT")
+            // 固定某个 dev 版本；想跟着最新 dev，写成 1.0.0-dev-+
+            implementation("com.bennyhuo.jako:jako-stdlib:1.0.0-dev-1")
+            implementation("com.bennyhuo.jako:jako-android:1.0.0-dev-1")
         }
     }
 }
 ```
+
+Gradle 插件使用同一版本号：`id("com.bennyhuo.jako") version "1.0.0-dev-1"`。`1.0.0-dev-+` 这类动态版本 Gradle 会缓存 24 小时。
+
+切出 release 分支时，如果 `main` 还会继续提交，先把 `main` 上的 `VERSION_NAME` 改成下一条发布线（例如 `1.1.0`，之后自动发 `1.1.0-dev-1`）。`main` 在这期间不提交的话，等 `1.0.0` 发出后再改也行。已经打过正式版 tag 的版本，不会再发 dev。
 
 ---
 
