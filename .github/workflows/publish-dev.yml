@@ -1,0 +1,118 @@
+name: Publish Dev
+
+# After CI passes on main, publish the next <VERSION_NAME>-dev-N (for example
+# 1.0.0-dev-1). The version is an immutable Maven Central release.
+on:
+  workflow_run:
+    workflows: ["CI Build & Test"]
+    types: [completed]
+    branches: [main, master]
+  workflow_dispatch:
+
+concurrency:
+  group: maven-central-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish dev version
+    if: >
+      (github.repository == 'jako-projects/jako' || github.event_name == 'workflow_dispatch') &&
+      (
+        github.event_name == 'workflow_dispatch' ||
+        (
+          github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.event == 'push' &&
+          (github.event.workflow_run.head_branch == 'main' || github.event.workflow_run.head_branch == 'master')
+        )
+      )
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Require main branch
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          case "${GITHUB_REF_NAME}" in
+            main|master) ;;
+            *)
+              echo "Dev versions are published from main or master. Current branch: ${GITHUB_REF_NAME}"
+              exit 1
+              ;;
+          esac
+
+      - name: Resolve dev version
+        id: version
+        env:
+          PUBLISH_BRANCH: ${{ github.event_name == 'workflow_dispatch' && github.ref_name || github.event.workflow_run.head_branch }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$PUBLISH_BRANCH" in
+            main|master) ;;
+            *)
+              echo "Refusing to publish a dev build for branch: ${PUBLISH_BRANCH:-<empty>}"
+              exit 1
+              ;;
+          esac
+          git fetch --force origin \
+            "+refs/heads/${PUBLISH_BRANCH}:refs/remotes/origin/${PUBLISH_BRANCH}" \
+            "+refs/tags/*:refs/tags/*"
+          tip="$(git rev-parse "origin/${PUBLISH_BRANCH}")"
+          head="$(git rev-parse HEAD)"
+          if [ "$head" != "$tip" ]; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping. This commit is not the tip of ${PUBLISH_BRANCH}."
+            exit 0
+          fi
+          set +e
+          version="$(bash .github/scripts/resolve-version.sh dev)"
+          code=$?
+          set -e
+          if [ "$code" -eq 2 ]; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "This commit is already published. Skipping."
+            exit 0
+          fi
+          if [ "$code" -ne 0 ]; then
+            exit "$code"
+          fi
+          echo "publish=true" >> "$GITHUB_OUTPUT"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "::notice::Publishing ${version}"
+
+      - name: Set up JDK 17
+        if: steps.version.outputs.publish == 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Gradle Cache
+        if: steps.version.outputs.publish == 'true'
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Publish to Maven Central
+        if: steps.version.outputs.publish == 'true'
+        env:
+          PUBLISH_VERSION: ${{ steps.version.outputs.version }}
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_IN_MEMORY_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.SIGNING_IN_MEMORY_KEY_ID }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_IN_MEMORY_KEY_PASSWORD }}
+        run: bash .github/scripts/publish.sh "$PUBLISH_VERSION"
+
+      - name: Tag version
+        if: steps.version.outputs.publish == 'true'
+        env:
+          PUBLISH_VERSION: ${{ steps.version.outputs.version }}
+        run: bash .github/scripts/tag-version.sh "$PUBLISH_VERSION"

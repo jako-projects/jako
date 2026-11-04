@@ -95,34 +95,36 @@ jako {
 }
 ```
 
-### Using Snapshot Releases (Daily Builds)
+### Dev, release candidate, and stable versions
 
-Snapshot builds are published daily to the Central Portal Snapshots repository. To use the latest `-SNAPSHOT` version, add the snapshot repository to your `settings.gradle.kts` (or `build.gradle.kts`):
+`VERSION_NAME` in `gradle.properties` is the release line (currently `1.0.0`). Published artifacts are immutable Maven Central releases, not snapshots. Gradle orders them as `1.0.0-dev-N` < `1.0.0-rc-N` < `1.0.0`.
 
-```kotlin
-repositories {
-    mavenCentral()
-    maven("https://central.sonatype.com/repository/maven-snapshots/") {
-        mavenContent {
-            snapshotsOnly()
-        }
-    }
-}
-```
+| When | Version | How |
+|---|---|---|
+| CI passes on `main` | `1.0.0-dev-1`, `1.0.0-dev-2`, … | Automatic. Each publish takes the next number. |
+| `release` or `release/*` | `1.0.0-rc-1`, then `1.0.0` | Push tag `v1.0.0-rc-1` or `v1.0.0`. |
 
-Then declare the `-SNAPSHOT` dependencies in `build.gradle.kts`:
+A dev publish starts after CI on `main` succeeds. If newer commits are already on `main`, the older run is skipped, so a burst of pushes produces one dev version for the latest commit. **Publish Dev** can also be started by hand from `main`.
+
+Pushing `v1.0.0-rc-1` or `v1.0.0` publishes that exact version. The tag's `X.Y.Z` must match `VERSION_NAME` on the tagged commit, and that commit must be on `release` or `release/*`. A `v1.0.0-dev-N` tag pointing at `main` publishes that dev version too. Tags created by the automatic dev publish do not start another publish. **Publish** in Actions, run from a release branch, still chooses the next rc or final number and pushes the tag for you.
+
+`mavenCentral()` is enough; there is no snapshot repository.
 
 ```kotlin
 kotlin {
     sourceSets {
         commonMain.dependencies {
-            implementation("com.bennyhuo.jako:jako-stdlib:1.0.0-SNAPSHOT")
-            // Optional: Android Framework APIs
-            implementation("com.bennyhuo.jako:jako-android:1.0.0-SNAPSHOT")
+            // Pin a dev build, or use 1.0.0-dev-+ to follow the newest one.
+            implementation("com.bennyhuo.jako:jako-stdlib:1.0.0-dev-1")
+            implementation("com.bennyhuo.jako:jako-android:1.0.0-dev-1")
         }
     }
 }
 ```
+
+The Gradle plugin uses the same version: `id("com.bennyhuo.jako") version "1.0.0-dev-1"`. Gradle caches a dynamic version such as `1.0.0-dev-+` for 24 hours.
+
+When cutting the release branch, bump `VERSION_NAME` on `main` if `main` will keep moving (for example to `1.1.0`, which publishes `1.1.0-dev-1`). Otherwise bump it after `1.0.0` is published. Dev builds of a version that already has a final tag are rejected.
 
 ---
 
