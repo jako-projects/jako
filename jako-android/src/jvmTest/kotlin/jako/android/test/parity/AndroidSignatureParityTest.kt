@@ -194,26 +194,31 @@ class AndroidSignatureParityTest {
             fail("Found ${errors.size} commonMain vs nonJvmMain/nativeMain/posixMain/mingwMain/webMain parity error(s):\n" + errors.joinToString("\n"))
         }
 
-        val jvmDir = File(moduleDir, "src/jvmMain/kotlin")
-        if (jvmDir.isDirectory) {
+        val jvmShimDirs = listOf(
+            File(moduleDir, "src/jvmTest/kotlin/android"),
+            File(moduleDir, "src/jvmTest/kotlin/dalvik")
+        ).filter { it.isDirectory }
+        if (jvmShimDirs.isNotEmpty()) {
             val jvmTopClassRegex = Regex(
                 """^(?!internal\s+|private\s+)(?:public\s+|open\s+|abstract\s+|final\s+|sealed\s+)*(?:class|interface|object)\s+(\w+)""",
                 RegexOption.MULTILINE
             )
-            jvmDir.walkTopDown().filter { it.extension == "kt" }.forEach { file ->
-                val content = file.readText()
-                val pkg = Regex("""^package\s+([\w.]+)""", RegexOption.MULTILINE).find(content)?.groupValues?.get(1) ?: ""
-                jvmTopClassRegex.findAll(content).forEach { m ->
-                    val name = m.groupValues[1]
-                    val fqName = "$pkg.$name"
-                    val expectedJvmFile = resolveReferenceSourceFile(androidCl, fqName) ?: "$name.kt"
-                    if (file.name != expectedJvmFile) {
-                        errors.add("File organization mismatch for jvmMain $fqName: expected $expectedJvmFile, found ${file.name}")
+            jvmShimDirs.forEach { jvmDir ->
+                jvmDir.walkTopDown().filter { it.extension == "kt" }.forEach { file ->
+                    val content = file.readText()
+                    val pkg = Regex("""^package\s+([\w.]+)""", RegexOption.MULTILINE).find(content)?.groupValues?.get(1) ?: ""
+                    jvmTopClassRegex.findAll(content).forEach { m ->
+                        val name = m.groupValues[1]
+                        val fqName = "$pkg.$name"
+                        val expectedJvmFile = resolveReferenceSourceFile(androidCl, fqName) ?: "$name.kt"
+                        if (file.name != expectedJvmFile) {
+                            errors.add("File organization mismatch for jvmTest shim $fqName: expected $expectedJvmFile, found ${file.name}")
+                        }
                     }
                 }
             }
             if (errors.isNotEmpty()) {
-                fail("Found ${errors.size} jvmMain file organization error(s):\n" + errors.joinToString("\n"))
+                fail("Found ${errors.size} jvmTest shim file organization error(s):\n" + errors.joinToString("\n"))
             }
         }
     }

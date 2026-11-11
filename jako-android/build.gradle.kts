@@ -132,9 +132,13 @@ tasks.withType<JavaCompile>().configureEach {
 
 tasks.named<KotlinCompile>("compileKotlinJvm") {
     setSource(
-        fileTree("src/commonMain/kotlin/com/bennyhuo/jako"),
-        fileTree("src/commonMain/kotlin/kotlinx/parcelize"),
-        fileTree("src/jvmMain/kotlin")
+        fileTree("src/commonMain/kotlin/com/bennyhuo/jako")
+    )
+}
+
+tasks.named<KotlinCompile>("compileTestKotlinJvm") {
+    source(
+        fileTree("src/commonMain/kotlin/kotlinx/parcelize")
     )
 }
 

@@ -1,8 +1,6 @@
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
-import org.jetbrains.kotlin.gradle.InternalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
     kotlin("multiplatform") version "2.4.21"
@@ -18,6 +16,8 @@ jako {
 }
 
 kotlin {
+    applyDefaultHierarchyTemplate()
+
     jvm {
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_1_8)
@@ -64,30 +64,44 @@ kotlin {
     }
 
     sourceSets {
+        val commonMain = getByName("commonMain")
+        val commonTest = getByName("commonTest")
+
         commonMain.dependencies {
             implementation("com.bennyhuo.jako:jako-stdlib")
-            implementation("com.bennyhuo.jako:jako-android")
         }
 
-        jvmMain.dependencies {
-            implementation("org.robolectric:android-all:10-robolectric-5803371")
+        val nonJvmMain by creating {
+            dependsOn(commonMain)
+            dependencies {
+                implementation("com.bennyhuo.jako:jako-android")
+            }
         }
+
+        getByName("nativeMain").dependsOn(nonJvmMain)
+        val webMain = getByName("webMain").apply {
+            dependsOn(nonJvmMain)
+        }
+        getByName("wasmWasiMain").dependsOn(webMain)
 
         commonTest.dependencies {
             implementation(kotlin("test"))
         }
 
+        val nonJvmTest by creating {
+            dependsOn(commonTest)
+        }
+
+        getByName("nativeTest").dependsOn(nonJvmTest)
+        val webTest = getByName("webTest").apply {
+            dependsOn(nonJvmTest)
+        }
+        getByName("wasmWasiTest").dependsOn(webTest)
+
         jvmTest.dependencies {
             implementation(kotlin("test-junit5"))
-            implementation("org.robolectric:android-all:10-robolectric-5803371")
         }
     }
-}
-
-@OptIn(InternalKotlinGradlePluginApi::class)
-tasks.withType<KotlinCompile>().configureEach {
-    multiplatformStructure.fragments.set(emptyList())
-    multiplatformStructure.refinesEdges.set(emptyList())
 }
 
 tasks.withType<JavaCompile>().configureEach {

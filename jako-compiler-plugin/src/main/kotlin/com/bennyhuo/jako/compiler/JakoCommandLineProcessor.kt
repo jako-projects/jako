@@ -10,6 +10,7 @@ const val JAKO_COMPILER_PLUGIN_ID: String = "com.bennyhuo.jako.compiler"
 
 val KEY_WEB_RUNTIMES = CompilerConfigurationKey<Set<String>>("webRuntimes")
 val KEY_WEB_SUPPORT_SEVERITY = CompilerConfigurationKey<String>("webSupportSeverity")
+val KEY_PARCELIZE_ENABLED = CompilerConfigurationKey<Boolean>("parcelizeEnabled")
 
 class JakoCommandLineProcessor : CommandLineProcessor {
     override val pluginId: String = JAKO_COMPILER_PLUGIN_ID
@@ -26,6 +27,13 @@ class JakoCommandLineProcessor : CommandLineProcessor {
             optionName = "webSupportSeverity",
             valueDescription = "<warning|error|none>",
             description = "Diagnostic severity for @WebSupport violations (default: warning)",
+            required = false,
+            allowMultipleOccurrences = false
+        ),
+        CliOption(
+            optionName = "parcelizeEnabled",
+            valueDescription = "<true|false>",
+            description = "Whether to enable Jako cross-platform @Parcelize FIR/IR extensions (default: true)",
             required = false,
             allowMultipleOccurrences = false
         )
@@ -47,6 +55,9 @@ class JakoCommandLineProcessor : CommandLineProcessor {
             }
             "webSupportSeverity" -> {
                 configuration.put(KEY_WEB_SUPPORT_SEVERITY, value.trim().lowercase())
+            }
+            "parcelizeEnabled" -> {
+                configuration.put(KEY_PARCELIZE_ENABLED, value.trim().toBooleanStrictOrNull() ?: true)
             }
         }
     }

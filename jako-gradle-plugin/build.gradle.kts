@@ -33,9 +33,11 @@ val generateBuildConfigDir = layout.buildDirectory.dir("generated/buildConfig/ko
 val generateBuildConfig = tasks.register("generateBuildConfig") {
     val groupVal = project.group.toString()
     val versionVal = project.version.toString()
+    val kotlinSeriesVal = kotlin.coreLibrariesVersion.split('.').take(2).joinToString(".")
     val outDir = generateBuildConfigDir
     inputs.property("group", groupVal)
     inputs.property("version", versionVal)
+    inputs.property("kotlinSeries", kotlinSeriesVal)
     outputs.dir(outDir)
     doLast {
         val pkgDir = outDir.get().asFile.resolve("com/bennyhuo/jako/gradle")
@@ -49,6 +51,7 @@ val generateBuildConfig = tasks.register("generateBuildConfig") {
                 const val COMPILER_PLUGIN_ARTIFACT_ID: String = "jako-compiler-plugin"
                 const val COMPILER_PLUGIN_ID: String = "com.bennyhuo.jako.compiler"
                 const val VERSION: String = "$versionVal"
+                const val EXPECTED_KOTLIN_SERIES: String = "$kotlinSeriesVal"
             }
             """.trimIndent() + "\n"
         )

@@ -4,6 +4,7 @@ import org.gradle.api.Project
 import org.gradle.api.provider.Provider
 import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
 import org.jetbrains.kotlin.gradle.dsl.KotlinProjectExtension
+import org.jetbrains.kotlin.gradle.plugin.KotlinBasePlugin
 import org.jetbrains.kotlin.gradle.plugin.KotlinCompilation
 import org.jetbrains.kotlin.gradle.plugin.KotlinCompilerPluginSupportPlugin
 import org.jetbrains.kotlin.gradle.plugin.KotlinPlatformType
@@ -34,18 +35,32 @@ class JakoGradlePlugin : KotlinCompilerPluginSupportPlugin {
             task.outputDir.set(target.layout.buildDirectory.dir("generated/jako/commonMain/kotlin"))
         }
 
-        target.plugins.withId("org.jetbrains.kotlin.multiplatform") {
+        target.plugins.withId("org.jetbrains.kotlin.multiplatform") { plugin ->
+            checkKotlinVersionCompatibility(target, plugin)
             val kmp = target.extensions.getByType(KotlinMultiplatformExtension::class.java)
             kmp.sourceSets.named("commonMain").configure { sourceSet ->
                 sourceSet.kotlin.srcDir(generateTask.flatMap { it.outputDir })
             }
         }
 
-        target.plugins.withId("org.jetbrains.kotlin.jvm") {
+        target.plugins.withId("org.jetbrains.kotlin.jvm") { plugin ->
+            checkKotlinVersionCompatibility(target, plugin)
             val kotlinExt = target.extensions.getByType(KotlinProjectExtension::class.java)
             kotlinExt.sourceSets.named("main").configure { sourceSet ->
                 sourceSet.kotlin.srcDir(generateTask.flatMap { it.outputDir })
             }
+        }
+    }
+
+    private fun checkKotlinVersionCompatibility(project: Project, plugin: Any) {
+        val kgpVersion = (plugin as? KotlinBasePlugin)?.pluginVersion ?: return
+        val majorMinor = kgpVersion.split('.').take(2).joinToString(".")
+        if (majorMinor != JakoPluginBuildConfig.EXPECTED_KOTLIN_SERIES) {
+            project.logger.warn(
+                "[jako] Detected Kotlin Gradle Plugin $kgpVersion, while com.bennyhuo.jako:${JakoPluginBuildConfig.VERSION} " +
+                    "targets Kotlin ${JakoPluginBuildConfig.EXPECTED_KOTLIN_SERIES}.x K2 FIR/IR compiler APIs. " +
+                    "Mismatched major.minor Kotlin versions may cause compiler plugin ABI incompatibilities."
+            )
         }
     }
 
@@ -72,8 +87,20 @@ class JakoGradlePlugin : KotlinCompilerPluginSupportPlugin {
             val severity = ext?.webSupportSeverity?.orNull ?: "warning"
             options.add(SubpluginOption("webSupportSeverity", severity))
 
-            val explicitRuntimes = ext?.webRuntimes?.orNull.orEmpty()
+            val officialParcelizeApplied = project.plugins.hasPlugin("org.jetbrains.kotlin.plugin.parcelize") ||
+                project.plugins.hasPlugin("kotlin-parcelize")
             val target = kotlinCompilation.target
+            val parcelizeEnabled = ext?.parcelizeEnabled?.orNull ?: if (officialParcelizeApplied) {
+                val platformType = target.platformType
+                platformType != KotlinPlatformType.androidJvm &&
+                    platformType != KotlinPlatformType.jvm &&
+                    !(platformType == KotlinPlatformType.common && project.plugins.hasPlugin("com.android.base"))
+            } else {
+                true
+            }
+            options.add(SubpluginOption("parcelizeEnabled", parcelizeEnabled.toString()))
+
+            val explicitRuntimes = ext?.webRuntimes?.orNull.orEmpty()
             if (target.platformType == KotlinPlatformType.js || target.platformType == KotlinPlatformType.wasm) {
                 val detectedRuntimes = if (explicitRuntimes.isNotEmpty()) {
                     explicitRuntimes

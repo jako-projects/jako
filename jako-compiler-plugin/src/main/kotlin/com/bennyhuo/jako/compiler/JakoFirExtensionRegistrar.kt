@@ -8,11 +8,14 @@ import org.jetbrains.kotlin.fir.extensions.FirExtensionRegistrar
 
 class JakoFirExtensionRegistrar(
     private val configuredWebRuntimes: Set<String>? = null,
-    private val webSupportSeverity: String = "warning"
+    private val webSupportSeverity: String = "warning",
+    private val parcelizeEnabled: Boolean = true
 ) : FirExtensionRegistrar() {
     override fun ExtensionRegistrarContext.configurePlugin() {
         +::JakoSynchronizedFirStatusHook
-        +::JakoParcelizeFirExtension
+        if (parcelizeEnabled) {
+            +::JakoParcelizeFirExtension
+        }
         +{ session: FirSession ->
             JakoWebSupportFirChecker(
                 session = session,

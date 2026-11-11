@@ -198,11 +198,38 @@ class JakoCompilerPluginRegistrarTest {
         }
     }
 
+    @Test
+    fun testParcelizeEnabledCliOptionDisablesBundledParcelizeCleanly() {
+        val tempDir = Files.createTempDirectory("jako_parcelize_disabled_test").toFile()
+        try {
+            val src = File(tempDir, "PlainSample.kt").apply {
+                writeText(
+                    """
+                    package com.example.plain
+
+                    fun greet(name: String): String = "Hello, ${'$'}name"
+                    """.trimIndent()
+                )
+            }
+            val (exitCode, output) = compileWithPlugin(
+                sources = listOf(src),
+                outDir = File(tempDir, "out"),
+                webRuntimes = "NODE_JS",
+                severity = "warning",
+                parcelizeEnabled = false
+            )
+            assertEquals(ExitCode.OK, exitCode, "Compilation with parcelizeEnabled=false should succeed:\n$output")
+        } finally {
+            tempDir.deleteRecursively()
+        }
+    }
+
     private fun compileWithPlugin(
         sources: List<File>,
         outDir: File,
         webRuntimes: String,
-        severity: String
+        severity: String,
+        parcelizeEnabled: Boolean? = null
     ): Pair<ExitCode, String> {
         outDir.mkdirs()
         val classpath = System.getProperty("java.class.path")
@@ -217,6 +244,9 @@ class JakoCompilerPluginRegistrarTest {
             "-P", "plugin:$JAKO_COMPILER_PLUGIN_ID:webRuntimes=$webRuntimes",
             "-P", "plugin:$JAKO_COMPILER_PLUGIN_ID:webSupportSeverity=$severity"
         )
+        if (parcelizeEnabled != null) {
+            args.addAll(listOf("-P", "plugin:$JAKO_COMPILER_PLUGIN_ID:parcelizeEnabled=$parcelizeEnabled"))
+        }
         args.addAll(sources.map { it.absolutePath })
         val exitCode = K2JVMCompiler().exec(ps, *args.toTypedArray())
         return exitCode to baos.toString("UTF-8")

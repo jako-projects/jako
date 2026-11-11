@@ -40,6 +40,12 @@ abstract class JakoExtension @Inject constructor(
     abstract val compilerPluginEnabled: Property<Boolean>
 
     /**
+     * Optional override for enabling or disabling Jako's bundled `@Parcelize` FIR/IR extensions.
+     * When unset, `@Parcelize` is enabled automatically and yielded on Android/JVM compilations if the official `kotlin-parcelize` plugin is also applied.
+     */
+    abstract val parcelizeEnabled: Property<Boolean>
+
+    /**
      * Explicit override for target WebRuntime names (`NODE_JS`, `WASI`, `BROWSER`) to validate against `@WebSupport` on JS/Wasm targets.
      * When empty, runtimes are inferred automatically from the Kotlin target configuration (`nodejs()`, `browser()`, `wasmWasi()`).
      */
@@ -77,6 +83,10 @@ abstract class JakoExtension @Inject constructor(
 
     fun compilerPluginEnabled(enabled: Boolean) {
         compilerPluginEnabled.set(enabled)
+    }
+
+    fun parcelizeEnabled(enabled: Boolean) {
+        parcelizeEnabled.set(enabled)
     }
 
     fun webRuntimes(vararg runtimes: String) {
