@@ -104,8 +104,11 @@ actual open class Scanner : Iterator<String>, Closeable {
     }
 
     actual open fun nextInt(): Int {
-        val token = next()
-        return token.toIntOrNull() ?: throw InputMismatchException("Not an integer: $token")
+        val tokenRange = findNextToken() ?: throw NoSuchElementException()
+        val token = buffer.substring(tokenRange.first, tokenRange.second)
+        val value = token.toIntOrNull() ?: throw InputMismatchException("Not an integer: $token")
+        position = tokenRange.second
+        return value
     }
 
     actual open fun hasNextLong(): Boolean {
@@ -115,8 +118,11 @@ actual open class Scanner : Iterator<String>, Closeable {
     }
 
     actual open fun nextLong(): Long {
-        val token = next()
-        return token.toLongOrNull() ?: throw InputMismatchException("Not a long: $token")
+        val tokenRange = findNextToken() ?: throw NoSuchElementException()
+        val token = buffer.substring(tokenRange.first, tokenRange.second)
+        val value = token.toLongOrNull() ?: throw InputMismatchException("Not a long: $token")
+        position = tokenRange.second
+        return value
     }
 
     actual open fun hasNextDouble(): Boolean {
@@ -126,8 +132,11 @@ actual open class Scanner : Iterator<String>, Closeable {
     }
 
     actual open fun nextDouble(): Double {
-        val token = next()
-        return token.toDoubleOrNull() ?: throw InputMismatchException("Not a double: $token")
+        val tokenRange = findNextToken() ?: throw NoSuchElementException()
+        val token = buffer.substring(tokenRange.first, tokenRange.second)
+        val value = token.toDoubleOrNull() ?: throw InputMismatchException("Not a double: $token")
+        position = tokenRange.second
+        return value
     }
 
     actual open fun hasNextBoolean(): Boolean {
@@ -137,10 +146,13 @@ actual open class Scanner : Iterator<String>, Closeable {
     }
 
     actual open fun nextBoolean(): Boolean {
-        val token = next()
-        return if (token.equals("true", ignoreCase = true)) true
+        val tokenRange = findNextToken() ?: throw NoSuchElementException()
+        val token = buffer.substring(tokenRange.first, tokenRange.second)
+        val value = if (token.equals("true", ignoreCase = true)) true
         else if (token.equals("false", ignoreCase = true)) false
         else throw InputMismatchException("Not a boolean: $token")
+        position = tokenRange.second
+        return value
     }
 
     actual open fun useDelimiter(pattern: String): Scanner {

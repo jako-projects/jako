@@ -19,11 +19,12 @@ expect open class IntBuffer : Buffer, Comparable<IntBuffer> {
     open fun put(src: IntBuffer): IntBuffer
     open fun order(): ByteOrder
     open fun asReadOnlyBuffer(): IntBuffer
+    open fun compact(): IntBuffer
     open fun duplicate(): IntBuffer
     open fun slice(): IntBuffer
     override fun isReadOnly(): Boolean
     override fun hasArray(): Boolean
-    override fun array(): Any
+    override fun array(): IntArray
     override fun arrayOffset(): Int
     override fun isDirect(): Boolean
 

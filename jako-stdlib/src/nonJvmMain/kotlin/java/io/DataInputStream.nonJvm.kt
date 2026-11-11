@@ -125,6 +125,103 @@ actual open class DataInputStream actual constructor(
         val utflen = readUnsignedShort()
         val bytearr = ByteArray(utflen)
         readFully(bytearr, 0, utflen)
-        return bytearr.decodeToString()
+        return ModifiedUtf8.decode(bytearr, 0, utflen)
+    }
+}
+
+internal object ModifiedUtf8 {
+    fun encodedLength(s: String): Long {
+        var utflen = 0L
+        for (i in 0 until s.length) {
+            val c = s[i].code
+            utflen += when {
+                c in 0x0001..0x007F -> 1L
+                c > 0x07FF -> 3L
+                else -> 2L
+            }
+        }
+        return utflen
+    }
+
+    fun encode(s: String): ByteArray {
+        val utflenLong = encodedLength(s)
+        if (utflenLong > 65535L) {
+            throw UTFDataFormatException("encoded string too long: $utflenLong bytes")
+        }
+        return encodeUnchecked(s, utflenLong.toInt())
+    }
+
+    fun encodeUnchecked(s: String, utflen: Int = encodedLength(s).toInt()): ByteArray {
+        val bytearr = ByteArray(utflen)
+        var count = 0
+        for (i in 0 until s.length) {
+            val c = s[i].code
+            when {
+                c in 0x0001..0x007F -> {
+                    bytearr[count++] = c.toByte()
+                }
+                c > 0x07FF -> {
+                    bytearr[count++] = (0xE0 or ((c shr 12) and 0x0F)).toByte()
+                    bytearr[count++] = (0x80 or ((c shr 6) and 0x3F)).toByte()
+                    bytearr[count++] = (0x80 or (c and 0x3F)).toByte()
+                }
+                else -> {
+                    bytearr[count++] = (0xC0 or ((c shr 6) and 0x1F)).toByte()
+                    bytearr[count++] = (0x80 or (c and 0x3F)).toByte()
+                }
+            }
+        }
+        return bytearr
+    }
+
+    fun decode(bytearr: ByteArray, offset: Int = 0, utflen: Int = bytearr.size - offset): String {
+        val end = offset + utflen
+        val chararr = CharArray(utflen)
+        var count = offset
+        var charCount = 0
+        while (count < end) {
+            val c = bytearr[count].toInt() and 0xff
+            if (c > 127) break
+            count++
+            chararr[charCount++] = c.toChar()
+        }
+        while (count < end) {
+            val c = bytearr[count].toInt() and 0xff
+            when (c ushr 4) {
+                in 0..7 -> {
+                    count++
+                    chararr[charCount++] = c.toChar()
+                }
+                12, 13 -> {
+                    count += 2
+                    if (count > end) {
+                        throw UTFDataFormatException("malformed input: partial character at end")
+                    }
+                    val char2 = bytearr[count - 1].toInt()
+                    if ((char2 and 0xC0) != 0x80) {
+                        throw UTFDataFormatException("malformed input around byte ${count - offset}")
+                    }
+                    chararr[charCount++] = (((c and 0x1F) shl 6) or (char2 and 0x3F)).toChar()
+                }
+                14 -> {
+                    count += 3
+                    if (count > end) {
+                        throw UTFDataFormatException("malformed input: partial character at end")
+                    }
+                    val char2 = bytearr[count - 2].toInt()
+                    val char3 = bytearr[count - 1].toInt()
+                    if ((char2 and 0xC0) != 0x80 || (char3 and 0xC0) != 0x80) {
+                        throw UTFDataFormatException("malformed input around byte ${count - offset - 1}")
+                    }
+                    chararr[charCount++] = (
+                        ((c and 0x0F) shl 12) or
+                            ((char2 and 0x3F) shl 6) or
+                            (char3 and 0x3F)
+                        ).toChar()
+                }
+                else -> throw UTFDataFormatException("malformed input around byte ${count - offset}")
+            }
+        }
+        return chararr.concatToString(0, charCount)
     }
 }

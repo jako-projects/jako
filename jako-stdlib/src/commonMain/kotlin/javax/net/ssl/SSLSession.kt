@@ -2,6 +2,7 @@
 
 package javax.net.ssl
 
+import java.security.Principal
 import java.security.cert.Certificate
 
 expect interface SSLSession {
@@ -13,7 +14,7 @@ expect interface SSLSession {
      * [Nullability Decision] Non-null `Array<Certificate>`.
      */
     fun getPeerCertificates(): Array<Certificate>
-    open fun getPeerPrincipal(): Any?
+    fun getPeerPrincipal(): Principal
     fun getCipherSuite(): String
     fun getProtocol(): String
     fun isValid(): Boolean
@@ -21,7 +22,7 @@ expect interface SSLSession {
     open val peerHost: String?
     open val peerPort: Int
     open val peerCertificates: Array<Certificate>
-    open val peerPrincipal: Any?
+    open val peerPrincipal: Principal
     open val cipherSuite: String
     open val protocol: String
     open val isValid: Boolean

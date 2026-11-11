@@ -88,12 +88,9 @@ actual open class DataOutputStream actual constructor(
     }
 
     actual override fun writeUTF(s: String) {
-        val bytes = s.encodeToByteArray()
-        if (bytes.size > 65535) {
-            throw IOException("encoded string too long: ${bytes.size} bytes")
-        }
-        writeShort(bytes.size)
-        write(bytes, 0, bytes.size)
+        val bytearr = ModifiedUtf8.encode(s)
+        writeShort(bytearr.size)
+        write(bytearr, 0, bytearr.size)
     }
 
     actual override fun flush() {

@@ -179,4 +179,65 @@ class CharBufferTest {
         db.flip()
         assertEquals(2.5, db.asDoubleBuffer().get())
     }
+
+    @Test
+    fun testTypedBuffersCovariantArrayCompactAndCharBufferLength() {
+        val cb = CharBuffer.wrap(charArrayOf('a', 'b', 'c', 'd'))
+        val charArr: CharArray = cb.array()
+        assertEquals(4, charArr.size)
+        assertEquals(4, cb.length)
+        cb.position(1)
+        assertEquals(3, cb.length)
+        cb.limit(3) // ['b', 'c']
+        cb.compact()
+        assertEquals(2, cb.position())
+        assertEquals(4, cb.limit())
+        assertEquals('b', cb.get(0))
+        assertEquals('c', cb.get(1))
+
+        val sb = ShortBuffer.wrap(shortArrayOf(1, 2, 3, 4))
+        val shortArr: ShortArray = sb.array()
+        assertEquals(4, shortArr.size)
+        sb.position(2)
+        sb.compact()
+        assertEquals(2, sb.position())
+        assertEquals(3.toShort(), sb.get(0))
+        assertEquals(4.toShort(), sb.get(1))
+
+        val ib = IntBuffer.wrap(intArrayOf(10, 20, 30, 40))
+        val intArr: IntArray = ib.array()
+        assertEquals(4, intArr.size)
+        ib.position(1)
+        ib.limit(3)
+        ib.compact()
+        assertEquals(2, ib.position())
+        assertEquals(20, ib.get(0))
+        assertEquals(30, ib.get(1))
+
+        val lb = LongBuffer.wrap(longArrayOf(100L, 200L, 300L))
+        val longArr: LongArray = lb.array()
+        assertEquals(3, longArr.size)
+        lb.position(1)
+        lb.compact()
+        assertEquals(2, lb.position())
+        assertEquals(200L, lb.get(0))
+        assertEquals(300L, lb.get(1))
+
+        val fb = FloatBuffer.wrap(floatArrayOf(1.5f, 2.5f, 3.5f))
+        val floatArr: FloatArray = fb.array()
+        assertEquals(3, floatArr.size)
+        fb.position(1)
+        fb.compact()
+        assertEquals(2, fb.position())
+        assertEquals(2.5f, fb.get(0))
+        assertEquals(3.5f, fb.get(1))
+
+        val db = DoubleBuffer.wrap(doubleArrayOf(1.25, 2.25, 3.25))
+        val doubleArr: DoubleArray = db.array()
+        assertEquals(3, doubleArr.size)
+        db.position(2)
+        db.compact()
+        assertEquals(1, db.position())
+        assertEquals(3.25, db.get(0))
+    }
 }

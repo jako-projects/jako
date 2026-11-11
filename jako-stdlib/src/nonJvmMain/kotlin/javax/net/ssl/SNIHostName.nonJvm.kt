@@ -1,6 +1,7 @@
 package javax.net.ssl
 
 import java.net.IDN
+import java.security.Principal
 import java.security.cert.Certificate
 import java.security.cert.X509Certificate
 
@@ -108,12 +109,12 @@ internal open class NativeSSLSession(
     override val peerHost: String? get() = getPeerHost()
     override fun getPeerPort(): Int = port
     override val peerPort: Int get() = getPeerPort()
-    override fun getPeerPrincipal(): Any? {
+    override fun getPeerPrincipal(): Principal {
         val cert = peerCerts.firstOrNull() as? X509Certificate
             ?: throw SSLPeerUnverifiedException("peer not authenticated")
         return cert.getSubjectX500Principal()
     }
-    override val peerPrincipal: Any? get() = getPeerPrincipal()
+    override val peerPrincipal: Principal get() = getPeerPrincipal()
     override fun isValid(): Boolean = sessionValid
     override val isValid: Boolean get() = isValid()
     override fun getCipherSuite(): String = negotiatedCipherSuite

@@ -134,13 +134,6 @@ internal class LinuxOpenSSLSocket(
         val ctx = OpenSSLBindings.SSL_CTX_new?.invoke(method) ?: throw SSLException("Failed to create SSL_CTX")
         sslCtxPtr = ctx
 
-        memScoped {
-            val rc = OpenSSLBindings.SSL_CTX_set_cipher_list?.invoke(ctx, "ALL:@SECLEVEL=0".cstr.ptr) ?: 0
-            if (rc == 0) {
-                OpenSSLBindings.SSL_CTX_set_cipher_list?.invoke(ctx, "ALL".cstr.ptr)
-            }
-        }
-
         if (trustManager == null || trustManager is SystemX509TrustManager) {
             OpenSSLBindings.SSL_CTX_set_default_verify_paths?.invoke(ctx)
         }

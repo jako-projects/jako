@@ -12,6 +12,14 @@ actual open class ThreadPoolExecutor actual constructor(
     workQueue: BlockingQueue<Runnable>,
     private val threadFactory: ThreadFactory
 ) : AbstractExecutorService() {
+    actual constructor(
+        corePoolSize: Int,
+        maximumPoolSize: Int,
+        keepAliveTime: Long,
+        unit: TimeUnit,
+        workQueue: BlockingQueue<Runnable>
+    ) : this(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, Executors.defaultThreadFactory())
+
     private var isShutdownState = false
 
     init {

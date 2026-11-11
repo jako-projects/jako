@@ -6,14 +6,17 @@ actual open class SecureRandom actual constructor() : java.util.Random() {
 
     actual override fun nextBytes(bytes: ByteArray) {
         if (bytes.isEmpty()) return
-        val latin1 = NodeBridge.randomBytesLatin1(bytes.size)
-        if (latin1.length == bytes.size) {
-            for (i in bytes.indices) {
-                bytes[i] = (latin1[i].code and 0xFF).toByte()
-            }
-            return
+        val latin1 = try {
+            NodeBridge.randomBytesLatin1(bytes.size)
+        } catch (e: Throwable) {
+            throw IllegalStateException("SecureRandom CSPRNG unavailable on current Web runtime", e)
         }
-        kotlin.random.Random.nextBytes(bytes)
+        if (latin1.length != bytes.size) {
+            throw IllegalStateException("SecureRandom CSPRNG returned ${latin1.length} bytes, expected ${bytes.size}")
+        }
+        for (i in bytes.indices) {
+            bytes[i] = (latin1[i].code and 0xFF).toByte()
+        }
     }
 
     override fun nextInt(): Int {

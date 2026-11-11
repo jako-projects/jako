@@ -584,6 +584,7 @@
 | `java.lang.System` | `getSecurityManager()`、`setSecurityManager()`、`load(filename)`、`loadLibrary(libname)`、`runFinalization()`、`inheritedChannel()` | Native 无 JVM `SecurityManager` 与 Finalizer 线程；C 库链接在 Kotlin Native 编译期通过 `cinterop` 完成。 |
 | `java.lang.Thread` | `getContextClassLoader()`、`setContextClassLoader()`、`getThreadGroup()`、`stop()`、`suspend()`、`resume()`、`countStackFrames()` | Native 无 `ClassLoader` 与 `ThreadGroup`，且 `stop`/`suspend`/`resume` 为 JDK 已废弃的不安全方法。 |
 | `java.nio.channels.FileChannel` | `map(MapMode, position, size): MappedByteBuffer` | 依赖 `MappedByteBuffer` 虚拟内存映射与 JVM DirectBuffer Cleaner 机制；请使用 `FileChannel.read(ByteBuffer, position)` / `write(ByteBuffer, position)`。 |
+| `java.io.ObjectInputStream` / `java.io.ObjectOutputStream` | 任意自定义 `Serializable` POJO 对象的反射读写 | 已完整实现与 OpenJDK 8 100% 二进制流兼容的对象序列化协议（`0xACED 0x0005`、`PROTOCOL_VERSION_2`、`TC_BLOCKDATA`、引用句柄表 `TC_REFERENCE`、`TC_RESET`、`writeUnshared` / `readUnshared`），支持全部 JDK 核心内建可序列化类型（基本类型包装类、`String`、数组、`ArrayList` / `LinkedList` / `HashSet` / `LinkedHashSet` / `HashMap` / `LinkedHashMap`、`Date`、`UUID`、`File`、`URI`、`BigInteger` / `BigDecimal`、`Locale` 等）与 JVM 双向二进制互通；但因非 JVM 平台无字节码反射与 `sun.misc.Unsafe` 无构造器实例化能力，读写任意用户自定义 `Serializable` 类将抛出 `InvalidClassException`。自定义业务类型跨平台序列化请使用 `jako-android` 的 `@Parcelize` 或 `kotlinx.serialization`。 |
 
 ### 4.2 `JS` / `WasmJs` / `WasmWasi` 平台与细分运行时支持边界 (`@WebSupport` & `WebRuntime`)
 
@@ -594,7 +595,7 @@
    - 纯路径计算（不访问本地磁盘）：`File.getName()`、`getParent()`、`getPath()`、`isAbsolute()`、`getAbsolutePath()`、`toURI()`、`toPath()`、`Paths.get()`、`Path` 路径拼接与解析。
    - 基础宿主能力：`System.currentTimeMillis()`、`System.nanoTime()`、`SecureRandom`、`System.out` / `System.err`、`android.util.Log`。
 2. **需要本地文件系统访问（`@WebSupport(WebRuntime.NODE_JS, WebRuntime.WASI)`，仅 `BROWSER` 不支持）**：
-   - 浏览器沙箱禁止同步访问本地磁盘，以下 API 在 `JS/Wasm Browser` 下调用会触发编译期告警/错误并在运行时抛出标准化 `UnsupportedOperationException`：
+   - 浏览器沙箱禁止同步访问本地磁盘，以下 API 在 `JS/Wasm Browser` 下调用会触发编译期告警/错误并在运行时抛出标准化 `UnsupportedOperationException`（注：`Node.js` 直接访问宿主机真实文件系统；`WasmWasi` 当前默认挂载进程内隔离的内存虚拟文件系统 VFS，而非宿主机真实磁盘 `preopens`）：
    - `java.io.File`（磁盘操作方法：`exists`、`isDirectory`、`isFile`、`length`、`delete`、`deleteOnExit`、`mkdir`、`mkdirs`、`list`、`listFiles`、`lastModified`、`setLastModified`、`renameTo`、`setReadOnly`、`setWritable`、`setReadable`、`setExecutable`、`canRead`、`canWrite`、`canExecute`、`getCanonicalPath`、`getCanonicalFile`、`createNewFile`、`getTotalSpace`、`getFreeSpace`、`getUsableSpace`、`createTempFile`）、`FileInputStream`、`FileOutputStream`、`RandomAccessFile`、`FileReader`、`FileWriter`、`PrintStream(File/String)`、`PrintWriter(File/String)`、`Scanner(File/Path)`、`FileChannel`、`Files`、`ZipFile`、`JarFile`、`StatFs` 以及 `kotlin.io` / `kotlin.io.path` 中的文件读写扩展函数（`FileTreeWalk`、`FileReadWrite`、`Utils`、`PathReadWrite`、`PathUtils`）。
 3. **需要阻塞网络 Socket、同步 DNS 或 OS 子进程（`@WebSupport(WebRuntime.NODE_JS)`，`BROWSER` 与 `WASI` 均不支持）**：
    - 阻塞式 TCP/UDP 套接字与同步 DNS 依赖 Node.js 的 `worker_threads` + `net`/`dgram`/`dns` 模块；子进程依赖 Node.js `child_process.spawnSync`。在 `Browser` 与 `WasmWasi` 下不支持：

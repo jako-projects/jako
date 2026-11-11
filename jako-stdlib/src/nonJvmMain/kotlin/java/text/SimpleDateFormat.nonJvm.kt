@@ -396,42 +396,20 @@ actual open class SimpleDateFormat : DateFormat {
             year = 1 - year
         }
 
-        // Strict validation when !isLenient
+        // Strict validation when !isLenient.
+        // JDK leaves index at the original start and sets errorIndex to the
+        // offset after the text the pattern already consumed.
         if (!isLenient) {
-            if (month !in 1..12) {
-                pos.setErrorIndex(startIndex)
-                return null
-            }
-            val maxDom = daysInMonth(year, month)
-            if (day !in 1..maxDom) {
-                pos.setErrorIndex(startIndex)
-                return null
-            }
-            if (dayOfYear != null) {
-                val maxDoy = if (isGregorianLeap(year)) 366 else 365
-                if (dayOfYear !in 1..maxDoy) {
-                    pos.setErrorIndex(startIndex)
-                    return null
-                }
-            }
-            if (hour24 != null && hour24 !in 0..23) {
-                pos.setErrorIndex(startIndex)
-                return null
-            }
-            if (clockHour24 != null && clockHour24 !in 1..24) {
-                pos.setErrorIndex(startIndex)
-                return null
-            }
-            if (hour12 != null && hour12 !in 0..11) {
-                pos.setErrorIndex(startIndex)
-                return null
-            }
-            if (clockHour12 != null && clockHour12 !in 1..12) {
-                pos.setErrorIndex(startIndex)
-                return null
-            }
-            if (min !in 0..59 || sec !in 0..59 || millis !in 0..999) {
-                pos.setErrorIndex(startIndex)
+            val outOfRange = month !in 1..12 ||
+                day !in 1..daysInMonth(year, month) ||
+                (dayOfYear != null && dayOfYear !in 1..(if (isGregorianLeap(year)) 366 else 365)) ||
+                (hour24 != null && hour24 !in 0..23) ||
+                (clockHour24 != null && clockHour24 !in 1..24) ||
+                (hour12 != null && hour12 !in 0..11) ||
+                (clockHour12 != null && clockHour12 !in 1..12) ||
+                min !in 0..59 || sec !in 0..59 || millis !in 0..999
+            if (outOfRange) {
+                pos.setErrorIndex(idx)
                 return null
             }
         }

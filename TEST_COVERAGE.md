@@ -6,9 +6,9 @@
 
 | 模块 (Module) | 公开类型总数 | 已有直接测试 | 待补测核心类 (Actionable) | 豁免基础接口/标记接口 | 未显式引用异常类 | 核心类覆盖率 |
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `jako-stdlib` | 631 | 523 | **0** | 54 | 54 | 100% (523/523) |
+| `jako-stdlib` | 631 | 527 | **0** | 53 | 51 | 100% (527/527) |
 | `jako-android` | 90 | 90 | **0** | 0 | 0 | 100% (90/90) |
-| **合计 (Total)** | **721** | **613** | **0** | **54** | **54** | **100% (613/613)** |
+| **合计 (Total)** | **721** | **617** | **0** | **53** | **51** | **100% (617/617)** |
 
 ## 2. 按包分类统计 (Coverage by Package)
 
@@ -42,7 +42,7 @@
 | `jako-stdlib` | `java.nio.charset` | 11 | 10 | 0 | ✅ 全部覆盖 |
 | `jako-stdlib` | `java.nio.file` | 22 | 16 | 0 | ✅ 全部覆盖 |
 | `jako-stdlib` | `java.nio.file.attribute` | 5 | 5 | 0 | ✅ 全部覆盖 |
-| `jako-stdlib` | `java.security` | 21 | 15 | 0 | ✅ 全部覆盖 |
+| `jako-stdlib` | `java.security` | 21 | 16 | 0 | ✅ 全部覆盖 |
 | `jako-stdlib` | `java.security.cert` | 8 | 6 | 0 | ✅ 全部覆盖 |
 | `jako-stdlib` | `java.security.interfaces` | 3 | 3 | 0 | ✅ 全部覆盖 |
 | `jako-stdlib` | `java.security.spec` | 10 | 6 | 0 | ✅ 全部覆盖 |
@@ -50,7 +50,7 @@
 | `jako-stdlib` | `java.time` | 18 | 18 | 0 | ✅ 全部覆盖 |
 | `jako-stdlib` | `java.time.format` | 2 | 2 | 0 | ✅ 全部覆盖 |
 | `jako-stdlib` | `java.time.temporal` | 11 | 4 | 0 | ✅ 全部覆盖 |
-| `jako-stdlib` | `java.util` | 89 | 65 | 0 | ✅ 全部覆盖 |
+| `jako-stdlib` | `java.util` | 89 | 68 | 0 | ✅ 全部覆盖 |
 | `jako-stdlib` | `java.util.concurrent` | 54 | 42 | 0 | ✅ 全部覆盖 |
 | `jako-stdlib` | `java.util.concurrent.atomic` | 11 | 11 | 0 | ✅ 全部覆盖 |
 | `jako-stdlib` | `java.util.concurrent.locks` | 9 | 8 | 0 | ✅ 全部覆盖 |
@@ -72,7 +72,7 @@
 
 🎉 **所有非豁免公开核心类均已在 `commonTest` 中包含直接测试引用！**
 
-## 4. 豁免的抽象/标记接口与基础契约 (Exempt Marker/Base Interfaces: 54)
+## 4. 豁免的抽象/标记接口与基础契约 (Exempt Marker/Base Interfaces: 53)
 
 > 以下接口属于基础父接口或标记接口，已通过其具体实现类间接测试覆盖：
 
@@ -92,7 +92,6 @@
 - `java.nio.channels.WritableByteChannel` (interface)
 - `java.nio.file.CopyOption` (interface)
 - `java.nio.file.OpenOption` (interface)
-- `java.security.Principal` (interface)
 - `java.security.spec.AlgorithmParameterSpec` (interface)
 - `java.security.spec.KeySpec` (interface)
 - `java.time.temporal.Temporal` (interface)

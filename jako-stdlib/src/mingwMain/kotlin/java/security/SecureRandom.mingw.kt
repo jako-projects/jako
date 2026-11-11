@@ -3,21 +3,25 @@
 package java.security
 
 import kotlinx.cinterop.*
-import platform.posix.*
+import platform.windows.*
 
 actual open class SecureRandom actual constructor() : java.util.Random() {
 
     actual override fun nextBytes(bytes: ByteArray) {
         if (bytes.isEmpty()) return
         memScoped {
-            val buf = allocArray<ByteVar>(bytes.size)
-            var i = 0
-            while (i < bytes.size) {
-                val r = rand()
-                val byteVal = (r and 0xFF).toByte()
-                buf[i] = byteVal
-                bytes[i] = byteVal
-                i++
+            val hProv = alloc<HCRYPTPROVVar>()
+            if (CryptAcquireContextW(hProv.ptr, null, null, PROV_RSA_FULL.convert(), (CRYPT_VERIFYCONTEXT.toUInt() or CRYPT_SILENT.toUInt()).convert()) == 0) {
+                throw IllegalStateException("SecureRandom CSPRNG unavailable: CryptAcquireContextW failed (${GetLastError()})")
+            }
+            try {
+                bytes.usePinned { pinned ->
+                    if (CryptGenRandom(hProv.value, bytes.size.convert(), pinned.addressOf(0).reinterpret()) == 0) {
+                        throw IllegalStateException("SecureRandom CSPRNG failed: CryptGenRandom failed (${GetLastError()})")
+                    }
+                }
+            } finally {
+                CryptReleaseContext(hProv.value, 0u)
             }
         }
     }

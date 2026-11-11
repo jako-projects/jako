@@ -50,9 +50,9 @@ actual class BigInteger : Number, Comparable<BigInteger>, Serializable {
     actual constructor(valStr: String) : this(valStr, 10)
 
     actual constructor(valStr: String, radix: Int) {
-        require(radix in 2..36) { "Radix out of range: $radix" }
+        if (radix !in 2..36) throw NumberFormatException("Radix out of range")
         val s = valStr.trim()
-        require(s.isNotEmpty()) { "Zero length BigInteger" }
+        if (s.isEmpty()) throw NumberFormatException("Zero length BigInteger")
 
         var sign = 1
         var start = 0
@@ -62,7 +62,7 @@ actual class BigInteger : Number, Comparable<BigInteger>, Serializable {
         } else if (s[0] == '+') {
             start = 1
         }
-        require(start < s.length) { "Zero length BigInteger" }
+        if (start >= s.length) throw NumberFormatException("Zero length BigInteger")
 
         if (radix == 10) {
             // Fast base 10 chunking
@@ -179,7 +179,7 @@ actual class BigInteger : Number, Comparable<BigInteger>, Serializable {
     actual fun remainder(valOther: BigInteger): BigInteger = divideAndRemainder(valOther)[1]
 
     actual fun divideAndRemainder(valOther: BigInteger): Array<BigInteger> {
-        require(valOther.signumVal != 0) { "BigInteger divide by zero" }
+        if (valOther.signumVal == 0) throw ArithmeticException("BigInteger divide by zero")
         if (signumVal == 0) return arrayOf(ZERO, ZERO)
         val cmp = compareDigits(digits, valOther.digits)
         if (cmp < 0) return arrayOf(ZERO, this)
@@ -197,7 +197,7 @@ actual class BigInteger : Number, Comparable<BigInteger>, Serializable {
     }
 
     actual fun pow(exponent: Int): BigInteger {
-        require(exponent >= 0) { "Negative exponent: $exponent" }
+        if (exponent < 0) throw ArithmeticException("Negative exponent")
         if (exponent == 0) return ONE
         if (signumVal == 0) return ZERO
         var base = this

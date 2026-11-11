@@ -56,7 +56,7 @@ class InetAddressTest {
 
     @Test
     fun testInet4AddressGetByName() {
-        val addr = Inet4Address.getByName("10.0.0.6")
+        val addr = InetAddress.getByName("10.0.0.6")
         assertTrue(addr is Inet4Address)
         assertEquals("10.0.0.6", addr.getHostAddress())
         assertEquals(4, addr.getAddress().size)
@@ -64,7 +64,7 @@ class InetAddressTest {
 
     @Test
     fun testInet6AddressGetByName() {
-        val addr = Inet6Address.getByName("::ac")
+        val addr = InetAddress.getByName("::ac")
         assertTrue(addr is Inet6Address)
         val bytes = addr.getAddress()
         assertEquals(16, bytes.size)

@@ -40,4 +40,32 @@ class LocaleTest {
 
         assertNotEquals(Locale.US, Locale.UK)
     }
+
+    @Test
+    fun testRootLocale() {
+        assertEquals("", Locale.ROOT.language)
+        assertEquals("", Locale.ROOT.country)
+        assertEquals("", Locale.ROOT.variant)
+        assertEquals("", Locale.ROOT.toString())
+        assertEquals("und", Locale.ROOT.toLanguageTag())
+    }
+
+    @Test
+    fun testVariantLocale() {
+        val posix = Locale("en", "US", "POSIX")
+        assertEquals("en_US_POSIX", posix.toString())
+        assertEquals("en-US-POSIX", posix.toLanguageTag())
+        assertNotEquals(Locale.US, posix)
+    }
+
+    @Test
+    fun testUndeterminedLanguageTag() {
+        val empty = Locale.forLanguageTag("")
+        assertEquals("", empty.language)
+        assertEquals("und", empty.toLanguageTag())
+
+        val und = Locale.forLanguageTag("und")
+        assertEquals("", und.language)
+        assertEquals("und", und.toLanguageTag())
+    }
 }

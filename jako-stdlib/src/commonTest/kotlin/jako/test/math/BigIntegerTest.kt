@@ -3,6 +3,7 @@ package jako.test.math
 import java.math.BigInteger
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 import kotlin.test.assertFalse
 
@@ -96,6 +97,64 @@ class BigIntegerTest {
         val p = BigInteger.probablePrime(64, java.util.Random(42L))
         assertEquals(64, p.bitLength())
         assertTrue(p.isProbablePrime(20))
+    }
+
+    @Test
+    fun testArithmeticExceptions() {
+        assertFailsWith<ArithmeticException> {
+            BigInteger.TEN.divide(BigInteger.ZERO)
+        }
+        assertFailsWith<ArithmeticException> {
+            BigInteger.TEN.pow(-1)
+        }
+        assertFailsWith<ArithmeticException> {
+            BigInteger.ONE.mod(BigInteger.ZERO)
+        }
+        assertFailsWith<ArithmeticException> {
+            BigInteger.ONE.mod(BigInteger.valueOf(-5L))
+        }
+    }
+
+    @Test
+    fun testInvalidConstructors() {
+        assertFailsWith<NumberFormatException> {
+            BigInteger("")
+        }
+        assertFailsWith<NumberFormatException> {
+            BigInteger("-")
+        }
+        assertFailsWith<NumberFormatException> {
+            BigInteger(byteArrayOf())
+        }
+        assertFailsWith<NumberFormatException> {
+            BigInteger("10", 1)
+        }
+    }
+
+    @Test
+    fun testZeroIdentityPowAndShift() {
+        val zero = BigInteger("0")
+        assertEquals(0, zero.signum())
+        assertEquals(BigInteger.ZERO, zero)
+
+        val divided = BigInteger.ZERO.divideAndRemainder(BigInteger.valueOf(5L))
+        assertEquals(BigInteger.ZERO, divided[0])
+        assertEquals(BigInteger.ZERO, divided[1])
+
+        assertEquals(BigInteger.ONE, BigInteger.valueOf(-3L).pow(0))
+        assertEquals(BigInteger.valueOf(6L), BigInteger.valueOf(12L).shiftLeft(-1))
+    }
+
+    @Test
+    fun testDivideAndRemainderSignFollowsDividend() {
+        val negative = BigInteger.valueOf(-7L)
+        val byPositive = negative.divideAndRemainder(BigInteger.valueOf(3L))
+        assertEquals(BigInteger.valueOf(-2L), byPositive[0])
+        assertEquals(BigInteger.valueOf(-1L), byPositive[1])
+
+        val byNegative = negative.divideAndRemainder(BigInteger.valueOf(-3L))
+        assertEquals(BigInteger.valueOf(2L), byNegative[0])
+        assertEquals(BigInteger.valueOf(-1L), byNegative[1])
     }
 }
 

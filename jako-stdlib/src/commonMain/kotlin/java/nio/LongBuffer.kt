@@ -19,11 +19,12 @@ expect open class LongBuffer : Buffer, Comparable<LongBuffer> {
     open fun put(src: LongBuffer): LongBuffer
     open fun order(): ByteOrder
     open fun asReadOnlyBuffer(): LongBuffer
+    open fun compact(): LongBuffer
     open fun duplicate(): LongBuffer
     open fun slice(): LongBuffer
     override fun isReadOnly(): Boolean
     override fun hasArray(): Boolean
-    override fun array(): Any
+    override fun array(): LongArray
     override fun arrayOffset(): Int
     override fun isDirect(): Boolean
 

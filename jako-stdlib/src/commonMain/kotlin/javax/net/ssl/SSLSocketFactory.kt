@@ -18,6 +18,6 @@ expect abstract class SSLSocketFactory : SocketFactory {
     open val supportedCipherSuites: Array<String>
 
     companion object {
-        fun getDefault(): SSLSocketFactory
+        fun getDefault(): SocketFactory
     }
 }

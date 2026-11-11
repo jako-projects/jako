@@ -4,9 +4,10 @@ import java.io.Closeable
 import java.io.Flushable
 import java.lang.Class
 import java.lang.System
+import java.text.DecimalFormatSymbols
 import kotlin.math.abs
+import kotlin.math.floor
 import kotlin.math.pow
-import kotlin.math.round
 
 actual class Formatter : Closeable, Flushable {
     private val dest: Appendable
@@ -68,6 +69,9 @@ actual class Formatter : Closeable, Flushable {
 }
 
 internal fun applyFormat(locale: Locale, format: String, args: Array<out Any?>): String {
+    val symbols = DecimalFormatSymbols(locale)
+    val decimalSeparator = symbols.getDecimalSeparator()
+    val groupingSeparator = symbols.getGroupingSeparator()
     val out = StringBuilder()
     var i = 0
     var nextArg = 0
@@ -103,18 +107,26 @@ internal fun applyFormat(locale: Locale, format: String, args: Array<out Any?>):
             var scanIdx = i
             while (scanIdx < format.length && format[scanIdx].isDigit()) scanIdx++
             if (scanIdx > i && scanIdx < format.length && format[scanIdx] == '$') {
-                explicitArgIndex = format.substring(i, scanIdx).toInt() - 1
+                val rawIndex = format.substring(i, scanIdx).toInt()
+                if (rawIndex <= 0) throw IllegalFormatException()
+                explicitArgIndex = rawIndex - 1
                 i = scanIdx + 1
             }
         }
         var left = false
         var zeroPad = false
         var alternate = false
+        var plus = false
+        var paren = false
+        var grouping = false
         while (i < format.length && format[i] in "-#+ 0,(") {
             when (format[i]) {
                 '-' -> left = true
                 '0' -> zeroPad = true
                 '#' -> alternate = true
+                '+' -> plus = true
+                '(' -> paren = true
+                ',' -> grouping = true
             }
             i++
         }
@@ -135,6 +147,9 @@ internal fun applyFormat(locale: Locale, format: String, args: Array<out Any?>):
         val conv = format[i]
         i++
         val specStr = format.substring(specStart, i)
+        if (conv != 's' && conv != 'S' && conv != 'd' && conv != 'x' && conv != 'X' && conv != 'f') {
+            throw UnknownFormatConversionException(conv.toString())
+        }
         val argIndex = when {
             explicitArgIndex >= 0 -> {
                 lastArgIndex = explicitArgIndex
@@ -166,10 +181,10 @@ internal fun applyFormat(locale: Locale, format: String, args: Array<out Any?>):
         var formatted = when (conv) {
             's' -> formatString(arg, precision, false)
             'S' -> formatString(arg, precision, true)
-            'd' -> formatInteger(arg)
+            'd' -> formatInteger(arg, plus, paren, grouping, groupingSeparator)
             'x' -> formatHex(arg, false)
             'X' -> formatHex(arg, true)
-            'f' -> formatFixed(arg, if (precision >= 0) precision else 6)
+            'f' -> formatFixed(arg, if (precision >= 0) precision else 6, decimalSeparator)
             else -> throw UnknownFormatConversionException(conv.toString())
         }
         if (width > formatted.length) {
@@ -204,7 +219,13 @@ internal fun formatString(arg: Any?, precision: Int, upper: Boolean): String {
 internal fun argClass(arg: Any?): Class<Any> =
     if (arg != null) Class<Any>(arg::class as kotlin.reflect.KClass<Any>) else Class<Any>(Any::class)
 
-internal fun formatInteger(arg: Any?): String {
+internal fun formatInteger(
+    arg: Any?,
+    plus: Boolean,
+    paren: Boolean,
+    grouping: Boolean,
+    groupingSeparator: Char,
+): String {
     val n = when (arg) {
         is Long -> arg
         is Int -> arg.toLong()
@@ -213,7 +234,36 @@ internal fun formatInteger(arg: Any?): String {
         is Number -> arg.toLong()
         else -> throw IllegalFormatConversionException('d', argClass(arg))
     }
-    return n.toString()
+    val negative = n < 0
+    val digits = if (n == Long.MIN_VALUE) {
+        "9223372036854775808"
+    } else {
+        abs(n).toString()
+    }
+    val body = if (grouping) groupDigits(digits, groupingSeparator) else digits
+    return when {
+        negative && paren -> "($body)"
+        negative -> "-$body"
+        plus -> "+$body"
+        else -> body
+    }
+}
+
+private fun groupDigits(digits: String, separator: Char): String {
+    if (digits.length <= 3) return digits
+    val grouped = StringBuilder()
+    val first = digits.length % 3
+    var index = 0
+    if (first != 0) {
+        grouped.append(digits, 0, first)
+        index = first
+    }
+    while (index < digits.length) {
+        if (grouped.isNotEmpty()) grouped.append(separator)
+        grouped.append(digits, index, index + 3)
+        index += 3
+    }
+    return grouped.toString()
 }
 
 internal fun formatHex(arg: Any?, upper: Boolean): String {
@@ -228,7 +278,7 @@ internal fun formatHex(arg: Any?, upper: Boolean): String {
     return if (upper) hex.uppercase() else hex
 }
 
-internal fun formatFixed(arg: Any?, precision: Int): String {
+internal fun formatFixed(arg: Any?, precision: Int, decimalSeparator: Char): String {
     val value = when (arg) {
         is Double -> arg
         is Float -> arg.toDouble()
@@ -240,7 +290,7 @@ internal fun formatFixed(arg: Any?, precision: Int): String {
     val negative = value < 0.0 || (value == 0.0 && 1.0 / value < 0.0)
     val absVal = abs(value)
     val factor = 10.0.pow(precision)
-    val scaled = round(absVal * factor).toLong()
+    val scaled = roundHalfUp(absVal * factor)
     var intPart = if (precision == 0) scaled else scaled / factor.toLong()
     var fracPart = if (precision == 0) 0L else scaled % factor.toLong()
     if (precision > 0 && fracPart < 0) {
@@ -256,8 +306,13 @@ internal fun formatFixed(arg: Any?, precision: Int): String {
         }
         append(intPart)
         if (precision > 0) {
-            append('.')
+            append(decimalSeparator)
             append(fracStr)
         }
     }
+}
+
+private fun roundHalfUp(value: Double): Long {
+    val whole = floor(value)
+    return if (value - whole >= 0.5) (whole + 1.0).toLong() else whole.toLong()
 }

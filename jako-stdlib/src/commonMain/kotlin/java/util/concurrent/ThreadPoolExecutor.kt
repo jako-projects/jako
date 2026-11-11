@@ -10,6 +10,13 @@ expect open class ThreadPoolExecutor : AbstractExecutorService {
         maximumPoolSize: Int,
         keepAliveTime: Long,
         unit: TimeUnit,
+        workQueue: BlockingQueue<Runnable>
+    )
+    constructor(
+        corePoolSize: Int,
+        maximumPoolSize: Int,
+        keepAliveTime: Long,
+        unit: TimeUnit,
         workQueue: BlockingQueue<Runnable>,
         threadFactory: ThreadFactory
     )

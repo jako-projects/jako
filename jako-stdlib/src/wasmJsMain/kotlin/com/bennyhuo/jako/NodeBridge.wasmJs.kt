@@ -57,14 +57,15 @@ import com.bennyhuo.jako.annotations.WebRuntime
                         if (len <= 0) return "";
                         if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
                             const arr = new Uint8Array(len);
-                            crypto.getRandomValues(arr);
+                            for (let off = 0; off < len; off += 65536) {
+                                const chunkLen = Math.min(65536, len - off);
+                                crypto.getRandomValues(arr.subarray(off, off + chunkLen));
+                            }
                             let s = "";
                             for (let i = 0; i < len; i++) s += String.fromCharCode(arr[i]);
                             return s;
                         }
-                        let s = "";
-                        for (let i = 0; i < len; i++) s += String.fromCharCode(Math.floor(Math.random() * 256));
-                        return s;
+                        throw new Error("SecureRandom CSPRNG unavailable");
                     },
                     stat(p, followSymlinks) { return ""; },
                     access(p, mode) { return false; },

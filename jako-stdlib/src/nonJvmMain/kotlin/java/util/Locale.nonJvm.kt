@@ -119,7 +119,11 @@ actual open class Locale : Serializable, Cloneable {
 
         actual fun forLanguageTag(languageTag: String): Locale {
             val parts = languageTag.split("-", "_")
-            val lang = if (parts.isNotEmpty()) parts[0] else ""
+            var lang = if (parts.isNotEmpty()) parts[0] else ""
+            // BCP 47 "und" means an undetermined language and maps to an empty language.
+            if (lang.equals("und", ignoreCase = true)) {
+                lang = ""
+            }
             val country = if (parts.size > 1) parts[1] else ""
             val variant = if (parts.size > 2) parts.subList(2, parts.size).joinToString("_") else ""
             return Locale(lang, country, variant)

@@ -9,23 +9,23 @@ actual open class SecureRandom actual constructor() : java.util.Random() {
 
     actual override fun nextBytes(bytes: ByteArray) {
         if (bytes.isEmpty()) return
-        memScoped {
-            val file = fopen("/dev/urandom", "rb")
-            if (file != null) {
-                val ptr = allocArray<ByteVar>(bytes.size)
-                val read = fread(ptr, 1.convert(), bytes.size.convert(), file)
-                fclose(file)
-                if (read.toLong() == bytes.size.toLong()) {
-                    for (i in bytes.indices) {
-                        bytes[i] = ptr[i]
+        val file = fopen("/dev/urandom", "rb")
+            ?: throw IllegalStateException("SecureRandom CSPRNG unavailable: failed to open /dev/urandom")
+        try {
+            bytes.usePinned { pinned ->
+                var offset = 0
+                while (offset < bytes.size) {
+                    val remaining = bytes.size - offset
+                    val readCount: Int = fread(pinned.addressOf(offset), 1.convert(), remaining.convert(), file).convert()
+                    if (readCount <= 0) {
+                        throw IllegalStateException("SecureRandom CSPRNG failed: short read from /dev/urandom")
                     }
-                    return
+                    offset += readCount
                 }
             }
+        } finally {
+            fclose(file)
         }
-        // Fallback pseudorandom if /dev/urandom not accessible
-        val rand = kotlin.random.Random
-        rand.nextBytes(bytes)
     }
 
     override fun nextInt(): Int {

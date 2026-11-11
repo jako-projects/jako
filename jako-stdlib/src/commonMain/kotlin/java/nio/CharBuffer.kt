@@ -24,6 +24,7 @@ expect open class CharBuffer : Buffer, Comparable<CharBuffer>, Appendable, java.
     open fun put(src: String, start: Int, end: Int): CharBuffer
     open fun order(): ByteOrder
     open fun asReadOnlyBuffer(): CharBuffer
+    open fun compact(): CharBuffer
     open fun duplicate(): CharBuffer
     open fun slice(): CharBuffer
     open fun charAt(index: Int): Char
@@ -32,12 +33,13 @@ expect open class CharBuffer : Buffer, Comparable<CharBuffer>, Appendable, java.
     open fun subSequence(start: Int, end: Int): CharBuffer
     override fun isReadOnly(): Boolean
     override fun hasArray(): Boolean
-    override fun array(): Any
+    override fun array(): CharArray
     override fun arrayOffset(): Int
     override fun isDirect(): Boolean
 
     override val isReadOnly: Boolean
     override val isDirect: Boolean
+    open val length: Int
     val order: ByteOrder
     override fun compareTo(other: CharBuffer): Int
     override fun append(value: CharSequence?): CharBuffer

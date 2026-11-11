@@ -41,7 +41,12 @@ actual open class ZipEntry : Cloneable {
     actual open fun getCompressedSize(): Long = entryCsize
     actual open fun setCrc(crc: Long) { this.entryCrc = crc }
     actual open fun getCrc(): Long = entryCrc
-    actual open fun setMethod(method: Int) { this.entryMethod = method }
+    actual open fun setMethod(method: Int) {
+        if (method != STORED && method != DEFLATED) {
+            throw IllegalArgumentException("invalid compression method")
+        }
+        this.entryMethod = method
+    }
     actual open fun getMethod(): Int = entryMethod
     actual open fun setComment(comment: String?) { this.entryComment = comment }
     actual open fun getComment(): String? = entryComment

@@ -1,12 +1,6 @@
 package java.net
 
-actual open class Inet6Address(hostName: String?, addr: ByteArray) : InetAddress(hostName, addr) {
-    actual companion object {
-        actual fun getByName(host: String?): Inet6Address = InetAddress.getByName(host) as Inet6Address
-        actual fun getByAddress(addr: ByteArray): Inet6Address = InetAddress.getByAddress(addr) as Inet6Address
-        actual fun getByAddress(host: String?, addr: ByteArray): Inet6Address = InetAddress.getByAddress(host, addr) as Inet6Address
-    }
-}
+actual open class Inet6Address internal constructor(hostName: String?, addr: ByteArray) : InetAddress(hostName, addr)
 
 internal fun parseIPv4(host: String): ByteArray? {
     val parts = host.split('.')

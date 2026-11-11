@@ -1,5 +1,7 @@
 package javax.net.ssl
 
+import java.security.SecureRandom
+
 actual open class SSLContext private constructor(
     private val protocolName: String
 ) {
@@ -7,7 +9,7 @@ actual open class SSLContext private constructor(
 
     private var customTrustManager: X509TrustManager? = null
 
-    actual open fun init(km: Array<KeyManager>?, tm: Array<TrustManager>?, sr: Any?) {
+    actual open fun init(km: Array<KeyManager>?, tm: Array<TrustManager>?, sr: SecureRandom?) {
         customTrustManager = tm?.firstOrNull { it is X509TrustManager } as? X509TrustManager
     }
 

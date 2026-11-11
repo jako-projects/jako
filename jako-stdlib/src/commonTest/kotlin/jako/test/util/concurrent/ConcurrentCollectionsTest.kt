@@ -17,12 +17,43 @@ class ConcurrentCollectionsTest {
 
     @Test
     fun testConcurrentHashMapAsMutableMap() {
-        val map = ConcurrentHashMap<String, Int>()
+        val map = ConcurrentHashMap<String, Int>(8)
         assertNull(map.put("a", 1))
         assertEquals(1, map["a"])
         assertEquals(1, map.size)
         assertTrue(map.containsKey("a"))
+        assertEquals(1, map.getOrDefault("a", 99))
+        assertEquals(99, map.getOrDefault("missing", 99))
+
+        assertEquals(1, map.putIfAbsent("a", 2))
+        assertNull(map.putIfAbsent("b", 2))
+        assertEquals(2, map["b"])
+
+        assertFalse(map.replace("b", 999, 3))
+        assertTrue(map.replace("b", 2, 3))
+        assertEquals(3, map.replace("b", 4))
+        assertNull(map.replace("missing", 4))
+
+        assertEquals(10, map.computeIfAbsent("c") { k -> k.length * 10 })
+        assertEquals(10, map.computeIfAbsent("c") { 999 })
+        assertEquals(15, map.computeIfPresent("c") { _, v -> v + 5 })
+        assertNull(map.computeIfPresent("c") { _, _ -> null })
+        assertFalse(map.containsKey("c"))
+
+        assertEquals(7, map.compute("d") { _, old -> (old ?: 0) + 7 })
+        assertEquals(14, map.compute("d") { _, old -> (old ?: 0) + 7 })
+        assertEquals(20, map.merge("d", 6) { a, b -> a + b })
+        assertEquals(5, map.merge("e", 5) { a, b -> a + b })
+
+        assertFalse(map.remove("e", 999))
+        assertTrue(map.remove("e", 5))
+
+        val copied = ConcurrentHashMap(map)
+        assertEquals(map.size, copied.size)
+        assertEquals(1, copied["a"])
+
         assertEquals(1, map.remove("a"))
+        map.clear()
         assertTrue(map.isEmpty())
     }
 
@@ -134,6 +165,13 @@ class ConcurrentCollectionsTest {
         }
         assertFailsWith<IllegalArgumentException> {
             ThreadPoolExecutor(2, 1, 0L, TimeUnit.MILLISECONDS, LinkedBlockingQueue(), factory)
+        }
+
+        val fiveArgTpe = ThreadPoolExecutor(1, 2, 10L, TimeUnit.MILLISECONDS, LinkedBlockingQueue())
+        try {
+            assertEquals(7, fiveArgTpe.submit(Callable { 3 + 4 }).get(5L, TimeUnit.SECONDS))
+        } finally {
+            fiveArgTpe.shutdown()
         }
 
         val tpe = ThreadPoolExecutor(

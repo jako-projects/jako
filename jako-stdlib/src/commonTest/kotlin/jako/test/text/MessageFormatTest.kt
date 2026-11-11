@@ -2,7 +2,9 @@ package jako.test.text
 
 import java.text.MessageFormat
 import java.text.ParseException
+import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -90,6 +92,35 @@ class MessageFormatTest {
         // Unquoted '#' in a ChoiceFormat format segment is invalid in JDK 8
         assertFailsWith<IllegalArgumentException> {
             java.text.ChoiceFormat("0#zero|1<unquoted # hash")
+        }
+    }
+
+    @Test
+    fun testDateSubformatWithDefaultUtcZone() {
+        val previous = TimeZone.getDefault()
+        try {
+            TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+            val fmt = MessageFormat("{0,date,yyyy-MM-dd}", Locale.US)
+            assertEquals("1970-01-01", fmt.format(arrayOf<Any?>(Date(0))))
+        } finally {
+            TimeZone.setDefault(previous)
+        }
+    }
+
+    @Test
+    fun testIntegerSubformat() {
+        val fmt = MessageFormat("{0,number,integer}", Locale.US)
+        assertEquals("0", fmt.format(arrayOf<Any?>(0)))
+        assertEquals("-1,234", fmt.format(arrayOf<Any?>(-1234)))
+    }
+
+    @Test
+    fun testDateAndNumberSubformatRejectString() {
+        assertFailsWith<IllegalArgumentException> {
+            MessageFormat("{0,date,yyyy-MM-dd}", Locale.US).format(arrayOf<Any?>("x"))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            MessageFormat("{0,number}", Locale.US).format(arrayOf<Any?>("x"))
         }
     }
 }

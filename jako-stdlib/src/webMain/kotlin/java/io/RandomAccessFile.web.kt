@@ -222,7 +222,7 @@ actual open class RandomAccessFile : DataOutput, DataInput, Closeable {
         val utflen = readUnsignedShort()
         val bytearr = ByteArray(utflen)
         readFully(bytearr, 0, utflen)
-        return bytearr.decodeToString()
+        return ModifiedUtf8.decode(bytearr, 0, utflen)
     }
 
     actual override fun writeBoolean(v: Boolean) {
@@ -282,10 +282,7 @@ actual open class RandomAccessFile : DataOutput, DataInput, Closeable {
     }
 
     actual override fun writeUTF(s: String) {
-        val bytes = s.encodeToByteArray()
-        if (bytes.size > 65535) {
-            throw IOException("encoded string too long: ${bytes.size} bytes")
-        }
+        val bytes = ModifiedUtf8.encode(s)
         writeShort(bytes.size)
         write(bytes, 0, bytes.size)
     }
@@ -316,7 +313,7 @@ actual open class RandomAccessFile : DataOutput, DataInput, Closeable {
 
     actual open fun setLength(newLength: Long) {
         val handle = ensureOpen()
-        if (newLength < 0L) throw IllegalArgumentException("Negative length: $newLength")
+        if (newLength < 0L) throw IOException("Negative length: $newLength")
         if (modeStr == "r") throw IOException("Bad file descriptor")
         val cur = getFilePointer()
         if (!NodeBridge.ftruncate(handle, newLength.toDouble())) {

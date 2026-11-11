@@ -62,26 +62,79 @@ actual open class TimeZone : Serializable, Cloneable {
         }
 
         actual fun getTimeZone(id: String): TimeZone {
-            if (id.equals("UTC", ignoreCase = true)) {
-                return TimeZone("UTC", 0)
-            }
-            if (id.equals("GMT", ignoreCase = true) || id.isEmpty()) {
-                return TimeZone("GMT", 0)
-            }
-            if (id.startsWith("GMT+") || id.startsWith("GMT-") || id.startsWith("UTC+") || id.startsWith("UTC-")) {
-                val sign = if (id[3] == '+') 1 else -1
-                val rest = id.substring(4)
-                val parts = rest.split(":")
-                val hours = parts[0].toIntOrNull() ?: 0
-                val minutes = if (parts.size > 1) parts[1].toIntOrNull() ?: 0 else 0
-                val offset = sign * ((hours * 3600 + minutes * 60) * 1000)
-                return TimeZone(id, offset)
-            }
+            // JDK keeps only the exact id "UTC". Other casings and "UTC±..." are unknown
+            // and fall back to GMT offset 0. Custom offsets must start with "GMT+" or
+            // "GMT-" and are normalized to "GMT±HH:MM".
             val spec = ZoneId.namedRuleSpec(id)
             if (spec != null) {
                 return TimeZone(id, spec.stdOffset.totalSeconds * 1000)
             }
-            return TimeZone("GMT", 0)
+            return parseCustomGmtZone(id) ?: TimeZone("GMT", 0)
+        }
+
+        /**
+         * JDK 8 `TimeZone.parseCustomTimeZone`: only an id that starts with "GMT+" or
+         * "GMT-" is a custom zone. The stored id is always `GMT±HH:MM`.
+         */
+        private fun parseCustomGmtZone(id: String): TimeZone? {
+            if (id.length < 5 || !id.startsWith("GMT")) {
+                return null
+            }
+            val negative = when (id[3]) {
+                '-' -> true
+                '+' -> false
+                else -> return null
+            }
+            var index = 4
+            var hours = 0
+            var num = 0
+            var colonCount = 0
+            var len = 0
+            while (index < id.length) {
+                val c = id[index]
+                index++
+                if (c == ':') {
+                    if (colonCount > 0 || len > 2) {
+                        return null
+                    }
+                    hours = num
+                    colonCount++
+                    num = 0
+                    len = 0
+                    continue
+                }
+                if (c < '0' || c > '9') {
+                    return null
+                }
+                num = num * 10 + (c - '0')
+                len++
+            }
+            if (colonCount == 0) {
+                if (len <= 2) {
+                    hours = num
+                    num = 0
+                } else if (len <= 4) {
+                    hours = num / 100
+                    num %= 100
+                } else {
+                    return null
+                }
+            } else if (len != 2) {
+                return null
+            }
+            if (hours > 23 || num > 59) {
+                return null
+            }
+            val minutesFromUtc = hours * 60 + num
+            val offset = (if (negative) -minutesFromUtc else minutesFromUtc) * 60 * 1000
+            return TimeZone(normalizedCustomGmtId(negative, minutesFromUtc), offset)
+        }
+
+        private fun normalizedCustomGmtId(negative: Boolean, minutesFromUtc: Int): String {
+            val sign = if (negative) '-' else '+'
+            val hours = minutesFromUtc / 60
+            val minutes = minutesFromUtc % 60
+            return "GMT$sign${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}"
         }
 
         actual fun getAvailableIDs(): Array<String> {

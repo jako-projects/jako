@@ -156,4 +156,25 @@ class ByteBufferTest {
         assertTrue(b1.compareTo(b2) < 0)
         assertEquals(0, b1.compareTo(ByteBuffer.wrap(byteArrayOf(1, 2, 3))))
     }
+
+    @Test
+    fun testByteBufferCovariantArrayAndCompact() {
+        val backing = byteArrayOf(10, 20, 30, 40, 50)
+        val bb = ByteBuffer.wrap(backing)
+        val arr: ByteArray = bb.array()
+        assertSame(backing, arr)
+
+        bb.position(2)
+        bb.mark()
+        bb.limit(4) // remaining = [30, 40]
+        bb.compact()
+        assertEquals(2, bb.position())
+        assertEquals(5, bb.limit())
+        assertEquals(30.toByte(), bb.get(0))
+        assertEquals(40.toByte(), bb.get(1))
+        assertFailsWith<Exception> { bb.reset() } // mark discarded by compact()
+        assertFailsWith<java.nio.ReadOnlyBufferException> {
+            bb.asReadOnlyBuffer().compact()
+        }
+    }
 }

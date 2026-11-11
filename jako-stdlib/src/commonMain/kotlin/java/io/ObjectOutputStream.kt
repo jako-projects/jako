@@ -5,7 +5,10 @@ package java.io
 expect open class ObjectOutputStream : OutputStream, ObjectOutput, ObjectStreamConstants {
     constructor(out: OutputStream)
     protected constructor()
+    open fun useProtocolVersion(version: Int)
     override fun writeObject(obj: Any?)
+    open fun writeUnshared(obj: Any?)
+    open fun defaultWriteObject()
     override fun write(b: Int)
     override fun write(b: ByteArray)
     override fun write(b: ByteArray, off: Int, len: Int)

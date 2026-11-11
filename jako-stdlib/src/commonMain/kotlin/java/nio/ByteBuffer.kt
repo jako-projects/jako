@@ -39,6 +39,7 @@ expect open class ByteBuffer : Buffer, Comparable<ByteBuffer> {
     open fun order(): ByteOrder
     open fun order(bo: ByteOrder): ByteBuffer
     open fun asReadOnlyBuffer(): ByteBuffer
+    open fun compact(): ByteBuffer
     open fun duplicate(): ByteBuffer
     open fun slice(): ByteBuffer
     /**
@@ -79,7 +80,7 @@ expect open class ByteBuffer : Buffer, Comparable<ByteBuffer> {
     open fun asDoubleBuffer(): DoubleBuffer
     override fun isReadOnly(): Boolean
     override fun hasArray(): Boolean
-    override fun array(): Any
+    override fun array(): ByteArray
     override fun arrayOffset(): Int
     override fun isDirect(): Boolean
 

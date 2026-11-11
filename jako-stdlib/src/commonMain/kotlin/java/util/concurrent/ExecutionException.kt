@@ -3,8 +3,8 @@
 package java.util.concurrent
 
 expect open class ExecutionException : Exception {
-    constructor()
-    constructor(message: String?)
+    protected constructor()
+    protected constructor(message: String?)
     constructor(message: String?, cause: Throwable?)
     constructor(cause: Throwable?)
 }

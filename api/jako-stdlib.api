@@ -424,6 +424,7 @@ class java.io.ObjectInputStream : InputStream, ObjectInput, ObjectStreamConstant
   constructor/1
   fun available/0
   fun close/0
+  fun defaultReadObject/0
   fun read/0
   fun read/3
   fun readBoolean/0
@@ -439,6 +440,7 @@ class java.io.ObjectInputStream : InputStream, ObjectInput, ObjectStreamConstant
   fun readObject/0
   fun readShort/0
   fun readUTF/0
+  fun readUnshared/0
   fun readUnsignedByte/0
   fun readUnsignedShort/0
   fun skipBytes/1
@@ -456,8 +458,10 @@ class java.io.ObjectOutputStream : ObjectOutput, ObjectStreamConstants, OutputSt
   constructor/0
   constructor/1
   fun close/0
+  fun defaultWriteObject/0
   fun flush/0
   fun reset/0
+  fun useProtocolVersion/1
   fun write/1
   fun write/3
   fun writeBoolean/1
@@ -472,6 +476,7 @@ class java.io.ObjectOutputStream : ObjectOutput, ObjectStreamConstants, OutputSt
   fun writeObject/1
   fun writeShort/1
   fun writeUTF/1
+  fun writeUnshared/1
 }
 
 interface java.io.ObjectStreamConstants {
@@ -1517,15 +1522,9 @@ class java.net.IDN {
 }
 
 class java.net.Inet4Address : InetAddress {
-  fun getByAddress/1
-  fun getByAddress/2
-  fun getByName/1
 }
 
 class java.net.Inet6Address : InetAddress {
-  fun getByAddress/1
-  fun getByAddress/2
-  fun getByName/1
 }
 
 class java.net.InetAddress : Serializable {
@@ -1951,6 +1950,7 @@ class java.nio.ByteBuffer : Buffer, Comparable {
   fun asLongBuffer/0
   fun asReadOnlyBuffer/0
   fun asShortBuffer/0
+  fun compact/0
   fun compareTo/1
   fun duplicate/0
   fun get/0
@@ -2002,6 +2002,7 @@ class java.nio.ByteOrder {
 class java.nio.CharBuffer : Appendable, Buffer, Comparable, Readable {
   property isDirect
   property isReadOnly
+  property length
   property order
   fun allocate/1
   fun append/1
@@ -2010,6 +2011,7 @@ class java.nio.CharBuffer : Appendable, Buffer, Comparable, Readable {
   fun arrayOffset/0
   fun asReadOnlyBuffer/0
   fun charAt/1
+  fun compact/0
   fun compareTo/1
   fun duplicate/0
   fun get/0
@@ -2038,6 +2040,7 @@ class java.nio.DoubleBuffer : Buffer, Comparable {
   fun array/0
   fun arrayOffset/0
   fun asReadOnlyBuffer/0
+  fun compact/0
   fun compareTo/1
   fun duplicate/0
   fun get/0
@@ -2063,6 +2066,7 @@ class java.nio.FloatBuffer : Buffer, Comparable {
   fun array/0
   fun arrayOffset/0
   fun asReadOnlyBuffer/0
+  fun compact/0
   fun compareTo/1
   fun duplicate/0
   fun get/0
@@ -2088,6 +2092,7 @@ class java.nio.IntBuffer : Buffer, Comparable {
   fun array/0
   fun arrayOffset/0
   fun asReadOnlyBuffer/0
+  fun compact/0
   fun compareTo/1
   fun duplicate/0
   fun get/0
@@ -2113,6 +2118,7 @@ class java.nio.LongBuffer : Buffer, Comparable {
   fun array/0
   fun arrayOffset/0
   fun asReadOnlyBuffer/0
+  fun compact/0
   fun compareTo/1
   fun duplicate/0
   fun get/0
@@ -2142,6 +2148,7 @@ class java.nio.ShortBuffer : Buffer, Comparable {
   fun array/0
   fun arrayOffset/0
   fun asReadOnlyBuffer/0
+  fun compact/0
   fun compareTo/1
   fun duplicate/0
   fun get/0
@@ -3392,7 +3399,6 @@ class java.text.ParseException : Exception {
 }
 
 class java.text.ParsePosition {
-  constructor/0
   constructor/1
   property errorIndex
   property index
@@ -5442,19 +5448,32 @@ interface java.util.concurrent.CompletionStage {
 
 class java.util.concurrent.ConcurrentHashMap : MutableMap, Serializable {
   constructor/0
+  constructor/1
+  constructor/1
+  constructor/2
+  constructor/3
   property entries
   property keys
   property size
   property values
   fun clear/0
+  fun compute/2
+  fun computeIfAbsent/2
+  fun computeIfPresent/2
   fun containsKey/1
   fun containsValue/1
   fun get/1
+  fun getOrDefault/2
   fun isEmpty/0
   fun keySet/0
+  fun merge/3
   fun put/2
   fun putAll/1
+  fun putIfAbsent/2
   fun remove/1
+  fun remove/2
+  fun replace/2
+  fun replace/3
 }
 
 class java.util.concurrent.ConcurrentLinkedDeque : AbstractMutableCollection, Deque, Serializable {
@@ -6061,6 +6080,7 @@ class java.util.concurrent.ThreadLocalRandom : Random {
 }
 
 class java.util.concurrent.ThreadPoolExecutor : AbstractExecutorService {
+  constructor/5
   constructor/6
   fun awaitTermination/2
   fun execute/1

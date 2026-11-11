@@ -245,5 +245,93 @@ class CharsetCoderTest {
         val surrBytes = ByteArray(surrIgnored.remaining()).also { surrIgnored.get(it) }
         assertEquals("AB", surrBytes.decodeToString())
     }
+
+    @Test
+    fun testCharsetAliases() {
+        assertEquals("UTF-8", Charset.forName("UTF8").name())
+        assertEquals("ISO-8859-1", Charset.forName("latin1").name())
+        assertEquals("US-ASCII", Charset.forName("ASCII").name())
+        assertTrue(Charset.isSupported("UTF8"))
+    }
+
+    @Test
+    fun testEmptyInputAndEmbeddedNul() {
+        assertEquals(0, StandardCharsets.UTF_8.encode("").remaining())
+        assertEquals("", StandardCharsets.UTF_8.decode(ByteBuffer.allocate(0)).toString())
+
+        val roundTrip = StandardCharsets.UTF_8.decode(StandardCharsets.UTF_8.encode("a\u0000b"))
+        assertEquals("a\u0000b", roundTrip.toString())
+    }
+
+    @Test
+    fun testUsAsciiIllegalByteActions() {
+        val bytes = byteArrayOf(0x41, 0x80.toByte(), 0x42)
+        assertFailsWith<MalformedInputException> {
+            StandardCharsets.US_ASCII.newDecoder().decode(ByteBuffer.wrap(bytes))
+        }
+
+        val replace = StandardCharsets.US_ASCII.newDecoder()
+        replace.onMalformedInput(CodingErrorAction.REPLACE)
+        assertEquals("A\uFFFDB", replace.decode(ByteBuffer.wrap(bytes)).toString())
+
+        val ignore = StandardCharsets.US_ASCII.newDecoder()
+        ignore.onMalformedInput(CodingErrorAction.IGNORE)
+        assertEquals("AB", ignore.decode(ByteBuffer.wrap(bytes)).toString())
+    }
+
+    @Test
+    fun testIso88591HighByteAndUnmappable() {
+        val decoded = StandardCharsets.ISO_8859_1.decode(ByteBuffer.wrap(byteArrayOf(0xFF.toByte())))
+        assertEquals("\u00FF", decoded.toString())
+
+        val encoded = StandardCharsets.ISO_8859_1.encode("\u00FF")
+        assertEquals(1, encoded.remaining())
+        assertEquals(0xFF.toByte(), encoded.get())
+
+        assertFailsWith<UnmappableCharacterException> {
+            StandardCharsets.ISO_8859_1.newEncoder().encode(CharBuffer.wrap("\u0100"))
+        }
+    }
+
+    @Test
+    fun testUtf8EmojiRoundTrip() {
+        val encoded = StandardCharsets.UTF_8.encode("\uD83D\uDE00")
+        assertEquals(4, encoded.remaining())
+        val bytes = ByteArray(encoded.remaining())
+        encoded.get(bytes)
+        assertTrue(
+            bytes.contentEquals(
+                byteArrayOf(0xF0.toByte(), 0x9F.toByte(), 0x98.toByte(), 0x80.toByte())
+            )
+        )
+        assertEquals("\uD83D\uDE00", StandardCharsets.UTF_8.decode(ByteBuffer.wrap(bytes)).toString())
+    }
+
+    @Test
+    fun testUtf8OverlongC081() {
+        assertFailsWith<MalformedInputException> {
+            StandardCharsets.UTF_8.newDecoder().decode(
+                ByteBuffer.wrap(byteArrayOf(0xC0.toByte(), 0x81.toByte()))
+            )
+        }
+    }
+
+    @Test
+    fun testCoderResultZeroLength() {
+        assertFailsWith<IllegalArgumentException> {
+            CoderResult.malformedForLength(0)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            CoderResult.unmappableForLength(0)
+        }
+
+        val malformed = CoderResult.malformedForLength(2)
+        assertEquals(2, malformed.length())
+        assertTrue(malformed.isMalformed)
+        assertTrue(malformed.isError)
+        assertFailsWith<MalformedInputException> {
+            malformed.throwException()
+        }
+    }
 }
 

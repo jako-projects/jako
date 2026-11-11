@@ -37,4 +37,49 @@ class DataStreamTest {
         dis.close()
         dos.close()
     }
+
+    @Test
+    fun testDataStreamBoundaryValues() {
+        val baos = ByteArrayOutputStream()
+        val dos = DataOutputStream(baos)
+        dos.writeBoolean(false)
+        dos.writeShort(-1)
+        dos.writeInt(Int.MIN_VALUE)
+        dos.writeUTF("")
+        dos.writeUTF("\u0000")
+
+        val dis = DataInputStream(ByteArrayInputStream(baos.toByteArray()))
+        assertEquals(false, dis.readBoolean())
+        assertEquals(65535, dis.readUnsignedShort())
+        assertEquals(Int.MIN_VALUE, dis.readInt())
+        assertEquals("", dis.readUTF())
+        val nul = dis.readUTF()
+        assertEquals(1, nul.length)
+        assertEquals('\u0000', nul[0])
+        assertFailsWith<EOFException> {
+            dis.readInt()
+        }
+        dis.close()
+        dos.close()
+    }
+
+    @Test
+    fun testWriteUtfTooLongThrowsUtfDataFormatException() {
+        val dos = DataOutputStream(ByteArrayOutputStream())
+        assertFailsWith<UTFDataFormatException> {
+            dos.writeUTF("a".repeat(65536))
+        }
+        dos.close()
+    }
+
+    @Test
+    fun testReadModifiedUtf8Null() {
+        val dis = DataInputStream(
+            ByteArrayInputStream(byteArrayOf(0x00, 0x02, 0xC0.toByte(), 0x80.toByte()))
+        )
+        val nul = dis.readUTF()
+        assertEquals(1, nul.length)
+        assertEquals('\u0000', nul[0])
+        dis.close()
+    }
 }

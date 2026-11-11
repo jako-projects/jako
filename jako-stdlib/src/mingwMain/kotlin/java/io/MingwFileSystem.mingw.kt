@@ -6,6 +6,17 @@ import platform.posix.*
 internal actual fun nativeGetPosixMode(path: String): Int = NativeFileSystem.getPosixMode(path)
 internal actual fun nativeSetPosixMode(path: String, mode: Int): Boolean = NativeFileSystem.setPosixMode(path, mode)
 
+@OptIn(ExperimentalForeignApi::class)
+internal actual fun nativeRafSeek(file: CPointer<FILE>, offset: Long, whence: Int): Int =
+    _fseeki64(file, offset, whence)
+
+@OptIn(ExperimentalForeignApi::class)
+internal actual fun nativeRafTell(file: CPointer<FILE>): Long =
+    _ftelli64(file)
+
+internal actual fun nativeRafTruncate(fd: Int, length: Long): Int =
+    _chsize_s(fd, length)
+
 internal object NativeFileSystem {
     @OptIn(ExperimentalForeignApi::class)
     fun getCwd(): String = memScoped {

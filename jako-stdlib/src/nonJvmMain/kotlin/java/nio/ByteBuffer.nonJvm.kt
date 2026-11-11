@@ -226,6 +226,19 @@ actual open class ByteBuffer internal constructor(
         return b
     }
 
+    actual open fun compact(): ByteBuffer {
+        if (isReadOnly()) throw ReadOnlyBufferException()
+        val p = position()
+        val rem = remaining()
+        if (p > 0 && rem > 0) {
+            arrayData.copyInto(arrayData, offset, offset + p, offset + p + rem)
+        }
+        limit(capacity())
+        position(rem)
+        discardMark()
+        return this
+    }
+
     actual open fun duplicate(): ByteBuffer {
         val b = ByteBuffer(capacity(), hb, offset, isDirectBuffer, readOnly)
         b.limit(limit())
@@ -241,7 +254,7 @@ actual open class ByteBuffer internal constructor(
 
     actual override fun isReadOnly(): Boolean = readOnly
     actual override fun hasArray(): Boolean = hb != null && !readOnly && !isDirectBuffer
-    actual override fun array(): Any {
+    actual override fun array(): ByteArray {
         if (hb == null || isDirectBuffer) throw UnsupportedOperationException()
         if (readOnly) throw ReadOnlyBufferException()
         return hb

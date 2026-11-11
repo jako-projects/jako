@@ -19,11 +19,12 @@ expect open class ShortBuffer : Buffer, Comparable<ShortBuffer> {
     open fun put(src: ShortBuffer): ShortBuffer
     open fun order(): ByteOrder
     open fun asReadOnlyBuffer(): ShortBuffer
+    open fun compact(): ShortBuffer
     open fun duplicate(): ShortBuffer
     open fun slice(): ShortBuffer
     override fun isReadOnly(): Boolean
     override fun hasArray(): Boolean
-    override fun array(): Any
+    override fun array(): ShortArray
     override fun arrayOffset(): Int
     override fun isDirect(): Boolean
 

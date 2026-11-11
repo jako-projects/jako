@@ -45,14 +45,15 @@ class SSLTest {
         val context = SSLContext.getInstance("TLS")
         assertNotNull(context)
         assertEquals("TLS", context.getProtocol())
-        context.init(null, null, null)
+        context.init(null, null, SecureRandom())
         val factory = context.getSocketFactory()
         assertNotNull(factory)
         assertTrue(factory.getDefaultCipherSuites().isNotEmpty())
         assertTrue(factory.getSupportedCipherSuites().isNotEmpty())
 
-        val defaultFactory = SSLSocketFactory.getDefault()
+        val defaultFactory: javax.net.SocketFactory = SSLSocketFactory.getDefault()
         assertNotNull(defaultFactory)
+        assertTrue(defaultFactory is SSLSocketFactory)
     }
 
     @Test
@@ -167,6 +168,8 @@ class SSLTest {
             assertTrue(peerCerts.isNotEmpty())
             val leaf = peerCerts[0] as X509Certificate
             assertEquals(BigInteger.valueOf(0x12345678L), leaf.getSerialNumber())
+            val peerPrincipal: Principal = session.getPeerPrincipal()
+            assertTrue(peerPrincipal.getName().contains("CN=localhost"))
 
             val out = sslSocket.getOutputStream()
             val inp = sslSocket.getInputStream()

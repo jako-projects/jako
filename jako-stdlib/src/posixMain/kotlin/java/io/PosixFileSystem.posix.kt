@@ -8,6 +8,18 @@ internal expect fun posixStatMtimeMillis(path: String): Long
 internal actual fun nativeGetPosixMode(path: String): Int = NativeFileSystem.getPosixMode(path)
 internal actual fun nativeSetPosixMode(path: String, mode: Int): Boolean = NativeFileSystem.setPosixMode(path, mode)
 
+@OptIn(ExperimentalForeignApi::class, UnsafeNumber::class)
+internal actual fun nativeRafSeek(file: CPointer<FILE>, offset: Long, whence: Int): Int =
+    fseeko(file, offset.convert(), whence)
+
+@OptIn(ExperimentalForeignApi::class, UnsafeNumber::class)
+internal actual fun nativeRafTell(file: CPointer<FILE>): Long =
+    ftello(file).convert()
+
+@OptIn(ExperimentalForeignApi::class, UnsafeNumber::class)
+internal actual fun nativeRafTruncate(fd: Int, length: Long): Int =
+    ftruncate(fd, length.convert())
+
 internal object NativeFileSystem {
     @OptIn(ExperimentalForeignApi::class)
     fun getCwd(): String = memScoped {

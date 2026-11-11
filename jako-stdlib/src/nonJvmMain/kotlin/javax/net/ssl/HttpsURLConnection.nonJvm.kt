@@ -125,7 +125,7 @@ actual abstract class HttpsURLConnection protected actual constructor(url: URL?)
 
     actual companion object {
         private var defaultHostnameVerifierInstance: HostnameVerifier = DefaultHostnameVerifier
-        private var defaultSSLSocketFactoryInstance: SSLSocketFactory = SSLSocketFactory.getDefault()
+        private var defaultSSLSocketFactoryInstance: SSLSocketFactory = SSLSocketFactory.getDefault() as SSLSocketFactory
 
         actual fun getDefaultHostnameVerifier(): HostnameVerifier = defaultHostnameVerifierInstance
         actual fun setDefaultHostnameVerifier(v: HostnameVerifier) {

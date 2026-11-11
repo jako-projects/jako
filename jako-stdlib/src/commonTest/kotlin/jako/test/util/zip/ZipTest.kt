@@ -527,6 +527,206 @@ class ZipTest {
         }
     }
 
+    @Test
+    fun testEmptyZipFinish() {
+        val baos = ByteArrayOutputStream()
+        val zos = ZipOutputStream(baos)
+        try {
+            zos.finish()
+        } finally {
+            zos.close()
+        }
+        val zipBytes = baos.toByteArray()
+        val zis = ZipInputStream(ByteArrayInputStream(zipBytes))
+        try {
+            assertNull(zis.getNextEntry())
+        } finally {
+            zis.close()
+        }
+
+        val tmpBase = File(System.getProperty("java.io.tmpdir") ?: "/tmp")
+        val tmp = File(tmpBase, "jako_zip_test_empty_" + System.currentTimeMillis() + ".zip")
+        try {
+            tmp.writeBytes(zipBytes)
+            val zf = ZipFile(tmp)
+            try {
+                assertEquals(0, zf.size())
+                assertNull(zf.getComment())
+            } finally {
+                zf.close()
+            }
+        } finally {
+            tmp.delete()
+        }
+    }
+
+    @Test
+    fun testDuplicateEntryThrows() {
+        val zos = ZipOutputStream(ByteArrayOutputStream())
+        try {
+            zos.putNextEntry(ZipEntry("a"))
+            assertFailsWith<ZipException> {
+                zos.putNextEntry(ZipEntry("a"))
+            }
+        } finally {
+            zos.close()
+        }
+    }
+
+    @Test
+    fun testStoredEntryInvalidMetadataThrows() {
+        val zos = ZipOutputStream(ByteArrayOutputStream())
+        try {
+            val missing = ZipEntry("missing")
+            missing.method = ZipEntry.STORED
+            assertFailsWith<ZipException> {
+                zos.putNextEntry(missing)
+            }
+
+            val mismatch = ZipEntry("mismatch")
+            mismatch.method = ZipEntry.STORED
+            mismatch.size = 1L
+            mismatch.compressedSize = 2L
+            mismatch.crc = 0L
+            assertFailsWith<ZipException> {
+                zos.putNextEntry(mismatch)
+            }
+        } finally {
+            zos.close()
+        }
+    }
+
+    @Test
+    fun testWriteBeforeEntryThrows() {
+        val zos = ZipOutputStream(ByteArrayOutputStream())
+        try {
+            assertFailsWith<ZipException> {
+                zos.write(1)
+            }
+        } finally {
+            zos.close()
+        }
+    }
+
+    @Test
+    fun testInvalidMethodNameAndComment() {
+        assertFailsWith<IllegalArgumentException> {
+            ZipEntry("n").setMethod(99)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            ZipEntry("a".repeat(65536))
+        }
+        val zos = ZipOutputStream(ByteArrayOutputStream())
+        try {
+            assertFailsWith<IllegalArgumentException> {
+                zos.setMethod(99)
+            }
+            assertFailsWith<IllegalArgumentException> {
+                zos.setComment("a".repeat(65536))
+            }
+        } finally {
+            zos.close()
+        }
+    }
+
+    @Test
+    fun testEmptyEntryAndDirectory() {
+        val baos = ByteArrayOutputStream()
+        val zos = ZipOutputStream(baos)
+        try {
+            zos.putNextEntry(ZipEntry("empty.txt"))
+            zos.closeEntry()
+            zos.putNextEntry(ZipEntry("empty-dir/"))
+            zos.closeEntry()
+            zos.finish()
+        } finally {
+            zos.close()
+        }
+
+        val zis = ZipInputStream(ByteArrayInputStream(baos.toByteArray()))
+        try {
+            val emptyFile = zis.getNextEntry()
+            assertNotNull(emptyFile)
+            assertEquals("empty.txt", emptyFile!!.name)
+            assertContentEquals(ByteArray(0), readAll(zis))
+
+            val emptyDir = zis.getNextEntry()
+            assertNotNull(emptyDir)
+            assertEquals("empty-dir/", emptyDir!!.name)
+            assertTrue(emptyDir.isDirectory)
+            assertContentEquals(ByteArray(0), readAll(zis))
+        } finally {
+            zis.close()
+        }
+    }
+
+    @Test
+    fun testArchiveCommentAndEntryExtra() {
+        val baos = ByteArrayOutputStream()
+        val zos = ZipOutputStream(baos)
+        try {
+            zos.setComment("café")
+            val entry = ZipEntry("n")
+            entry.comment = "e"
+            entry.extra = byteArrayOf(1, 2)
+            zos.putNextEntry(entry)
+            zos.closeEntry()
+            zos.finish()
+        } finally {
+            zos.close()
+        }
+        val zipBytes = baos.toByteArray()
+
+        val zis = ZipInputStream(ByteArrayInputStream(zipBytes))
+        try {
+            val streamed = zis.getNextEntry()
+            assertNotNull(streamed)
+            assertEquals("n", streamed!!.name)
+            assertContentEquals(ByteArray(0), readAll(zis))
+        } finally {
+            zis.close()
+        }
+
+        val tmpBase = File(System.getProperty("java.io.tmpdir") ?: "/tmp")
+        val tmp = File(tmpBase, "jako_zip_test_meta_" + System.currentTimeMillis() + ".zip")
+        try {
+            tmp.writeBytes(zipBytes)
+            val zf = ZipFile(tmp)
+            try {
+                assertEquals("café", zf.getComment())
+                val stored = zf.getEntry("n")
+                assertNotNull(stored)
+                assertEquals("e", stored!!.comment)
+                assertContentEquals(byteArrayOf(1, 2), stored.extra)
+            } finally {
+                zf.close()
+            }
+        } finally {
+            tmp.delete()
+        }
+    }
+
+    @Test
+    fun testEmptyGzipFinish() {
+        val baos = ByteArrayOutputStream()
+        val gos = GZIPOutputStream(baos)
+        try {
+            gos.finish()
+        } finally {
+            gos.close()
+        }
+        val compressed = baos.toByteArray()
+        assertEquals(0x1f, compressed[0].toInt() and 0xFF)
+        assertEquals(0x8b, compressed[1].toInt() and 0xFF)
+
+        val gis = GZIPInputStream(ByteArrayInputStream(compressed))
+        try {
+            assertContentEquals(ByteArray(0), readAll(gis))
+        } finally {
+            gis.close()
+        }
+    }
+
     private fun readAll(input: java.io.InputStream): ByteArray {
         val out = ByteArrayOutputStream()
         val buf = ByteArray(64)

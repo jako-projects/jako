@@ -236,18 +236,25 @@ internal actual object NodeBridge {
 
     actual fun randomBytesLatin1(length: Int): String {
         if (length <= 0) return ""
-        return withScopedMemoryAllocator { allocator ->
-            val bufPtr = allocator.allocate(length)
-            val err = wasiRandomGet(bufPtr.address.toInt(), length)
-            if (err == 0) {
-                val chars = CharArray(length) { i -> ((bufPtr + i).loadByte().toInt() and 0xFF).toChar() }
-                chars.concatToString()
-            } else {
-                val bytes = ByteArray(length)
-                kotlin.random.Random.nextBytes(bytes)
-                bytes.toLatin1String()
+        val chars = CharArray(length)
+        var offset = 0
+        val maxChunk = 65536
+        withScopedMemoryAllocator { allocator ->
+            val bufLen = minOf(length, maxChunk)
+            val bufPtr = allocator.allocate(bufLen)
+            while (offset < length) {
+                val chunk = minOf(maxChunk, length - offset)
+                val err = wasiRandomGet(bufPtr.address.toInt(), chunk)
+                if (err != 0) {
+                    throw IllegalStateException("SecureRandom WASI random_get failed with errno $err")
+                }
+                for (i in 0 until chunk) {
+                    chars[offset + i] = ((bufPtr + i).loadByte().toInt() and 0xFF).toChar()
+                }
+                offset += chunk
             }
         }
+        return chars.concatToString()
     }
 
     private fun normalizeAbsoluteSegments(rawPath: String): List<String> {

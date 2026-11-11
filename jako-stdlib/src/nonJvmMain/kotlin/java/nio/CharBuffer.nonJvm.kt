@@ -139,6 +139,21 @@ actual open class CharBuffer internal constructor(
         return b
     }
 
+    actual open fun compact(): CharBuffer {
+        if (readOnly) throw ReadOnlyBufferException()
+        val p = position()
+        val rem = remaining()
+        if (p > 0 && rem > 0) {
+            for (i in 0 until rem) {
+                setAbsolute(i, getAbsolute(p + i))
+            }
+        }
+        limit(capacity())
+        position(rem)
+        discardMark()
+        return this
+    }
+
     actual open fun duplicate(): CharBuffer {
         val b = copyView(readOnly)
         b.limit(limit())
@@ -176,7 +191,7 @@ actual open class CharBuffer internal constructor(
 
     actual override fun isReadOnly(): Boolean = readOnly
     actual override fun hasArray(): Boolean = hb != null && !readOnly
-    actual override fun array(): Any {
+    actual override fun array(): CharArray {
         if (hb == null) throw UnsupportedOperationException()
         if (readOnly) throw ReadOnlyBufferException()
         return hb
@@ -190,6 +205,7 @@ actual open class CharBuffer internal constructor(
 
     actual override val isReadOnly: Boolean get() = isReadOnly()
     actual override val isDirect: Boolean get() = isDirect()
+    actual open val length: Int get() = length()
     actual val order: ByteOrder get() = order()
 
     actual override fun compareTo(other: CharBuffer): Int {

@@ -6,6 +6,8 @@ expect open class ObjectInputStream : InputStream, ObjectInput, ObjectStreamCons
     constructor(inStream: InputStream)
     protected constructor()
     override fun readObject(): Any?
+    open fun readUnshared(): Any?
+    open fun defaultReadObject()
     override fun read(): Int
     override fun read(b: ByteArray, off: Int, len: Int): Int
     override fun available(): Int

@@ -117,6 +117,21 @@ actual open class LongBuffer internal constructor(
         return b
     }
 
+    actual open fun compact(): LongBuffer {
+        if (readOnly) throw ReadOnlyBufferException()
+        val p = position()
+        val rem = remaining()
+        if (p > 0 && rem > 0) {
+            for (i in 0 until rem) {
+                setAbsolute(i, getAbsolute(p + i))
+            }
+        }
+        limit(capacity())
+        position(rem)
+        discardMark()
+        return this
+    }
+
     actual open fun duplicate(): LongBuffer {
         val b = copyView(readOnly)
         b.limit(limit())
@@ -135,7 +150,7 @@ actual open class LongBuffer internal constructor(
 
     actual override fun isReadOnly(): Boolean = readOnly
     actual override fun hasArray(): Boolean = hb != null && !readOnly
-    actual override fun array(): Any {
+    actual override fun array(): LongArray {
         if (hb == null) throw UnsupportedOperationException()
         if (readOnly) throw ReadOnlyBufferException()
         return hb

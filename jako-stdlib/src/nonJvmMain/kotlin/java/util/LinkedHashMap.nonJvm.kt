@@ -5,7 +5,7 @@ import java.lang.Cloneable
 
 actual open class LinkedHashMap<K, V> : MutableMap<K, V>, Cloneable, Serializable {
     private val map: kotlin.collections.LinkedHashMap<K, V>
-    private val accessOrder: Boolean
+    internal val accessOrder: Boolean
 
     actual constructor(initialCapacity: Int, loadFactor: Float, accessOrder: Boolean) {
         this.map = kotlin.collections.LinkedHashMap(initialCapacity, loadFactor)

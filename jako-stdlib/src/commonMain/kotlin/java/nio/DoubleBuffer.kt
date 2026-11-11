@@ -19,11 +19,12 @@ expect open class DoubleBuffer : Buffer, Comparable<DoubleBuffer> {
     open fun put(src: DoubleBuffer): DoubleBuffer
     open fun order(): ByteOrder
     open fun asReadOnlyBuffer(): DoubleBuffer
+    open fun compact(): DoubleBuffer
     open fun duplicate(): DoubleBuffer
     open fun slice(): DoubleBuffer
     override fun isReadOnly(): Boolean
     override fun hasArray(): Boolean
-    override fun array(): Any
+    override fun array(): DoubleArray
     override fun arrayOffset(): Int
     override fun isDirect(): Boolean
 

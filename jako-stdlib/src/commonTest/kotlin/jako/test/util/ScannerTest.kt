@@ -1,8 +1,11 @@
 package jako.test.util
 
+import java.util.InputMismatchException
+import java.util.NoSuchElementException
 import java.util.Scanner
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -54,5 +57,44 @@ class ScannerTest {
         assertEquals("cherry", scanner.next())
         assertFalse(scanner.hasNext())
         scanner.close()
+    }
+
+    @Test
+    fun testEmptyAndWhitespace() {
+        val empty = Scanner("")
+        assertFalse(empty.hasNext())
+        assertFailsWith<NoSuchElementException> {
+            empty.next()
+        }
+        empty.close()
+
+        val whitespace = Scanner(" \n\t")
+        assertFailsWith<NoSuchElementException> {
+            whitespace.next()
+        }
+        whitespace.close()
+    }
+
+    @Test
+    fun testNextIntMismatchKeepsToken() {
+        val scanner = Scanner("abc 5")
+        assertFailsWith<InputMismatchException> {
+            scanner.nextInt()
+        }
+        assertEquals("abc", scanner.next())
+        scanner.close()
+    }
+
+    @Test
+    fun testNextIntOverflowAndNegativeZero() {
+        val overflow = Scanner("2147483648")
+        assertFailsWith<InputMismatchException> {
+            overflow.nextInt()
+        }
+        overflow.close()
+
+        val negativeZero = Scanner("-0")
+        assertEquals(0, negativeZero.nextInt())
+        negativeZero.close()
     }
 }

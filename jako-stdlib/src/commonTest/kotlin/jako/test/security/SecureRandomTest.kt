@@ -35,4 +35,16 @@ class SecureRandomTest {
         // Ensure execution without throwing
         assertTrue(boolVal || !boolVal)
     }
+
+    @Test
+    fun testLargeBufferExceeding64KiBQuota() {
+        val sr = SecureRandom()
+        val large = ByteArray(100_000)
+        sr.nextBytes(large)
+        val firstSlice = large.copyOfRange(0, 64)
+        val lastSlice = large.copyOfRange(large.size - 64, large.size)
+        assertTrue(firstSlice.any { it.toInt() != 0 }, "First 64 bytes should not be all zeros")
+        assertTrue(lastSlice.any { it.toInt() != 0 }, "Last 64 bytes past 65536 boundary should not be all zeros")
+        assertFalse(firstSlice.contentEquals(lastSlice), "Slices across 64KiB boundary must not repeat")
+    }
 }

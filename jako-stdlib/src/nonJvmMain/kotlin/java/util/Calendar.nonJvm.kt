@@ -2,6 +2,11 @@ package java.util
 
 import java.io.Serializable
 import java.lang.Cloneable
+import java.time.LocalDateTime
+import java.time.ZoneId
+import java.time.ZoneOffset
+
+private val DAYS_BEFORE_MONTH = intArrayOf(0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334)
 
 internal fun Long.floorDiv(other: Long): Long {
     val r = this / other
@@ -30,7 +35,9 @@ internal fun Int.floorMod(other: Int): Int {
 actual open class Calendar : Serializable, Cloneable, Comparable<Calendar> {
     actual var isLenient: Boolean = true
     private var timeInMillisVal: Long = 0L
-    private var isFieldsSet = false
+    private var isTimeSet = true
+    private var areFieldsSet = false
+    private var fieldsExternallySet = false
 
     private var year: Int = 1970
     private var month: Int = 0 // 0-based
@@ -44,11 +51,13 @@ actual open class Calendar : Serializable, Cloneable, Comparable<Calendar> {
 
     actual var timeInMillis: Long
         get() {
-            if (!isFieldsSet) computeFields()
+            complete()
             return timeInMillisVal
         }
         set(value) {
             timeInMillisVal = value
+            isTimeSet = true
+            fieldsExternallySet = false
             computeFields()
         }
 
@@ -73,16 +82,20 @@ actual open class Calendar : Serializable, Cloneable, Comparable<Calendar> {
     actual fun getTimeZone(): TimeZone = tz
     actual fun setTimeZone(value: TimeZone) {
         this.tz = value
-        computeFields()
+        areFieldsSet = false
+        if (isTimeSet) {
+            computeFields()
+        }
     }
 
     actual open fun get(field: Int): Int {
-        if (!isFieldsSet) computeFields()
+        complete()
         return when (field) {
             ERA -> if (year >= 1) 1 else 0
             YEAR -> year
             MONTH -> month
             DAY_OF_MONTH, DATE -> dayOfMonth
+            DAY_OF_YEAR -> dayOfYear(year, month, dayOfMonth)
             DAY_OF_WEEK -> dayOfWeek
             HOUR_OF_DAY -> hourOfDay
             HOUR -> hourOfDay % 12
@@ -97,7 +110,7 @@ actual open class Calendar : Serializable, Cloneable, Comparable<Calendar> {
     }
 
     actual open fun set(field: Int, value: Int) {
-        if (!isFieldsSet) computeFields()
+        ensureFields()
         when (field) {
             YEAR -> year = value
             MONTH -> month = value
@@ -110,46 +123,50 @@ actual open class Calendar : Serializable, Cloneable, Comparable<Calendar> {
             MILLISECOND -> millisecond = value
             DAY_OF_WEEK -> dayOfWeek = value
         }
-        computeTime()
+        invalidateTime()
     }
 
     actual fun set(year: Int, month: Int, date: Int) {
-        if (!isFieldsSet) computeFields()
+        ensureFields()
         this.year = year
         this.month = month
         this.dayOfMonth = date
-        computeTime()
+        invalidateTime()
     }
 
     actual fun set(year: Int, month: Int, date: Int, hourOfDay: Int, minute: Int) {
-        if (!isFieldsSet) computeFields()
+        ensureFields()
         this.year = year
         this.month = month
         this.dayOfMonth = date
         this.hourOfDay = hourOfDay
         this.minute = minute
-        computeTime()
+        invalidateTime()
     }
 
     actual fun set(year: Int, month: Int, date: Int, hourOfDay: Int, minute: Int, second: Int) {
-        if (!isFieldsSet) computeFields()
+        ensureFields()
         this.year = year
         this.month = month
         this.dayOfMonth = date
         this.hourOfDay = hourOfDay
         this.minute = minute
         this.second = second
-        computeTime()
+        invalidateTime()
     }
 
     actual fun add(field: Int, amount: Int) {
-        if (!isFieldsSet) computeFields()
+        complete()
         when (field) {
-            YEAR -> year += amount
+            YEAR -> {
+                year += amount
+                pinDayOfMonth()
+            }
             MONTH -> {
                 val totalMonths = year * 12 + month + amount
                 year = totalMonths.floorDiv(12)
                 month = totalMonths.floorMod(12)
+                pinDayOfMonth()
             }
             DAY_OF_MONTH, DATE -> dayOfMonth += amount
             HOUR_OF_DAY, HOUR -> hourOfDay += amount
@@ -157,6 +174,9 @@ actual open class Calendar : Serializable, Cloneable, Comparable<Calendar> {
             SECOND -> second += amount
             MILLISECOND -> millisecond += amount
         }
+        fieldsExternallySet = false
+        isTimeSet = false
+        areFieldsSet = false
         computeTime()
     }
 
@@ -191,10 +211,43 @@ actual open class Calendar : Serializable, Cloneable, Comparable<Calendar> {
         // Sunday = 1, Monday = 2, ..., Saturday = 7
         val dow = ((epochDays + 4L).floorMod(7L) + 7L).floorMod(7L) + 1L
         dayOfWeek = dow.toInt()
-        isFieldsSet = true
+        areFieldsSet = true
     }
 
     private fun computeTime() {
+        val origYear = year
+        val origMonth = month
+        val origDay = dayOfMonth
+        val origHour = hourOfDay
+        val origMinute = minute
+        val origSecond = second
+        val origMilli = millisecond
+
+        val localMillis = localMillisFromFields()
+        val (wallMillis, offsetMillis) = resolveWallMillis(localMillis)
+        timeInMillisVal = wallMillis - offsetMillis
+        computeFields()
+
+        val normalizedAway = year != origYear || month != origMonth || dayOfMonth != origDay ||
+            hourOfDay != origHour || minute != origMinute || second != origSecond ||
+            millisecond != origMilli
+        if (fieldsExternallySet && !isLenient && normalizedAway) {
+            year = origYear
+            month = origMonth
+            dayOfMonth = origDay
+            hourOfDay = origHour
+            minute = origMinute
+            second = origSecond
+            millisecond = origMilli
+            isTimeSet = false
+            areFieldsSet = false
+            throw IllegalArgumentException()
+        }
+        isTimeSet = true
+        fieldsExternallySet = false
+    }
+
+    private fun localMillisFromFields(): Long {
         val totalMonths = year.toLong() * 12L + month.toLong()
         var y = totalMonths.floorDiv(12L)
         var m = totalMonths.floorMod(12L) + 1L
@@ -209,11 +262,67 @@ actual open class Calendar : Serializable, Cloneable, Comparable<Calendar> {
         val epochDays = era * 146097L + doe - 719468L
 
         val dayMillis = (hourOfDay * 3600L + minute * 60L + second) * 1000L + millisecond
-        val localMillis = epochDays * 86400000L + dayMillis
-        val approxUtc = localMillis - tz.rawOffset
-        val actualOffset = tz.getOffset(approxUtc)
-        timeInMillisVal = localMillis - actualOffset
-        computeFields()
+        return epochDays * 86400000L + dayMillis
+    }
+
+    /**
+     * Wall time is encoded as a UTC epoch millis value. DST gaps move forward one hour.
+     * Overlaps use the standard offset; [java.time.ZonedDateTime] keeps the earlier DST offset instead.
+     */
+    private fun resolveWallMillis(localMillis: Long): Pair<Long, Int> {
+        val spec = ZoneId.namedRuleSpec(tz.getID())
+        if (spec == null || !spec.usesDst) {
+            return localMillis to tz.rawOffset
+        }
+        val epochSecond = localMillis.floorDiv(1000L)
+        val nano = (localMillis.floorMod(1000L) * 1_000_000L).toInt()
+        val wall = LocalDateTime.ofEpochSecond(epochSecond, nano, ZoneOffset.UTC)
+        val (resolved, offset) = spec.resolveLocal(wall, spec.stdOffset)
+        val resolvedMillis = resolved.toEpochSecond(ZoneOffset.UTC) * 1000L + resolved.nano / 1_000_000L
+        return resolvedMillis to offset.totalSeconds * 1000
+    }
+
+    private fun ensureFields() {
+        if (!areFieldsSet && isTimeSet) {
+            computeFields()
+        }
+    }
+
+    private fun invalidateTime() {
+        isTimeSet = false
+        areFieldsSet = false
+        fieldsExternallySet = true
+    }
+
+    private fun complete() {
+        if (!isTimeSet) {
+            computeTime()
+        } else if (!areFieldsSet) {
+            computeFields()
+        }
+    }
+
+    private fun pinDayOfMonth() {
+        val maxDay = lengthOfMonth(year, month)
+        if (dayOfMonth > maxDay) {
+            dayOfMonth = maxDay
+        }
+    }
+
+    private fun lengthOfMonth(y: Int, m: Int): Int = when (m) {
+        APRIL, JUNE, SEPTEMBER, NOVEMBER -> 30
+        FEBRUARY -> if (isLeapYear(y)) 29 else 28
+        else -> 31
+    }
+
+    private fun isLeapYear(y: Int): Boolean = y % 4 == 0 && (y % 100 != 0 || y % 400 == 0)
+
+    private fun dayOfYear(y: Int, m: Int, day: Int): Int {
+        var doy = DAYS_BEFORE_MONTH[m] + day
+        if (m > FEBRUARY && isLeapYear(y)) {
+            doy += 1
+        }
+        return doy
     }
 
     actual companion object {

@@ -7,6 +7,10 @@ actual abstract class Buffer(
     private var pos: Int = 0
     private var mrk: Int = -1
 
+    internal fun discardMark() {
+        mrk = -1
+    }
+
     actual open fun capacity(): Int = cap
     actual open fun position(): Int = pos
 

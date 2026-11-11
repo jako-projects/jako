@@ -8,9 +8,11 @@ import java.util.zip.CheckedInputStream
 import java.util.zip.CheckedOutputStream
 import java.util.zip.DeflaterInputStream
 import java.util.zip.InflaterOutputStream
+import java.util.zip.ZipException
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 
 class ZipFilterStreamsTest {
@@ -75,5 +77,94 @@ class ZipFilterStreamsTest {
         infOut.close()
 
         assertContentEquals(original, decompressedOut.toByteArray())
+    }
+
+    @Test
+    fun testCheckedStreamsWithoutBytes() {
+        val crc = CRC32()
+        val checkedCrc = CheckedOutputStream(ByteArrayOutputStream(), crc)
+        checkedCrc.close()
+        assertEquals(0L, checkedCrc.checksum.value)
+
+        val adler = Adler32()
+        val checkedAdler = CheckedOutputStream(ByteArrayOutputStream(), adler)
+        checkedAdler.close()
+        assertEquals(1L, checkedAdler.checksum.value)
+
+        val emptyCrc = CRC32()
+        val emptyIn = CheckedInputStream(ByteArrayInputStream(ByteArray(0)), emptyCrc)
+        try {
+            assertEquals(-1, emptyIn.read())
+            assertEquals(0L, emptyIn.checksum.value)
+        } finally {
+            emptyIn.close()
+        }
+
+        val data = "123456789".encodeToByteArray()
+        val knownCrc = CRC32()
+        val knownIn = CheckedInputStream(ByteArrayInputStream(data), knownCrc)
+        try {
+            val buf = ByteArray(data.size)
+            assertEquals(data.size, knownIn.read(buf, 0, buf.size))
+            assertEquals(3421780262L, knownIn.checksum.value)
+        } finally {
+            knownIn.close()
+        }
+    }
+
+    @Test
+    fun testEmptyDeflaterInputStreamRoundtrip() {
+        val defIn = DeflaterInputStream(ByteArrayInputStream(ByteArray(0)))
+        val compressedOut = ByteArrayOutputStream()
+        try {
+            val buf = ByteArray(64)
+            while (true) {
+                val n = defIn.read(buf, 0, buf.size)
+                if (n < 0) break
+                compressedOut.write(buf, 0, n)
+            }
+        } finally {
+            defIn.close()
+        }
+
+        val decompressedOut = ByteArrayOutputStream()
+        val infOut = InflaterOutputStream(decompressedOut)
+        try {
+            infOut.write(compressedOut.toByteArray())
+            infOut.finish()
+        } finally {
+            infOut.close()
+        }
+        assertContentEquals(ByteArray(0), decompressedOut.toByteArray())
+    }
+
+    @Test
+    fun testInflaterOutputStreamPlainBytesThrowZipException() {
+        val infOut = InflaterOutputStream(ByteArrayOutputStream())
+        try {
+            assertFailsWith<ZipException> {
+                infOut.write(byteArrayOf(1, 2, 3, 4))
+            }
+            assertFailsWith<ZipException> {
+                infOut.finish()
+            }
+        } finally {
+            try {
+                infOut.close()
+            } catch (_: ZipException) {
+            }
+        }
+    }
+
+    @Test
+    fun testDeflaterInputStreamSkipNegative() {
+        val defIn = DeflaterInputStream(ByteArrayInputStream(ByteArray(0)))
+        try {
+            assertFailsWith<IllegalArgumentException> {
+                defIn.skip(-1L)
+            }
+        } finally {
+            defIn.close()
+        }
     }
 }

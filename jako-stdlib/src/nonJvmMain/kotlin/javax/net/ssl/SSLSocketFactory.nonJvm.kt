@@ -13,7 +13,7 @@ actual abstract class SSLSocketFactory actual constructor() : javax.net.SocketFa
     actual open val supportedCipherSuites: Array<String> get() = getSupportedCipherSuites()
 
     actual companion object {
-        actual fun getDefault(): SSLSocketFactory = NativeSSLSocketFactory(null)
+        actual fun getDefault(): javax.net.SocketFactory = NativeSSLSocketFactory(null)
     }
 }
 

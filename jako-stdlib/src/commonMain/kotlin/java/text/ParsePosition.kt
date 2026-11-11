@@ -3,7 +3,6 @@
 package java.text
 
 expect class ParsePosition {
-    constructor()
     constructor(index: Int)
     fun getIndex(): Int
     fun setIndex(index: Int)
