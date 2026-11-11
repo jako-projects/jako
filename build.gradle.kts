@@ -4,6 +4,7 @@ import org.gradle.api.tasks.testing.TestDescriptor
 import org.gradle.api.tasks.testing.TestResult
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.gradle.api.tasks.testing.logging.TestLogEvent
+import org.gradle.jvm.tasks.Jar
 
 plugins {
     kotlin("multiplatform") version "2.4.21" apply false
@@ -13,6 +14,15 @@ plugins {
 subprojects {
     group = providers.gradleProperty("GROUP").get()
     version = providers.gradleProperty("VERSION_NAME").get()
+
+    tasks.withType<Jar>().configureEach {
+        from(rootProject.file("LICENSE")) {
+            into("META-INF")
+        }
+        from(rootProject.file("NOTICE")) {
+            into("META-INF")
+        }
+    }
 
     tasks.withType<Test>().configureEach {
         systemProperty(

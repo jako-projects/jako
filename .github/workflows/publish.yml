@@ -99,6 +99,12 @@ jobs:
       - name: Setup Gradle Cache
         uses: gradle/actions/setup-gradle@v3
 
+      - name: Verify build and unit tests
+        shell: bash
+        run: |
+          chmod +x ./gradlew
+          ./gradlew test jvmTest --stacktrace
+
       - name: Publish to Maven Central
         env:
           PUBLISH_VERSION: ${{ steps.version.outputs.version }}
@@ -116,14 +122,16 @@ jobs:
         run: bash .github/scripts/tag-version.sh "$PUBLISH_VERSION"
 
       - name: Create GitHub Release
-        if: steps.version.outputs.create_tag == 'true'
+        if: (steps.version.outputs.create_tag == 'true' || startsWith(github.ref, 'refs/tags/v')) && !contains(steps.version.outputs.version, '-dev-')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.version.outputs.version }}
         shell: bash
         run: |
           tag="v${VERSION}"
-          if printf '%s' "$VERSION" | grep -Eq -- '-rc-[0-9]+$'; then
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "GitHub Release $tag already exists."
+          elif printf '%s' "$VERSION" | grep -Eq -- '-rc-[0-9]+$'; then
             gh release create "$tag" --title "$tag" --prerelease --generate-notes
           else
             gh release create "$tag" --title "$tag" --latest --generate-notes

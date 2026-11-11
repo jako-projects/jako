@@ -1,0 +1,69 @@
+jako
+Copyright (c) 2026 Benny Huo
+Licensed under the MIT License (see LICENSE).
+
+================================================================================
+Third-Party Notices, Bundled Components & Upstream API Attributions
+================================================================================
+
+1. Bundled Third-Party Components
+---------------------------------
+
+* JetBrains Kotlin Parcelize Compiler (`org.jetbrains.kotlin:kotlin-parcelize-compiler`)
+  - Bundled in binary artifact: `com.bennyhuo.jako:jako-compiler-plugin`
+    (`org/jetbrains/kotlin/parcelize/**`)
+  - Copyright 2010-2026 JetBrains s.r.o. and Kotlin Programming Language contributors.
+  - License: Apache License 2.0 (see `licenses/APACHE-2.0.txt`)
+  - Source: https://github.com/JetBrains/kotlin/tree/master/plugins/parcelize
+
+
+2. Upstream API Specifications & Clean-Room Multiplatform Implementations
+-------------------------------------------------------------------------
+
+* JetBrains Kotlin Standard Library & Parcelize Runtime APIs
+  (`kotlin.*` stdlib extensions in `jako-stdlib`, `kotlinx.parcelize.*` in `jako-android`)
+  - Multiplatform API signatures and behavior aligned with official JetBrains Kotlin libraries.
+  - Copyright 2010-2026 JetBrains s.r.o. and Kotlin Programming Language contributors.
+  - License: Apache License 2.0 (see `licenses/APACHE-2.0.txt`)
+  - Source: https://github.com/JetBrains/kotlin
+
+* Android Open Source Project (AOSP) Framework & Clean-Room `org.json` APIs
+  (`android.*` and `org.json.*` packages in `jako-android`)
+  - Independent Kotlin Multiplatform implementations aligned with Android API Level 29
+    public signatures and AOSP's Apache-2.0 `org.json` specification.
+  - Copyright (C) The Android Open Source Project.
+  - License: Apache License 2.0 (see `licenses/APACHE-2.0.txt`)
+  - Source: https://source.android.com/
+
+* XMLPull v1 API (`org.xmlpull.v1.*` in `jako-android`)
+  - Independent Kotlin Multiplatform implementation of the XMLPull v1 streaming XML API.
+  - Placed in the Public Domain by initial authors Stefan Haustein and Aleksander Slominski.
+  - License: Public Domain (see `licenses/XMLPULL-PUBLIC-DOMAIN.txt`)
+  - Source: http://www.xmlpull.org/
+
+* Java SE 8 Standard Library API Specifications (`java.*`, `javax.*` in `jako-stdlib`)
+  - `jako-stdlib` is an independent, clean-room Kotlin Multiplatform implementation aligned
+    with Java SE 8 public class, interface, and method signatures for cross-platform
+    source compatibility. No OpenJDK or Oracle JDK source code or bytecode is copied
+    or redistributed in `jako`.
+
+
+3. Dynamically Linked Host Libraries & Build/Test-Only Dependencies (Not Redistributed)
+---------------------------------------------------------------------------------------
+
+* zlib (`platform.zlib` C-Interop on Kotlin/Native targets)
+  - Dynamically linked against the target platform's system zlib library; not bundled.
+  - Copyright (C) 1995-2024 Jean-loup Gailly and Mark Adler.
+  - License: zlib License (see `licenses/ZLIB.txt`)
+
+* OpenSSL (Optional host dynamic loading on Linux & Windows in `javax.net.ssl`)
+  - Loaded dynamically at runtime (`dlopen` / `LoadLibraryA`) only if installed on the
+    host operating system (`libssl` / `libcrypto`); never bundled or redistributed by `jako`.
+  - License: Apache License 2.0 for OpenSSL 3.x (`licenses/APACHE-2.0.txt`);
+    Dual OpenSSL and Original SSLeay License for OpenSSL 1.1.x (`licenses/OPENSSL-1.1.txt`).
+
+* Robolectric `android-all` (`org.robolectric:android-all`) & JUnit 5
+  - Used exclusively during local/CI build verification and parity testing (`compileOnly` /
+    `jvmTest`); never packaged or redistributed in published artifacts.
+  - License: Apache License 2.0 / MIT (`robolectric`) and Eclipse Public License 2.0 (`JUnit 5`).
+

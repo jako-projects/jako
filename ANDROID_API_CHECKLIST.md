@@ -2,9 +2,9 @@
 
 This document tracks the Android Framework API porting progress for `jako-android`.
 
-> **Architecture Note**: `jako-android` declares `android.*` `expect` APIs in `commonMain` and depends on `jako-stdlib` for `java.*` types.
-> On JVM / Android, `compileKotlinJvm` has empty sources (`jvmJar` contains zero `.class` files) so real Android SDK / AOSP classes are resolved directly.
-> On Native, each API is implemented under the same `android.*` packages using Kotlin / POSIX / Darwin APIs.
+> **Architecture Note**: `jako-android` ports Android Framework (`android.*`), `org.json.*`, `org.xmlpull.v1.*`, and `@Parcelize` APIs to **non-JVM** Kotlin Multiplatform targets (**Native**, **Node.js `js`**, **`wasmJs`**, and **`wasmWasi`**), building on `jako-stdlib` for `java.*` types.
+> On JVM, `jako-android-jvm.jar` contains **zero `android.*`, `dalvik.*`, or `kotlinx.parcelize.*` `.class` files** (only the lightweight `JakoApplication` configuration holder), preventing any classpath collision with the Android SDK or JVM libraries.
+> On Native and Web targets, each API is implemented under the canonical `android.*` packages using POSIX / Win32 / Node.js / WASI backends.
 
 ## Status Legend
 - [x] Implemented & Tested
